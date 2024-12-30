@@ -1,0 +1,300 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .search-results {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.375rem;
+        margin-top: 0.5rem;
+        background-color: white;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto space-y-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Manage Delivery</h1>
+                <p class="mt-1 text-sm text-gray-500">Source Warehouse: {{ source_warehouse.name }}</p>
+            </div>
+            <a href="{% url 'requisition:delivery_list' %}" class="text-sm text-gray-600 hover:text-gray-900">← Back to List</a>
+        </div>
+
+        <!-- Requisition Details -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Requisition Details</h2>
+            <dl class="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-3">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Status</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ requisition.get_status_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Created At</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ requisition.created_at|date:"F j, Y" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Requester</dt>
+                    <dd class="mt-1 text-sm text-gray-900">
+                        {{ requisition.requester.get_full_name }}
+                        {% if requisition.requester.customuser.attendance_user %}
+                            <span class="text-gray-500">({{ requisition.requester.customuser.attendance_user.role }})</span>
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+
+            <!-- Requested Items -->
+            <div class="mt-6 border-t border-gray-200 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">All Requested Items</h3>
+                <div class="space-y-4">
+                    {% for item in requisition.items.all %}
+                    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+                        <div class="p-4">
+                            <div class="flex items-start space-x-4">
+                                <!-- Item Image -->
+                                <div class="flex-shrink-0">
+                                    {% if item.item.image %}
+                                    <img class="h-24 w-24 object-cover rounded-lg border border-gray-200" 
+                                         src="{{ item.item.image.url }}" 
+                                         alt="{{ item.item.item_name }}">
+                                    {% else %}
+                                    <div class="h-24 w-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                                        <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Item Details -->
+                                <div class="flex-grow">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <h4 class="text-lg font-semibold text-gray-900">{{ item.item.item_name }}</h4>
+                                            <div class="mt-1 space-y-1">
+                                                <p class="text-sm text-gray-600">
+                                                    <span class="font-medium">Brand:</span> {{ item.item.brand }}
+                                                </p>
+                                                <p class="text-sm text-gray-600">
+                                                    <span class="font-medium">Model:</span> {{ item.item.model }}
+                                                </p>
+                                                <p class="text-sm text-gray-600">
+                                                    <span class="font-medium">Requested Quantity:</span> {{ item.quantity }}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <!-- Stock Status -->
+                                        <div class="flex flex-col items-end justify-between">
+                                            <div class="text-right">
+                                                {% for delivery_item in delivery_items %}
+                                                    {% if delivery_item.item.id == item.item.id %}
+                                                        {% if delivery_item.available_stock >= item.quantity %}
+                                                            <div class="inline-flex flex-col items-end">
+                                                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                                                    Available
+                                                                </span>
+                                                                <span class="mt-1 text-sm text-gray-600">
+                                                                    {{ delivery_item.available_stock }} in stock
+                                                                </span>
+                                                            </div>
+                                                        {% elif delivery_item.available_stock > 0 %}
+                                                            <div class="inline-flex flex-col items-end">
+                                                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                                                                    Partial
+                                                                </span>
+                                                                <span class="mt-1 text-sm text-gray-600">
+                                                                    {{ delivery_item.available_stock }} in stock
+                                                                </span>
+                                                            </div>
+                                                        {% else %}
+                                                            <div class="inline-flex flex-col items-end">
+                                                                <span class="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                                                    Not Available
+                                                                </span>
+                                                                <span class="mt-1 text-sm text-gray-500">
+                                                                    Out of stock
+                                                                </span>
+                                                            </div>
+                                                        {% endif %}
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Delivery Form -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-6">Delivery Information</h2>
+            
+            {% if delivery_items|length > 0 %}
+            <form id="deliveryForm" method="POST" class="space-y-6">
+                {% csrf_token %}
+                
+                <!-- Delivery Personnel Information -->
+                <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
+                    <div>
+                        <label for="delivery_personnel_name" class="block text-sm font-medium text-gray-700">Delivery Personnel Name</label>
+                        <input type="text" id="delivery_personnel_name" name="delivery_personnel_name" 
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" 
+                               required>
+                    </div>
+                    <div>
+                        <label for="delivery_personnel_phone" class="block text-sm font-medium text-gray-700">Contact Number</label>
+                        <input type="tel" id="delivery_personnel_phone" name="delivery_personnel_phone" 
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" 
+                               required
+                               pattern="^(63|09)\d{9}$"
+                               title="Phone number must be 11 digits and start with either '63' or '09'">
+                    </div>
+                </div>
+
+                <!-- Estimated Delivery Date -->
+                <div>
+                    <label for="estimated_delivery_date" class="block text-sm font-medium text-gray-700">Estimated Delivery Date</label>
+                    <input type="date" id="estimated_delivery_date" name="estimated_delivery_date" 
+                           class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500" 
+                           required>
+                </div>
+
+                <!-- Deliverable Items -->
+                <div class="mt-6">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Deliverable Items</h3>
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-yellow-800">Note</h3>
+                                <div class="mt-2 text-sm text-yellow-700">
+                                    <p>Only items with available stock are shown below and can be delivered.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-300">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Item</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Requested</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Available</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Delivery Quantity</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 bg-white">
+                                {% for item in delivery_items %}
+                                {% if item.available_stock > 0 %}
+                                <tr>
+                                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
+                                        <div class="font-medium text-gray-900">{{ item.item.item_name }}</div>
+                                        <div class="text-gray-500">{{ item.item.brand }} - {{ item.item.model }}</div>
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.requested_quantity }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.available_stock }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
+                                        <input type="number" 
+                                               name="quantity_{{ item.delivery_item.id }}" 
+                                               class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" 
+                                               value="{{ item.requested_quantity }}" 
+                                               min="1" 
+                                               max="{{ item.available_stock }}"
+                                               required>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex justify-end space-x-3">
+                    <a href="{% url 'requisition:delivery_list' %}" 
+                       class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Cancel
+                    </a>
+                    <button type="submit" 
+                            class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Start Delivery
+                    </button>
+                </div>
+            </form>
+            {% else %}
+            <div class="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-yellow-800">No Items Available</h3>
+                        <div class="mt-2 text-sm text-yellow-700">
+                            <p>There are no items available for delivery at this time.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('deliveryForm');
+        
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            // Validate phone number
+            const phoneInput = document.getElementById('delivery_personnel_phone');
+            const phonePattern = /^(63|09)\d{9}$/;
+            if (!phonePattern.test(phoneInput.value)) {
+                alert('Please enter a valid phone number (must start with 63 or 09 and be 11 digits)');
+                return;
+            }
+            
+            // Validate quantities
+            const quantityInputs = document.querySelectorAll('input[type="number"]');
+            let isValid = true;
+            
+            quantityInputs.forEach(input => {
+                const quantity = parseInt(input.value);
+                const max = parseInt(input.getAttribute('max'));
+                if (!quantity || quantity < 1 || quantity > max) {
+                    alert(`Please enter a valid quantity (1 to ${max}) for all items`);
+                    isValid = false;
+                    return;
+                }
+            });
+            
+            if (isValid) {
+                this.submit();
+            }
+        });
+    });
+</script>
+{% endblock %}

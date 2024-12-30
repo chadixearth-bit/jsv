@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-5xl mx-auto">
+        <!-- Header -->
+        <div class="bg-white shadow-lg rounded-xl overflow-hidden mb-8">
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-2xl font-bold text-white">Purchase Order Details</h1>
+                        <p class="mt-1 text-blue-100 text-lg">{{ order.po_number }}</p>
+                    </div>
+                    <span class="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold
+                        {% if order.status == 'draft' %}bg-gray-100 text-gray-800
+                        {% elif order.status == 'pending' %}bg-yellow-100 text-yellow-800
+                        {% elif order.status == 'approved' %}bg-green-100 text-green-800
+                        {% elif order.status == 'ordered' %}bg-blue-100 text-blue-800
+                        {% elif order.status == 'received' %}bg-indigo-100 text-indigo-800
+                        {% else %}bg-red-100 text-red-800{% endif %}">
+                        {{ order.get_status_display }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Supplier Information -->
+                    <div class="space-y-6">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                                <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                </svg>
+                                Supplier Details
+                            </h3>
+                            <div class="bg-gray-50 rounded-lg p-4 space-y-3">
+                                <div>
+                                    <p class="text-sm text-gray-500">Company Name</p>
+                                    <p class="text-base font-medium text-gray-900">{{ order.supplier.name }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Contact Person</p>
+                                    <p class="text-base font-medium text-gray-900">{{ order.supplier.contact_person }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Email</p>
+                                    <p class="text-base font-medium text-gray-900">{{ order.supplier.email }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Phone</p>
+                                    <p class="text-base font-medium text-gray-900">{{ order.supplier.phone }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Address</p>
+                                    <p class="text-base font-medium text-gray-900">{{ order.supplier.address }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Order Information -->
+                    <div class="space-y-6">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                                <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                                </svg>
+                                Order Details
+                            </h3>
+                            <div class="bg-gray-50 rounded-lg p-4 space-y-3">
+                                <div>
+                                    <p class="text-sm text-gray-500">Warehouse</p>
+                                    <p class="text-base font-medium text-gray-900">{{ order.warehouse.name }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Order Date</p>
+                                    <p class="text-base font-medium text-gray-900">{{ order.order_date|date:"M. d, Y" }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Expected Delivery</p>
+                                    <p class="text-base font-medium text-gray-900">{{ order.expected_delivery|date:"M. d, Y" }}</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500">Created By</p>
+                                    <p class="text-base font-medium text-gray-900">{{ order.created_by.username }}</p>
+                                </div>
+                                {% if order.notes %}
+                                <div>
+                                    <p class="text-sm text-gray-500">Notes</p>
+                                    <p class="text-base font-medium text-gray-900">{{ order.notes }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Items -->
+        <div class="bg-white shadow-lg rounded-xl overflow-hidden mb-8">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-900">Order Items</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for item in order.items.all %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.brand }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm text-gray-900">{{ item.item.name }}</div>
+                                <div class="text-sm text-gray-500">SKU: {{ item.item.sku }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.model_name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.quantity }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱{{ item.subtotal|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="bg-gray-50">
+                            <td colspan="5" class="px-6 py-4 text-sm font-medium text-gray-900 text-right">Total Amount:</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">₱{{ order.total_amount|floatformat:2 }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Related Requisitions -->
+        {% if order.requisitions.exists %}
+        <div class="bg-white shadow-lg rounded-xl overflow-hidden mb-8">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-900">Related Requisitions</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requisition #</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requested By</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for req in order.requisitions.all %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ req.id }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                    {{ req.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ req.requester.username }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ req.created_at|date:"M d, Y" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Action Buttons -->
+        <div class="flex justify-end space-x-4">
+            <a href="{% url 'purchasing:list' %}" 
+               class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Back to List
+            </a>
+            {% if order.status == 'draft' %}
+            <button type="button"
+                    class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Confirm Purchase Order
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

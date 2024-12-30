@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load crispy_forms_tags %}
+
+{% block main_content %}
+<div class="py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-2xl mx-auto">
+                <!-- Page Header -->
+                <div class="mb-8 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg">
+                    <div class="px-6 py-8 sm:px-8">
+                        <h1 class="text-2xl sm:text-3xl font-bold text-white">
+                            {% if form.instance.pk %}Edit{% else %}Add New{% endif %} Supplier
+                        </h1>
+                    </div>
+                </div>
+
+                <!-- Supplier Form -->
+                <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                    <form method="post" class="p-6 space-y-6">
+                        {% csrf_token %}
+                        
+                        <div class="space-y-4">
+                            <!-- Name Field -->
+                            <div>
+                                <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                                    Supplier Name
+                                </label>
+                                <div class="mt-1">
+                                    {{ form.name }}
+                                </div>
+                                {% if form.name.errors %}
+                                <p class="mt-2 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            <!-- Contact Person Field -->
+                            <div>
+                                <label for="{{ form.contact_person.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                                    Contact Person
+                                </label>
+                                <div class="mt-1">
+                                    {{ form.contact_person }}
+                                </div>
+                                {% if form.contact_person.errors %}
+                                <p class="mt-2 text-sm text-red-600">{{ form.contact_person.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            <!-- Email Field -->
+                            <div>
+                                <label for="{{ form.email.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                                    Email
+                                </label>
+                                <div class="mt-1">
+                                    {{ form.email }}
+                                </div>
+                                {% if form.email.errors %}
+                                <p class="mt-2 text-sm text-red-600">{{ form.email.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            <!-- Phone Field -->
+                            <div>
+                                <label for="{{ form.phone.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                                    Phone
+                                </label>
+                                <div class="mt-1">
+                                    {{ form.phone }}
+                                </div>
+                                {% if form.phone.errors %}
+                                <p class="mt-2 text-sm text-red-600">{{ form.phone.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+
+                            <!-- Address Field -->
+                            <div>
+                                <label for="{{ form.address.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                                    Address
+                                </label>
+                                <div class="mt-1">
+                                    {{ form.address }}
+                                </div>
+                                {% if form.address.errors %}
+                                <p class="mt-2 text-sm text-red-600">{{ form.address.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="flex justify-end space-x-3 pt-6">
+                            <a href="{% url 'purchasing:list' %}" 
+                               class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                Cancel
+                            </a>
+                            <button type="submit"
+                                    class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                                {% if form.instance.pk %}Update{% else %}Create{% endif %} Supplier
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

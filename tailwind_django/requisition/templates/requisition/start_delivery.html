@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+    <div class="px-4 py-6 sm:px-0">
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+            <div class="px-4 py-5 sm:px-6">
+                <h3 class="text-lg leading-6 font-medium text-gray-900">Start Delivery</h3>
+                <p class="mt-1 max-w-2xl text-sm text-gray-500">Enter delivery details and personnel information.</p>
+            </div>
+
+            <div class="border-t border-gray-200">
+                <form method="post" class="px-4 py-5 sm:p-6">
+                    {% csrf_token %}
+                    
+                    <!-- Requisition Information -->
+                    <div class="mb-6">
+                        <h4 class="text-md font-medium text-gray-700 mb-4">Requisition Information</h4>
+                        <dl class="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+                            <div class="sm:col-span-1">
+                                <dt class="text-sm font-medium text-gray-500">Requisition ID</dt>
+                                <dd class="mt-1 text-sm text-gray-900">{{ requisition.id }}</dd>
+                            </div>
+                            <div class="sm:col-span-1">
+                                <dt class="text-sm font-medium text-gray-500">Request Type</dt>
+                                <dd class="mt-1 text-sm text-gray-900">{{ requisition.get_request_type_display }}</dd>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <dt class="text-sm font-medium text-gray-500">Reason</dt>
+                                <dd class="mt-1 text-sm text-gray-900">{{ requisition.reason }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <!-- Delivery Personnel Information -->
+                    <div class="mb-6">
+                        <h4 class="text-md font-medium text-gray-700 mb-4">Delivery Personnel Information</h4>
+                        <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                            <div class="sm:col-span-3">
+                                <label for="delivery_personnel_name" class="block text-sm font-medium text-gray-700">Name</label>
+                                <input type="text" name="delivery_personnel_name" id="delivery_personnel_name" required
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+
+                            <div class="sm:col-span-3">
+                                <label for="delivery_personnel_phone" class="block text-sm font-medium text-gray-700">Phone Number</label>
+                                <input type="tel" name="delivery_personnel_phone" id="delivery_personnel_phone" required
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+
+                            <div class="sm:col-span-3">
+                                <label for="estimated_delivery_date" class="block text-sm font-medium text-gray-700">Estimated Delivery Date</label>
+                                <input type="date" name="estimated_delivery_date" id="estimated_delivery_date" required
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+
+                            <div class="sm:col-span-6">
+                                <label for="delivery_note" class="block text-sm font-medium text-gray-700">Delivery Note</label>
+                                <textarea name="delivery_note" id="delivery_note" rows="3"
+                                    class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                    placeholder="Enter any additional notes or instructions for the delivery..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Items Table -->
+                    <div class="mb-6">
+                        <h4 class="text-md font-medium text-gray-700 mb-4">Delivery Items</h4>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Available Stock</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity to Deliver</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    {% for item_data in items_data %}
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <div class="font-medium">{{ item_data.delivery_item.item.item_name }}</div>
+                                            <div class="text-gray-500">
+                                                Brand: {{ item_data.delivery_item.item.brand.name }}<br>
+                                                Model: {{ item_data.delivery_item.item.model }}
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {{ item_data.available_stock }}
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <input type="number" 
+                                                   name="quantity_{{ item_data.delivery_item.id }}" 
+                                                   min="1" 
+                                                   max="{{ item_data.available_stock }}"
+                                                   value="{{ item_data.delivery_item.quantity }}"
+                                                   class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                                   required>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <a href="{% url 'requisition:delivery_pdf' delivery.id %}" target="_blank"
+                           class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            View PDF
+                        </a>
+                        <button type="submit"
+                                class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Start Delivery
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if messages %}
+<div class="fixed bottom-0 right-0 m-6">
+    {% for message in messages %}
+    <div class="bg-{{ message.tags }}-100 border-l-4 border-{{ message.tags }}-500 text-{{ message.tags }}-700 p-4 mb-2" role="alert">
+        <p>{{ message }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

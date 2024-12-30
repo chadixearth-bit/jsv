@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div class="mb-8 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg">
+        <div class="px-6 py-8 sm:px-8">
+            <h1 class="text-2xl sm:text-3xl font-bold text-white">Sales List</h1>
+            <p class="mt-2 text-blue-100 text-sm sm:text-base">
+                Manage and track your sales
+            </p>
+        </div>
+    </div>
+
+    <div class="mb-6 bg-white rounded-xl shadow-md p-4">
+        <form method="get" class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search by Transaction ID</label>
+                <input type="text" name="search" id="search" 
+                       value="{{ search_query }}"
+                       placeholder="Enter transaction ID..."
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label for="return_status" class="block text-sm font-medium text-gray-700 mb-1">Filter by Return Status</label>
+                <select name="return_status" id="return_status" 
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        onchange="this.form.submit()">
+                    <option value="">All Sales</option>
+                    <option value="returned" {% if return_status == 'returned' %}selected{% endif %}>Returned Items</option>
+                    <option value="not_returned" {% if return_status == 'not_returned' %}selected{% endif %}>Not Returned Items</option>
+                </select>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" 
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Search
+                </button>
+                {% if search_query or return_status %}
+                <a href="{% url 'sales:sale_list' %}" 
+                   class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Clear All
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    {% if messages %}
+    <div class="mb-4">
+        {% for message in messages %}
+        <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-xl shadow-md p-6">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead>
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transaction ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Price</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sold By</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Buyer</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sale Date</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for sale in sales %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ sale.transaction_id }}</td>
+                    <td class="px-6 py-4">
+                        {% if sale.items_count > 1 %}
+                            <details class="cursor-pointer">
+                                <summary class="text-blue-600 hover:text-blue-800">{{ sale.items_count }} items</summary>
+                                <ul class="mt-2 space-y-1 text-sm">
+                                    {% for sale_item in sale.items.all %}
+                                        <li>{{ sale_item.quantity }}x {{ sale_item.item.item_name }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </details>
+                        {% else %}
+                            {% with first_item=sale.items.first %}
+                                {% if first_item %}
+                                    {{ first_item.quantity }}x {{ first_item.item.item_name }}
+                                {% endif %}
+                            {% endwith %}
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ sale.total_items_quantity }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${{ sale.total_price }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ sale.sold_by.username }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ sale.buyer.username }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">{{ sale.sale_date }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <a href="{% url 'sales:download_receipt' sale.id %}" 
+                           class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Download Receipt
+                        </a>
+                        {% if not sale.is_returned %}
+                            <a href="{% url 'sales:return_sale' sale.id %}" 
+                               class="text-red-600 hover:text-red-900">
+                                <span class="px-2 py-1 text-sm bg-red-100 text-red-800 rounded-full">Return Items</span>
+                            </a>
+                        {% else %}
+                            <span class="px-2 py-1 text-sm bg-gray-100 text-gray-800 rounded-full">Returned</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="px-6 py-4 text-center text-gray-500">No sales found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

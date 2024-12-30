@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Requisition #{{ requisition.id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .requisition-info {
+            margin-bottom: 20px;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .items-table th, .items-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .items-table th {
+            background-color: #f5f5f5;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Requisition Details</h1>
+        <h2>Requisition #{{ requisition.id }}</h2>
+    </div>
+
+    <div class="requisition-info">
+        <p><strong>Requestor:</strong> {{ requisition.requester.get_full_name|default:requisition.requester.username }}</p>
+        <p><strong>Request Date:</strong> {{ requisition.created_at|date:"F d, Y H:i" }}</p>
+        <p><strong>Status:</strong> {{ requisition.get_status_display }}</p>
+        <p><strong>Request Type:</strong> {{ requisition.get_request_type_display }}</p>
+        {% if requisition.source_warehouse %}
+        <p><strong>Source Warehouse:</strong> {{ requisition.source_warehouse.name }}</p>
+        {% endif %}
+        {% if requisition.destination_warehouse %}
+        <p><strong>Destination Warehouse:</strong> {{ requisition.destination_warehouse.name }}</p>
+        {% endif %}
+        <p><strong>Reason:</strong> {{ requisition.reason }}</p>
+    </div>
+
+    <h3>Requested Items</h3>
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th>Item Name</th>
+                <th>Quantity</th>
+                {% if requisition.status != 'pending' and user.customuser.role != 'attendance' %}
+                <th>Delivered Quantity</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.item.item_name }}</td>
+                <td>{{ item.quantity }}</td>
+                {% if requisition.status != 'pending' and user.customuser.role != 'attendance' %}
+                <td>{{ item.delivered_quantity|default:'-' }}</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if requisition.manager_comment %}
+    <div class="manager-comment">
+        <h3>Manager's Comment</h3>
+        <p>{{ requisition.manager_comment }}</p>
+    </div>
+    {% endif %}
+
+    <div class="footer">
+        <p>Generated on {{ request.timestamp|date:"F d, Y H:i" }}</p>
+    </div>
+</body>
+</html>

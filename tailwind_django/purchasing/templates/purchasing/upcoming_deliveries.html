@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-2xl font-bold mb-6">Upcoming Deliveries</h1>
+
+    <!-- Confirmed Purchase Orders -->
+    <div class="mb-8">
+        <h2 class="text-xl font-semibold mb-4">Confirmed Purchase Orders</h2>
+        {% if confirmed_pos %}
+            <div class="bg-white shadow overflow-hidden rounded-lg">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PO Number</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expected Delivery</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for po in confirmed_pos %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">{{ po.po_number }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">{{ po.supplier.name }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">{{ po.expected_delivery_date }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <a href="{% url 'purchasing:view_po' po.pk %}" class="text-indigo-600 hover:text-indigo-900">View Details</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-gray-500">No confirmed purchase orders at this time.</p>
+        {% endif %}
+    </div>
+
+    <!-- Upcoming Deliveries -->
+    <div>
+        <h2 class="text-xl font-semibold mb-4">Deliveries In Progress</h2>
+        {% if upcoming_deliveries %}
+            <div class="bg-white shadow overflow-hidden rounded-lg">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expected Delivery</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for delivery in upcoming_deliveries %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                        {% if delivery.source_type == 'po' %}bg-blue-100 text-blue-800
+                                        {% else %}bg-purple-100 text-purple-800{% endif %}">
+                                        {{ delivery.get_source_display }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    {% for item in delivery.items.all %}
+                                        {{ item.purchase_order_item.item.item_name }} ({{ item.quantity_delivered }} units)<br>
+                                    {% endfor %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                        {% if delivery.status == 'pending_delivery' %}bg-yellow-100 text-yellow-800
+                                        {% elif delivery.status == 'in_transit' %}bg-blue-100 text-blue-800{% endif %}">
+                                        {{ delivery.get_status_display }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">{{ delivery.get_expected_delivery_date }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <a href="{% url 'purchasing:view_delivery' delivery.pk %}" class="text-indigo-600 hover:text-indigo-900">View Details</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-gray-500">No deliveries in progress at this time.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

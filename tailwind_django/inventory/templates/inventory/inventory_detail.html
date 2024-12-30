@@ -1,0 +1,11 @@
+<h1>{{ item.item_name }}</h1>
+<p>Brand: {{ item.brand.name }}</p>
+<p>Category: {{ item.category.name }}</p>
+<p>Model: {{ item.model }}</p>
+<p>Price: {{ item.price }}</p>
+<p>Stock: {{ item.stock }}</p>
+<p>Availability: {{ item.availability }}</p>
+
+<a href="{% url 'inventory:update' item.pk %}">Edit</a>
+<a href="{% url 'inventory:delete' item.pk %}">Delete</a>
+<a href="{% url 'inventory:list' %}">Back to List</a>

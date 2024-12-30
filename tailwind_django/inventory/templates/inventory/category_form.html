@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load tailwind_filters %}
+
+{% block main_content %}
+<div class="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg mt-8">
+    <h2 class="text-2xl font-bold text-gray-800 mb-6">Create New Category</h2>
+    
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        {{ form|crispy }}
+        
+        <div class="flex justify-end space-x-4 mt-6">
+            <a href="{% url 'inventory:list' %}" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Cancel
+            </a>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Create Category
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+# Python
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+myvenv/
+venv/
+ENV/
+
+# Django
+*.log
+db.sqlite3
+media/
+staticfiles/
+mediafiles/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment variables
+.env
+
+# Node modules (for Tailwind)
+node_modules/

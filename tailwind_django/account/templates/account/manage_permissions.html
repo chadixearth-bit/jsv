@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-white rounded-lg shadow-lg p-8">
+        <!-- Header -->
+        <div class="mb-8 text-center">
+            <h2 class="text-3xl font-bold text-gray-800">
+                Manage Permissions for {{ managed_user.username }}
+            </h2>
+            <p class="mt-2 text-gray-600">Customize user access and warehouse assignments</p>
+        </div>
+
+        <form method="post" class="space-y-8" id="permissions-form">
+            {% csrf_token %}
+            
+            <!-- Warehouse Assignments -->
+            {% if not managed_user.customuser.role == 'admin' %}
+            <div class="bg-gray-50 p-6 rounded-lg shadow-md">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">Warehouse Assignments</h3>
+                <div class="space-y-2">
+                    {{ warehouse_form.warehouses }}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Inventory Permissions -->
+            <div class="bg-gray-50 p-6 rounded-lg shadow-md">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">Inventory Permissions</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% for field in perm_form %}
+                        {% if 'inventory' in field.name %}
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" 
+                                   name="{{ field.name }}" 
+                                   id="{{ field.auto_id }}"
+                                   {% if field.value %}checked{% endif %}
+                                   class="permission-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <label for="{{ field.auto_id }}" class="text-gray-700">{{ field.label }}</label>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Brand Permissions -->
+            <div class="bg-gray-50 p-6 rounded-lg shadow-md">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">Brand Permissions</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% for field in perm_form %}
+                        {% if 'brand' in field.name %}
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" 
+                                   name="{{ field.name }}" 
+                                   id="{{ field.auto_id }}"
+                                   {% if field.value %}checked{% endif %}
+                                   class="permission-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <label for="{{ field.auto_id }}" class="text-gray-700">{{ field.label }}</label>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Category Permissions -->
+            <div class="bg-gray-50 p-6 rounded-lg shadow-md">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">Category Permissions</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% for field in perm_form %}
+                        {% if 'category' in field.name %}
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" 
+                                   name="{{ field.name }}" 
+                                   id="{{ field.auto_id }}"
+                                   {% if field.value %}checked{% endif %}
+                                   class="permission-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <label for="{{ field.auto_id }}" class="text-gray-700">{{ field.label }}</label>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Requisition Permissions -->
+            <div class="bg-gray-50 p-6 rounded-lg shadow-md">
+                <h3 class="text-xl font-semibold text-gray-700 mb-4">Requisition Permissions</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% for field in perm_form %}
+                        {% if 'requisition' in field.name %}
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" 
+                                   name="{{ field.name }}" 
+                                   id="{{ field.auto_id }}"
+                                   {% if field.value %}checked{% endif %}
+                                   class="permission-checkbox h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <label for="{{ field.auto_id }}" class="text-gray-700">{{ field.label }}</label>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="flex justify-end">
+                <button type="submit"
+                    class="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-150">
+                    Save Permissions
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('permissions-form');
+        
+        form.addEventListener('submit', function(e) {
+            // Get all checkboxes
+            const checkboxes = form.querySelectorAll('.permission-checkbox');
+            
+            // For each unchecked checkbox, add a hidden input with value=false
+            checkboxes.forEach(function(checkbox) {
+                if (!checkbox.checked) {
+                    const hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = checkbox.name;
+                    hiddenInput.value = 'false';
+                    form.appendChild(hiddenInput);
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

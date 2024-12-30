@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+
+{% block main_content %}
+<div class="py-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="lg:text-center">
+            <h2 class="text-base text-indigo-600 font-semibold tracking-wide uppercase">Dashboard</h2>
+            <p class="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+                Welcome, {{ request.user.username }}!
+            </p>
+            <p class="mt-4 max-w-2xl text-xl text-gray-500 lg:mx-auto">
+                Monthly Sales Overview
+            </p>
+        </div>
+
+        <!-- Sales Statistics Cards -->
+        <div class="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <!-- Monthly Sales Card -->
+            <div class="bg-white overflow-hidden shadow-lg rounded-2xl">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-indigo-500 rounded-md p-3">
+                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Monthly Sales</dt>
+                                <dd class="flex items-baseline">
+                                    <div class="text-2xl font-semibold text-gray-900">${{ monthly_sales.total_amount|floatformat:2 }}</div>
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Total Orders Card -->
+            <div class="bg-white overflow-hidden shadow-lg rounded-2xl">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-green-500 rounded-md p-3">
+                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Total Orders</dt>
+                                <dd class="flex items-baseline">
+                                    <div class="text-2xl font-semibold text-gray-900">{{ monthly_sales.total_count }}</div>
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Returns Card -->
+            <div class="bg-white overflow-hidden shadow-lg rounded-2xl">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-red-500 rounded-md p-3">
+                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Returns</dt>
+                                <dd class="flex items-baseline">
+                                    <div class="text-2xl font-semibold text-gray-900">{{ monthly_returns.total_count }}</div>
+                                    <p class="ml-2 text-sm text-gray-500">${{ monthly_returns.total_amount|floatformat:2 }}</p>
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-10">
+            <div class="space-y-10 md:space-y-0 md:grid md:grid-cols-2 md:gap-x-8 md:gap-y-10">
+                <!-- Top Selling Products -->
+                <div class="bg-white overflow-hidden shadow-lg rounded-2xl">
+                    <div class="px-4 py-5 sm:p-6">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900">Top Selling Products</h3>
+                        <div class="mt-5">
+                            {% if top_selling_products %}
+                                <div class="flow-root">
+                                    <ul role="list" class="-my-5 divide-y divide-gray-200">
+                                        {% for product in top_selling_products %}
+                                            <li class="py-4">
+                                                <div class="flex items-center space-x-4">
+                                                    <div class="flex-1 min-w-0">
+                                                        <p class="text-sm font-medium text-gray-900 truncate">
+                                                            {{ product.product__name }}
+                                                        </p>
+                                                        <p class="text-sm text-gray-500">
+                                                            Quantity Sold: {{ product.total_quantity }}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                            ${{ product.total_revenue|floatformat:2 }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% else %}
+                                <p class="text-gray-500">No sales data available</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Requisitions -->
+                <div class="bg-white overflow-hidden shadow-lg rounded-2xl">
+                    <div class="px-4 py-5 sm:p-6">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900">Recent Requisitions</h3>
+                        <div class="mt-5">
+                            {% if requisitions %}
+                                <div class="flow-root">
+                                    <ul role="list" class="-my-5 divide-y divide-gray-200">
+                                        {% for requisition in requisitions %}
+                                            <li class="py-4">
+                                                <div class="flex items-center space-x-4">
+                                                    <div class="flex-1 min-w-0">
+                                                        <p class="text-sm font-medium text-gray-900 truncate">
+                                                            {{ requisition.title }}
+                                                        </p>
+                                                        <p class="text-sm text-gray-500">
+                                                            Created: {{ requisition.created_at|date:"M d, Y" }}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                                                            {% if requisition.status == 'pending' %}bg-yellow-100 text-yellow-800
+                                                            {% elif requisition.status == 'approved' %}bg-green-100 text-green-800
+                                                            {% elif requisition.status == 'rejected' %}bg-red-100 text-red-800
+                                                            {% endif %}">
+                                                            {{ requisition.status|title }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% else %}
+                                <p class="text-gray-500">No recent requisitions</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

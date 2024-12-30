@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-4 px-2 sm:px-4 lg:px-6">
+    <!-- Page Header -->
+    <div class="w-full max-w-[1920px] mx-auto mb-6">
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-6 sm:px-6">
+                <div class="flex items-center justify-between">
+                    <div class="space-y-1">
+                        <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Create Requisition</h1>
+                        <p class="text-blue-100 text-base sm:text-lg">
+                            Submit a new item requisition request
+                        </p>
+                    </div>
+                    <div class="flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-white/10 rounded-full backdrop-blur-sm">
+                        <i class="fas fa-file-invoice text-white text-2xl sm:text-3xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form Container -->
+    <div class="w-full max-w-[1920px] mx-auto">
+        <div class="bg-white rounded-xl shadow-md">
+            <form method="post" id="requisitionForm" class="p-4 sm:p-6">
+                {% csrf_token %}
+                {{ form.non_field_errors }}
+                
+                <!-- Hidden inputs -->
+                <input type="hidden" name="quantities" value="{}">
+                <input type="hidden" name="request_type" value="item">
+                <div id="selectedItemsContainer"></div>
+                
+                <!-- Source Warehouse Section -->
+                {% if user.customuser.role == 'attendance' %}
+                <div class="mb-6">
+                    <label for="{{ form.source_warehouse.id_for_label }}" class="flex items-center text-base sm:text-lg font-semibold text-gray-700">
+                        <i class="fas fa-warehouse mr-2 text-indigo-500"></i>Request From Warehouse
+                    </label>
+                    {{ form.source_warehouse }}
+                    {{ form.source_warehouse.errors }}
+                </div>
+                {% endif %}
+
+                <!-- Main Content Area with Two Columns -->
+                <div class="flex flex-col xl:flex-row gap-6">
+                    <!-- Left Column: Available Items -->
+                    <div class="xl:w-3/4">
+                        <div class="flex items-center justify-between mb-4">
+                            <label class="flex items-center text-base sm:text-lg font-semibold text-gray-700">
+                                <i class="fas fa-boxes mr-2 text-indigo-500"></i>Available Items
+                            </label>
+                            <div class="text-sm text-gray-500">Click items to select</div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                            {% for item in items %}
+                            <div class="item-card cursor-pointer group relative bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-all duration-300
+                                      {% if item.stock == 0 %}bg-red-50/50{% elif item.stock <= 5 %}bg-yellow-50/50{% endif %}
+                                      hover:shadow-md transform hover:-translate-y-1"
+                                 onclick="toggleItemSelection(this, '{{ item.id }}', '{{ item.item_name|escapejs }}', event)"
+                                 data-stock="{{ item.stock }}"
+                                 data-warehouse="{{ item.warehouse.name|default:'N/A' }}"
+                                 data-category="{{ item.category.id }}"
+                                 data-brand="{{ item.brand }}"
+                                 data-name="{{ item.item_name|lower }}">
+                                
+                                <!-- Selection Indicator -->
+                                <div class="absolute inset-0 bg-indigo-100/50 opacity-0 transition-opacity duration-300 pointer-events-none selection-overlay rounded-lg"></div>
+                                
+                                <!-- Checkmark Icon -->
+                                <div class="absolute top-3 right-3 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center transform scale-0 transition-transform duration-300 checkmark-icon">
+                                    <i class="fas fa-check text-white text-xs"></i>
+                                </div>
+                                
+                                <!-- Item Content -->
+                                <div class="p-4 space-y-3">
+                                    <!-- Image Container -->
+                                    <div class="aspect-w-16 aspect-h-12 rounded-md overflow-hidden bg-gray-100">
+                                        {% if item.image %}
+                                        <img src="{{ item.image.url }}" alt="{{ item.item_name }}" 
+                                             class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300">
+                                        {% else %}
+                                        <div class="w-full h-full flex items-center justify-center bg-gray-100">
+                                            <i class="fas fa-box text-gray-400 text-3xl"></i>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="space-y-2">
+                                        <h3 class="font-medium text-gray-900 line-clamp-2">{{ item.item_name }}</h3>
+                                        <div class="flex items-center text-sm text-gray-500">
+                                            <i class="fas fa-cubes mr-1.5"></i>
+                                            <span>Stock: {{ item.stock }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Selected Items -->
+                    <div class="xl:w-1/4">
+                        <div class="sticky top-4 bg-gray-50 rounded-xl p-4">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-700">Selected Items</h3>
+                                <span id="selectedCount" class="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-sm font-medium">0 items</span>
+                            </div>
+                            <div id="selectedItems" class="space-y-3">
+                                <!-- Selected items will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reason Field -->
+                <div class="bg-gray-50 rounded-xl p-4 sm:p-6 mt-6">
+                    <label for="{{ form.reason.id_for_label }}" class="flex items-center text-base sm:text-lg font-semibold text-gray-700 mb-3">
+                        <i class="fas fa-comment-alt mr-2 text-indigo-500"></i>Reason for Request
+                    </label>
+                    {{ form.reason }}
+                    {{ form.reason.errors }}
+                </div>
+
+                <!-- Submit Button -->
+                <div class="mt-6 flex justify-end">
+                    <button type="submit" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                        <i class="fas fa-paper-plane mr-2"></i>
+                        Submit Requisition
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Store selected items and their quantities
+let selectedItems = new Map();
+
+function toggleItemSelection(element, itemId, itemName, event) {
+    if (element.classList.contains('selected')) {
+        deselectItem(element, itemId);
+    } else {
+        selectItem(element, itemId, itemName);
+    }
+}
+
+function selectItem(element, itemId, itemName) {
+    element.classList.add('selected', 'border-indigo-500', 'bg-indigo-50');
+    selectedItems.set(itemId, { name: itemName, quantity: 1 });
+    updateSelectedItemsList();
+    updateItemsInput();
+    updateQuantitiesInput();
+}
+
+function deselectItem(element, itemId) {
+    element.classList.remove('selected', 'border-indigo-500', 'bg-indigo-50');
+    selectedItems.delete(itemId);
+    updateSelectedItemsList();
+    updateItemsInput();
+    updateQuantitiesInput();
+}
+
+function updateSelectedItemsList() {
+    const container = document.getElementById('selectedItems');
+    container.innerHTML = '';
+    selectedItems.forEach((item, id) => {
+        const itemElement = createQuantityField(id, item.name);
+        container.appendChild(itemElement);
+    });
+    updateSelectedCount();
+}
+
+function createQuantityField(itemId, itemName) {
+    const div = document.createElement('div');
+    div.className = 'flex items-center justify-between p-3 bg-white rounded-lg shadow mb-2';
+    div.innerHTML = `
+        <span class="font-medium text-gray-700">${itemName}</span>
+        <div class="flex items-center space-x-2">
+            <button type="button" onclick="adjustQuantity('${itemId}', -1)" 
+                    class="text-gray-500 hover:text-indigo-600 focus:outline-none">
+                <i class="fas fa-minus"></i>
+            </button>
+            <input type="number" min="1" value="${selectedItems.get(itemId).quantity}" 
+                   onchange="updateItemQuantity('${itemId}', this.value)"
+                   class="w-16 text-center border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+            <button type="button" onclick="adjustQuantity('${itemId}', 1)"
+                    class="text-gray-500 hover:text-indigo-600 focus:outline-none">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+    `;
+    return div;
+}
+
+function adjustQuantity(itemId, delta) {
+    const item = selectedItems.get(itemId);
+    if (item) {
+        const newQuantity = Math.max(1, item.quantity + delta);
+        item.quantity = newQuantity;
+        updateSelectedItemsList();
+        updateQuantitiesInput();
+    }
+}
+
+function updateItemQuantity(itemId, value) {
+    const item = selectedItems.get(itemId);
+    if (item) {
+        item.quantity = Math.max(1, parseInt(value) || 1);
+        updateQuantitiesInput();
+    }
+}
+
+function updateQuantitiesInput() {
+    const quantities = {};
+    selectedItems.forEach((item, id) => {
+        quantities[id] = item.quantity;
+    });
+    document.querySelector('input[name="quantities"]').value = JSON.stringify(quantities);
+}
+
+function updateItemsInput() {
+    // Create hidden inputs for each selected item
+    const itemsContainer = document.getElementById('selectedItemsContainer');
+    
+    itemsContainer.innerHTML = ''; // Clear existing inputs
+    
+    selectedItems.forEach((item, id) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'items';
+        input.value = id;
+        itemsContainer.appendChild(input);
+    });
+}
+
+function updateSelectedCount() {
+    const count = selectedItems.size;
+    document.getElementById('selectedCount').textContent = `${count} items`;
+}
+
+// Form submission handler
+document.getElementById('requisitionForm').addEventListener('submit', function(event) {
+    if (selectedItems.size === 0) {
+        event.preventDefault();
+        alert('Please select at least one item.');
+        return;
+    }
+    
+    // Update form inputs before submission
+    updateItemsInput();
+    updateQuantitiesInput();
+});
+</script>
+
+<style>
+    .item-card.selected .selection-overlay {
+        opacity: 1;
+    }
+    
+    .item-card.selected .checkmark-icon {
+        transform: scale(1);
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load requisition_tags %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-3xl mx-auto space-y-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center">
+            <h1 class="text-2xl font-bold text-gray-900">Approve Requisition</h1>
+            <a href="{% url 'requisition:requisition_list' %}" class="text-indigo-600 hover:text-indigo-900">Back to List</a>
+        </div>
+
+        <!-- Requisition Details -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Requisition Details</h2>
+            <dl class="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-3">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Status</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ requisition.get_status_display }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Created At</dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ requisition.created_at|date:"F j, Y" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Requester</dt>
+                    <dd class="mt-1 text-sm text-gray-900">
+                        {{ requisition.requester.username }}
+                        {% if requisition.requester.customuser %}
+                            <span class="text-gray-500">({{ requisition.requester.customuser.role }})</span>
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+
+            <!-- Requested Items -->
+            <div class="mt-6 border-t border-gray-200 pt-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Requested Items</h3>
+                <div class="space-y-4">
+                    {% for item_info in items_with_availability %}
+                    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+                        <div class="p-4">
+                            <div class="flex items-start space-x-4">
+                                <!-- Item Image -->
+                                <div class="flex-shrink-0">
+                                    {% if item_info.item.item.image %}
+                                    <img class="h-24 w-24 object-cover rounded-lg border border-gray-200" 
+                                         src="{{ item_info.item.item.image.url }}" 
+                                         alt="{{ item_info.item.item.item_name }}">
+                                    {% else %}
+                                    <div class="h-24 w-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                                        <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Item Details -->
+                                <div class="flex-grow">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <h4 class="text-lg font-semibold text-gray-900">{{ item_info.item.item.item_name }}</h4>
+                                            <div class="mt-1 space-y-1">
+                                                <p class="text-sm text-gray-600">
+                                                    <span class="font-medium">Brand:</span> {{ item_info.item.item.brand }}
+                                                </p>
+                                                <p class="text-sm text-gray-600">
+                                                    <span class="font-medium">Model:</span> {{ item_info.item.item.model }}
+                                                </p>
+                                                <p class="text-sm text-gray-600">
+                                                    <span class="font-medium">Requested Quantity:</span> {{ item_info.item.quantity }}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <!-- Availability Status -->
+                                        {% if user.customuser.role == 'manager' and requisition.status == 'pending' %}
+                                        <div class="flex flex-col items-end justify-between">
+                                            <div class="text-right">
+                                                {% if item_info.is_available %}
+                                                    <div class="inline-flex flex-col items-end">
+                                                        <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                                            Available
+                                                        </span>
+                                                        <span class="mt-1 text-sm text-gray-600">
+                                                            {{ item_info.stock }} in stock
+                                                        </span>
+                                                    </div>
+                                                {% elif item_info.is_partial %}
+                                                    <div class="inline-flex flex-col items-end">
+                                                        <span class="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                                                            Partial
+                                                        </span>
+                                                        <span class="mt-1 text-sm text-gray-600">
+                                                            {{ item_info.stock }} in stock
+                                                        </span>
+                                                    </div>
+                                                {% else %}
+                                                    <div class="inline-flex flex-col items-end">
+                                                        <span class="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                                            Not Available
+                                                        </span>
+                                                        <span class="mt-1 text-sm text-gray-500">
+                                                            Out of stock
+                                                        </span>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            {% if item_info.item.item.description %}
+                                            <p class="mt-2 text-sm text-gray-500 text-right">
+                                                {{ item_info.item.item.description|truncatechars:100 }}
+                                            </p>
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Attendant's Reason -->
+            <div class="mt-6 border-t border-gray-200 pt-6">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Reason:</h4>
+                <div class="bg-gray-50 rounded-lg p-4 text-gray-700">
+                    {{ requisition.reason }}
+                </div>
+            </div>
+        </div>
+
+        {% if user.customuser.role == 'admin' and requisition.status == 'pending_admin_approval' %}
+        <!-- Admin Approval Form -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Admin Approval</h2>
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+                
+                <!-- Comment Field -->
+                <div>
+                    <label for="comment" class="block text-sm font-medium text-gray-700">Comment (Optional)</label>
+                    <div class="mt-1">
+                        {{ form.comment }}
+                    </div>
+                    {% if form.comment.errors %}
+                    <p class="mt-2 text-sm text-red-600">{{ form.comment.errors }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Hidden Decision Field -->
+                {{ form.decision }}
+                {% if form.decision.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ form.decision.errors }}</p>
+                {% endif %}
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end space-x-3">
+                    <a href="{% url 'requisition:requisition_list' %}"
+                        class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Cancel
+                    </a>
+                    <button type="submit" name="decision" value="reject"
+                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        Reject
+                    </button>
+                    <button type="submit" name="decision" value="approve"
+                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        Approve & Create PO
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% elif user.customuser.role == 'manager' and requisition.status == 'pending' %}
+        <!-- Manager Approval Form -->
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Manager Approval</h2>
+            <form method="post" class="space-y-6">
+                {% csrf_token %}
+                
+                <!-- Comment Field -->
+                <div>
+                    <label for="comment" class="block text-sm font-medium text-gray-700">Comment (Optional)</label>
+                    <div class="mt-1">
+                        {{ form.comment }}
+                    </div>
+                    {% if form.comment.errors %}
+                    <p class="mt-2 text-sm text-red-600">{{ form.comment.errors }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Hidden Decision Field -->
+                {{ form.decision }}
+                {% if form.decision.errors %}
+                <p class="mt-2 text-sm text-red-600">{{ form.decision.errors }}</p>
+                {% endif %}
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end space-x-3">
+                    <a href="{% url 'requisition:requisition_list' %}"
+                        class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Cancel
+                    </a>
+                    <button type="submit" name="decision" value="reject"
+                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        Reject
+                    </button>
+                    <button type="submit" name="decision" value="approve"
+                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        Approve
+                    </button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+function copyComment() {
+    const comment = document.getElementById('comment').value;
+    document.getElementById('approve_comment').value = comment;
+    document.getElementById('reject_comment').value = comment;
+}
+
+function setDecision(decision) {
+    document.getElementById('decision').value = decision;
+}
+</script>
+{% endblock %}
+
+{% endblock %}

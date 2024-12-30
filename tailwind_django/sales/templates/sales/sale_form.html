@@ -1,0 +1,357 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">Create New Sale</h1>
+            <p class="mt-2 text-sm text-gray-600">Create a new sales record by selecting items and entering buyer information.</p>
+        </div>
+
+        <!-- Messages -->
+        {% if messages %}
+            <div class="mb-6 space-y-2">
+                {% for message in messages %}
+                    <div class="p-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %} text-sm" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Search and Filter Section -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <form id="search-form" method="get" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="search_query" class="block text-sm font-medium text-gray-700">Search Items</label>
+                        <input type="text" 
+                               name="search_query" 
+                               id="search_query" 
+                               value="{{ request.GET.search_query|default:'' }}"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm" 
+                               placeholder="Search by name, brand, or category...">
+                    </div>
+                    <div>
+                        <label for="brand" class="block text-sm font-medium text-gray-700">Filter by Brand</label>
+                        <select name="brand" 
+                                id="brand" 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                            <option value="">All Brands</option>
+                            {% for brand in all_brands %}
+                                <option value="{{ brand.id }}" {% if request.GET.brand == brand.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ brand.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="category" class="block text-sm font-medium text-gray-700">Filter by Category</label>
+                        <select name="category" 
+                                id="category" 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                            <option value="">All Categories</option>
+                            {% for category in all_categories %}
+                                <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ category.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Main Form -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Available Items Section -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-lg shadow-sm p-6">
+                    <h2 class="text-lg font-medium text-gray-900 mb-4">Available Items</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="items-list">
+                        {% for item in items_queryset %}
+                        <div class="item relative flex items-center space-x-3 rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm hover:border-indigo-500">
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-900">{{ item.item_name }}</p>
+                                <p class="text-sm text-gray-500">{{ item.brand.name }} - {{ item.model }}</p>
+                                <p class="text-sm text-gray-500">Stock: {{ item.stock }}</p>
+                                <p class="text-sm font-medium text-gray-900">Price: ${{ item.price }}</p>
+                            </div>
+                            <button type="button" 
+                                    onclick="addItem('{{ item.id }}', '{{ item.item_name }}', {{ item.price }}, {{ item.stock }})"
+                                    class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600">
+                                Add
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Recommendations Section -->
+                <div id="recommendations-section">
+                    {% if recommendations %}
+                    <div class="bg-white rounded-lg shadow-sm p-6 mt-6">
+                        <div class="mb-4">
+                            <h2 class="text-lg font-medium text-gray-900 mb-2">
+                                <i class="fas fa-lightbulb text-yellow-400 mr-2"></i>
+                                Recommended Items
+                            </h2>
+                            <p class="text-sm text-gray-600">
+                                Customers who bought these items also purchased the following products. 
+                                These recommendations are based on actual purchase history.
+                            </p>
+                        </div>
+                        <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-info-circle text-blue-400"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-blue-700">
+                                        Based on your selection of <strong>{{ selected_item.item_name }}</strong>, 
+                                        here are some complementary items that might interest you:
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {% for rec in recommendations %}
+                            <div class="relative flex items-center space-x-3 rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm hover:border-indigo-500">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-gray-900">{{ rec.item.item_name }}</p>
+                                    <p class="text-sm text-gray-500">{{ rec.item.brand.name }} - {{ rec.item.model }}</p>
+                                    <p class="text-sm text-gray-500">Stock: {{ rec.item.stock }}</p>
+                                    <p class="text-sm font-medium text-gray-900">Price: ${{ rec.item.price }}</p>
+                                    <div class="mt-1 flex items-center">
+                                        <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                            {{ rec.count }} customers bought this together
+                                        </span>
+                                    </div>
+                                </div>
+                                <button type="button" 
+                                        onclick="addItem('{{ rec.item.id }}', '{{ rec.item.item_name }}', {{ rec.item.price }}, {{ rec.item.stock }})"
+                                        class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600">
+                                    Add to Cart
+                                </button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Cart and Buyer Information -->
+            <div class="lg:col-span-1">
+                <form method="post" id="sale-form" class="space-y-6">
+                    {% csrf_token %}
+                    <div class="bg-white rounded-lg shadow-sm p-6">
+                        <h2 class="text-lg font-medium text-gray-900 mb-4">Selected Items</h2>
+                        <div id="selected-items-list" class="space-y-3 mb-4 max-h-[300px] overflow-y-auto">
+                            <!-- Selected items will be added here -->
+                        </div>
+                        <div class="pt-4 border-t border-gray-200">
+                            <div class="flex justify-between items-center text-lg font-medium">
+                                <span>Total:</span>
+                                <span id="total-price">₱0.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow-sm p-6">
+                        <h2 class="text-lg font-medium text-gray-900 mb-4">Buyer Information</h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="buyer_name" class="block text-sm font-medium text-gray-700">Buyer Name</label>
+                                <input type="text" name="buyer_name" id="buyer_name" 
+                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" 
+                                       placeholder="Enter buyer's name" 
+                                       value="{{ form.buyer_name.value|default:'' }}" required>
+                            </div>
+                            <div>
+                                <label for="buyer_contact" class="block text-sm font-medium text-gray-700">Contact Number</label>
+                                <input type="text" name="buyer_contact" id="buyer_contact" 
+                                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" 
+                                       placeholder="Enter contact number" 
+                                       value="{{ form.buyer_contact.value|default:'' }}" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" 
+                            class="w-full px-4 py-3 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
+                        Complete Sale
+                    </button>
+                    <input type="hidden" id="selected-items-input" name="selected_items">
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let selectedItems = {};
+    let totalPrice = 0;
+
+    function addItem(itemId, itemName, price, maxStock) {
+        // Add or update item in selectedItems
+        if (selectedItems[itemId]) {
+            if (selectedItems[itemId].quantity < maxStock) {
+                selectedItems[itemId].quantity += 1;
+                selectedItems[itemId].total = selectedItems[itemId].quantity * price;
+            } else {
+                alert('Maximum stock reached for this item!');
+                return;
+            }
+        } else {
+            selectedItems[itemId] = {
+                name: itemName,
+                price: parseFloat(price),
+                quantity: 1,
+                total: parseFloat(price)
+            };
+        }
+
+        updateSelectedItemsDisplay();
+        updateTotalPrice();
+
+        // Fetch recommendations without page reload
+        fetch(`?selected_item=${itemId}`)
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newRecommendations = doc.querySelector('#recommendations-section');
+                if (newRecommendations) {
+                    const currentRecommendations = document.querySelector('#recommendations-section');
+                    if (currentRecommendations) {
+                        currentRecommendations.innerHTML = newRecommendations.innerHTML;
+                    }
+                }
+            });
+    }
+
+    function removeItem(itemId) {
+        delete selectedItems[itemId];
+        updateSelectedItemsDisplay();
+        updateTotalPrice();
+    }
+
+    function updateSelectedItemsDisplay() {
+        const selectedItemsList = document.getElementById('selected-items-list');
+        selectedItemsList.innerHTML = '';
+        
+        for (const [itemId, item] of Object.entries(selectedItems)) {
+            const itemElement = document.createElement('div');
+            itemElement.className = 'flex items-center justify-between py-2';
+            itemElement.innerHTML = `
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-900">${item.name}</p>
+                    <div class="flex items-center mt-1">
+                        <input type="number" 
+                               value="${item.quantity}" 
+                               min="1" 
+                               class="w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                               onchange="updateQuantity('${itemId}', this.value, ${item.price})">
+                        <span class="ml-2 text-sm text-gray-500">× $${item.price}</span>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-900">$${item.total.toFixed(2)}</p>
+                    <button onclick="removeItem('${itemId}')" 
+                            class="mt-1 text-sm text-red-600 hover:text-red-800">Remove</button>
+                </div>
+            `;
+            selectedItemsList.appendChild(itemElement);
+        }
+
+        // Update hidden form field with selected items
+        const selectedItemsInput = document.getElementById('selected-items-input');
+        selectedItemsInput.value = JSON.stringify(selectedItems);
+    }
+
+    function updateQuantity(itemId, newQuantity, price) {
+        if (selectedItems[itemId]) {
+            selectedItems[itemId].quantity = parseInt(newQuantity);
+            selectedItems[itemId].total = selectedItems[itemId].quantity * price;
+            updateSelectedItemsDisplay();
+            updateTotalPrice();
+        }
+    }
+
+    function updateTotalPrice() {
+        totalPrice = Object.values(selectedItems).reduce((sum, item) => sum + item.total, 0);
+        document.getElementById('total-price').textContent = `$${totalPrice.toFixed(2)}`;
+    }
+
+    // Initialize the display
+    updateSelectedItemsDisplay();
+    updateTotalPrice();
+
+    // Search and Filter Functionality
+    const searchForm = document.getElementById('search-form');
+    const searchInput = document.getElementById('search_query');
+    const brandSelect = document.getElementById('brand');
+    const categorySelect = document.getElementById('category');
+
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    function submitSearch() {
+        const formData = new FormData(searchForm);
+        const params = new URLSearchParams(formData);
+        
+        // Preserve the selected_item parameter if it exists
+        const selectedItem = new URLSearchParams(window.location.search).get('selected_item');
+        if (selectedItem) {
+            params.append('selected_item', selectedItem);
+        }
+
+        // Fetch the filtered results
+        fetch(`?${params.toString()}`)
+            .then(response => response.text())
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Update the items list
+                const newItemsList = doc.querySelector('#items-list');
+                if (newItemsList) {
+                    document.querySelector('#items-list').innerHTML = newItemsList.innerHTML;
+                }
+                
+                // Update recommendations if they exist
+                const newRecommendations = doc.querySelector('#recommendations-section');
+                if (newRecommendations) {
+                    document.querySelector('#recommendations-section').innerHTML = newRecommendations.innerHTML;
+                }
+
+                // Update URL without page refresh
+                window.history.pushState({}, '', `?${params.toString()}`);
+            });
+    }
+
+    // Debounce search input to prevent too many requests
+    const debouncedSubmit = debounce(submitSearch, 300);
+
+    // Event listeners for search and filters
+    searchInput.addEventListener('input', debouncedSubmit);
+    brandSelect.addEventListener('change', submitSearch);
+    categorySelect.addEventListener('change', submitSearch);
+
+    // Prevent form submission (we're handling it via AJAX)
+    searchForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitSearch();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-2xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold">Confirm Delivery #{{ delivery.id }}</h1>
+            <a href="{% url 'purchasing:delivery_list' %}" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Back to List</a>
+        </div>
+
+        <div class="bg-white shadow-md rounded-lg p-6 mb-6">
+            <h2 class="text-lg font-semibold mb-4">Delivery Details</h2>
+            <div class="space-y-4">
+                <div>
+                    <span class="font-medium">Purchase Order:</span>
+                    <span class="ml-2">{{ delivery.purchase_order.po_number }}</span>
+                </div>
+                <div>
+                    <span class="font-medium">Delivery Date:</span>
+                    <span class="ml-2">{{ delivery.delivery_date|date:"M d, Y, g:i a" }}</span>
+                </div>
+                <div>
+                    <span class="font-medium">Received By:</span>
+                    <span class="ml-2">{{ delivery.received_by.get_full_name }}</span>
+                </div>
+            </div>
+
+            {% if delivery.receipt_photo or delivery.delivery_confirmation_file %}
+            <div class="mt-6">
+                <h3 class="text-md font-semibold mb-3">Proof of Delivery</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    {% if delivery.receipt_photo %}
+                    <div>
+                        <p class="font-medium mb-2">Delivery Photo:</p>
+                        <img src="{{ delivery.receipt_photo.url }}" alt="Delivery Photo" class="max-w-full border rounded">
+                    </div>
+                    {% endif %}
+                    {% if delivery.delivery_confirmation_file %}
+                    <div>
+                        <p class="font-medium mb-2">Confirmation Document:</p>
+                        {% if delivery.delivery_confirmation_file.name|lower|slice:"-4:" == ".pdf" %}
+                            <a href="{{ delivery.delivery_confirmation_file.url }}" target="_blank" class="inline-flex items-center text-blue-600 hover:text-blue-800">
+                                <i class="fas fa-file-pdf mr-2"></i>View Document
+                            </a>
+                        {% else %}
+                            <img src="{{ delivery.delivery_confirmation_file.url }}" alt="Confirmation Document" class="max-w-full border rounded">
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="mt-6">
+                <h3 class="text-md font-semibold mb-3">Delivered Items</h3>
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for item in delivery.items.all %}
+                        <tr>
+                            <td class="px-4 py-2 text-sm text-gray-900">
+                                {{ item.purchase_order_item.item.item_name }}
+                            </td>
+                            <td class="px-4 py-2 text-sm text-gray-900">
+                                {{ item.quantity_delivered }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <form method="post" class="mt-6">
+            {% csrf_token %}
+            <div class="flex justify-end space-x-4">
+                <a href="{% url 'purchasing:delivery_list' %}" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600">
+                    Cancel
+                </a>
+                <button type="submit" name="action" value="reject" class="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700">
+                    Reject Receipt
+                </button>
+                <button type="submit" name="action" value="confirm" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">
+                    Confirm Receipt
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

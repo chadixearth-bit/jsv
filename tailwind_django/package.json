@@ -1,0 +1,15 @@
+{
+  "name": "tailwind_django",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "build": "tailwindcss -i ./theme/static_src/src/input.css -o ./theme/static/css/output.css --minify",
+    "dev": "tailwindcss -i ./theme/static_src/src/input.css -o ./theme/static/css/output.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

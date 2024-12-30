@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Purchase Order {{ order.po_number }}</title>
+    <style>
+        @page {
+            size: a4 portrait;
+            margin: 2cm;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .header {
+            margin-bottom: 30px;
+        }
+        .company-info {
+            float: left;
+            width: 50%;
+        }
+        .po-info {
+            float: right;
+            width: 50%;
+            text-align: right;
+        }
+        .clear {
+            clear: both;
+        }
+        .section {
+            margin: 20px 0;
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ccc;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+        .total-row {
+            font-weight: bold;
+            background-color: #f9f9f9;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-draft { background-color: #e5e7eb; color: #374151; }
+        .status-pending { background-color: #fef3c7; color: #92400e; }
+        .status-approved { background-color: #d1fae5; color: #065f46; }
+        .status-ordered { background-color: #dbeafe; color: #1e40af; }
+        .status-received { background-color: #e0e7ff; color: #3730a3; }
+        .status-cancelled { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="company-info">
+            <h2>{{ company_name }}</h2>
+            <p>{{ company_address }}</p>
+            <p>Phone: {{ company_phone }}</p>
+            <p>Email: {{ company_email }}</p>
+        </div>
+        <div class="po-info">
+            <h1>Purchase Order</h1>
+            <p><strong>PO Number:</strong> {{ order.po_number }}</p>
+            <p><strong>Date:</strong> {{ order.order_date|date:"F j, Y" }}</p>
+            <p><strong>Status:</strong> 
+                <span class="status-badge status-{{ order.status }}">{{ order.status|title }}</span>
+            </p>
+        </div>
+        <div class="clear"></div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Supplier Information</div>
+        <p><strong>Name:</strong> {{ order.supplier.name }}</p>
+        <p><strong>Contact Person:</strong> {{ order.supplier.contact_person }}</p>
+        <p><strong>Email:</strong> {{ order.supplier.email }}</p>
+        <p><strong>Phone:</strong> {{ order.supplier.phone }}</p>
+        <p><strong>Address:</strong> {{ order.supplier.address }}</p>
+        {% if order.supplier.tax_id %}<p><strong>Tax ID:</strong> {{ order.supplier.tax_id }}</p>{% endif %}
+        {% if order.supplier.website %}<p><strong>Website:</strong> {{ order.supplier.website }}</p>{% endif %}
+        {% if order.supplier.payment_terms %}<p><strong>Payment Terms:</strong> {{ order.supplier.payment_terms }}</p>{% endif %}
+    </div>
+
+    <div class="section">
+        <div class="section-title">Order Details</div>
+        <p><strong>Warehouse:</strong> {{ order.warehouse.name }}</p>
+        <p><strong>Expected Delivery:</strong> {{ order.expected_delivery_date|date:"F j, Y" }}</p>
+        <p><strong>Created By:</strong> {{ order.created_by.username }}</p>
+        {% if order.notes %}
+        <p><strong>Notes:</strong> {{ order.notes }}</p>
+        {% endif %}
+    </div>
+
+    <div class="section">
+        <div class="section-title">Order Items</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Brand</th>
+                    <th>Item Name</th>
+                    <th>Model</th>
+                    <th>SKU</th>
+                    <th>Category</th>
+                    <th>Quantity</th>
+                    <th>Unit</th>
+                    <th>Unit Price</th>
+                    <th>Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in order.items.all %}
+                <tr>
+                    <td>{{ item.item.brand.name }}</td>
+                    <td>{{ item.item.item_name }}</td>
+                    <td>{{ item.item.model }}</td>
+                    <td>{{ item.item.sku }}</td>
+                    <td>{{ item.item.category.name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>{{ item.item.unit }}</td>
+                    <td>${{ item.unit_price }}</td>
+                    <td>${{ item.subtotal }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="total-row">
+                    <td colspan="8" style="text-align: right;">Total Amount:</td>
+                    <td>${{ order.total_amount }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Signatures</div>
+        <table style="margin-top: 50px;">
+            <tr>
+                <td style="border: none; width: 33%;">
+                    _______________________<br>
+                    Prepared By
+                </td>
+                <td style="border: none; width: 33%;">
+                    _______________________<br>
+                    Approved By
+                </td>
+                <td style="border: none; width: 33%;">
+                    _______________________<br>
+                    Received By
+                </td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>
