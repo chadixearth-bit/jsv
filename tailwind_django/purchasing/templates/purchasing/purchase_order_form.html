@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block content %}
+{% block main_content %}
 <div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
     <div class="max-w-4xl mx-auto">
         <!-- Page Header -->
@@ -256,94 +256,97 @@
                                 <i class="fas fa-boxes mr-2 text-indigo-500"></i>
                                 Order Items
                             </h3>
-                            <div class="space-y-4" id="itemsContainer">
-                                <!-- Existing Item Row Template -->
-                                <template id="existingItemTemplate">
-                                    <div class="item-row bg-white rounded-lg shadow-sm overflow-hidden mt-4">
-                                        <div class="p-4">
-                                            <div class="grid grid-cols-3 gap-4">
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-700">Item Name</label>
-                                                    <select name="items[]" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                                        <option value="">Select an item...</option>
-                                                        {% for item in available_items %}
-                                                            <option value="{{ item.id }}">{{ item.item_name }} - {{ item.brand.name }}</option>
-                                                        {% endfor %}
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-700">Quantity</label>
-                                                    <input type="number" name="quantities[]" required min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                                </div>
-                                                <div>
-                                                    <label class="block text-sm font-medium text-gray-700">Unit Price</label>
-                                                    <input type="number" name="unit_prices[]" required min="0.01" step="0.01" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                                </div>
-                                            </div>
-                                            <button type="button" id="removeItemBtn" class="mt-2 text-sm text-red-600 hover:text-red-800">
-                                                <i class="fas fa-times"></i> Remove
-                                            </button>
-                                        </div>
-                                    </div>
-                                </template>
-                            </div>
-
                             <!-- Initial Action Buttons -->
                             <div class="mt-4 flex space-x-4" id="initialButtons">
-                                <button type="button" id="addExistingItemBtn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <button type="button" onclick="showExistingItemForm()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                                     <i class="fas fa-plus mr-2"></i>
                                     Add Existing Item
                                 </button>
-                                <button type="button" id="addNewItemBtn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                <button type="button" onclick="showNewItemForm()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
                                     <i class="fas fa-plus-circle mr-2"></i>
                                     Add New Item
                                 </button>
                             </div>
 
-                            <!-- Hidden Action Buttons (shown after form is displayed) -->
-                            <div class="mt-4 flex space-x-4 hidden" id="additionalButtons">
-                                <button type="button" id="addAnotherExistingItemBtn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                    <i class="fas fa-plus mr-2"></i>
-                                    Add Another Existing Item
-                                </button>
-                                <button type="button" id="addAnotherNewItemBtn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                                    <i class="fas fa-plus-circle mr-2"></i>
-                                    Add Another New Item
-                                </button>
-                            </div>
-
-                            <!-- New Item Template (Hidden) -->
-                            <template id="newItemTemplate">
-                                <div class="item-row bg-white rounded-lg shadow-sm overflow-hidden mt-4">
-                                    <div class="p-4">
-                                        <div class="grid grid-cols-1 gap-4">
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-700">Item Name</label>
-                                                <input type="text" name="new_items[][name]" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                            </div>
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-700">Brand</label>
-                                                <input type="text" name="new_items[][brand]" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                            </div>
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-700">Model</label>
-                                                <input type="text" name="new_items[][model_name]" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                            </div>
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-700">Quantity</label>
-                                                <input type="number" name="new_items[][quantity]" required min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                            </div>
-                                            <div>
-                                                <label class="block text-sm font-medium text-gray-700">Unit Price</label>
-                                                <input type="number" name="new_items[][unit_price]" required min="0.01" step="0.01" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <!-- Item Forms Container (Hidden Initially) -->
+                            <div id="itemFormsContainer" class="hidden">
+                                <div class="space-y-4" id="itemsContainer">
+                                    <!-- Existing Item Template -->
+                                    <template id="existingItemTemplate">
+                                        <div class="item-row bg-white rounded-lg shadow-sm overflow-hidden mt-4">
+                                            <div class="p-4">
+                                                <div class="grid grid-cols-3 gap-4">
+                                                    <div>
+                                                        <label class="block text-sm font-medium text-gray-700">Item Name</label>
+                                                        <select name="existing_items[]" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                            <option value="">Select an item...</option>
+                                                            {% for item in available_items %}
+                                                                <option value="{{ item.id }}">{{ item.item_name }} - {{ item.brand.name }}</option>
+                                                            {% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-sm font-medium text-gray-700">Quantity</label>
+                                                        <input type="number" name="existing_quantities[]" required min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-sm font-medium text-gray-700">Unit Price</label>
+                                                        <input type="number" name="existing_unit_prices[]" required min="0.01" step="0.01" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                    </div>
+                                                </div>
+                                                <button type="button" onclick="removeItem(this)" class="mt-2 text-sm text-red-600 hover:text-red-800">
+                                                    <i class="fas fa-times"></i> Remove
+                                                </button>
                                             </div>
                                         </div>
-                                        <button type="button" id="removeItemBtn" class="mt-2 text-sm text-red-600 hover:text-red-800">
-                                            <i class="fas fa-times"></i> Remove
-                                        </button>
-                                    </div>
+                                    </template>
+
+                                    <!-- New Item Template -->
+                                    <template id="newItemTemplate">
+                                        <div class="item-row bg-white rounded-lg shadow-sm overflow-hidden mt-4">
+                                            <div class="p-4">
+                                                <div class="grid grid-cols-5 gap-4">
+                                                    <div>
+                                                        <label class="block text-sm font-medium text-gray-700">Item Name</label>
+                                                        <input type="text" name="item_name[]" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-sm font-medium text-gray-700">Brand</label>
+                                                        <input type="text" name="brand[]" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-sm font-medium text-gray-700">Model</label>
+                                                        <input type="text" name="model[]" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-sm font-medium text-gray-700">Quantity</label>
+                                                        <input type="number" name="quantity[]" required min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                    </div>
+                                                    <div>
+                                                        <label class="block text-sm font-medium text-gray-700">Unit Price</label>
+                                                        <input type="number" name="unit_price[]" required min="0.01" step="0.01" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                    </div>
+                                                </div>
+                                                <button type="button" onclick="removeItem(this)" class="mt-2 text-sm text-red-600 hover:text-red-800">
+                                                    <i class="fas fa-times"></i> Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
-                            </template>
+
+                                <!-- Additional Action Buttons (Hidden Initially) -->
+                                <div class="mt-4 flex space-x-4" id="additionalButtons">
+                                    <button type="button" onclick="addExistingItem()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                        <i class="fas fa-plus mr-2"></i>
+                                        Add Another Existing Item
+                                    </button>
+                                    <button type="button" onclick="addNewItem()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                        <i class="fas fa-plus-circle mr-2"></i>
+                                        Add Another New Item
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         {% endif %}
                     </div>
@@ -369,114 +372,60 @@
 </div>
 
 <script>
-// Function to show existing item form
-function showExistingItemForm() {
-    document.getElementById('initialButtons').classList.add('hidden');
-    document.getElementById('additionalButtons').classList.remove('hidden');
-    document.getElementById('itemsContainer').classList.remove('hidden');
-    addExistingItem();
-}
+    let currentItemType = null;
 
-// Function to show new item form
-function showNewItemForm() {
-    document.getElementById('initialButtons').classList.add('hidden');
-    document.getElementById('additionalButtons').classList.remove('hidden');
-    document.getElementById('itemsContainer').classList.remove('hidden');
-    addNewItem();
-}
-
-// Update totals when prices change
-function updateTotals() {
-    let total = 0;
-    
-    // Calculate total for existing items
-    const quantities = document.getElementsByName('quantities[]');
-    const prices = document.getElementsByName('unit_prices[]');
-    for (let i = 0; i < quantities.length; i++) {
-        const quantity = parseFloat(quantities[i].value) || 0;
-        const price = parseFloat(prices[i].value) || 0;
-        total += quantity * price;
+    function showExistingItemForm() {
+        currentItemType = 'existing';
+        document.getElementById('initialButtons').classList.add('hidden');
+        document.getElementById('itemFormsContainer').classList.remove('hidden');
+        document.getElementById('additionalButtons').classList.remove('hidden');
+        addExistingItem();
     }
-    
-    // Calculate total for new items
-    const newItemQuantities = document.getElementsByName('new_items[][quantity]');
-    const newItemPrices = document.getElementsByName('new_items[][unit_price]');
-    for (let i = 0; i < newItemQuantities.length; i++) {
-        const quantity = parseFloat(newItemQuantities[i].value) || 0;
-        const price = parseFloat(newItemPrices[i].value) || 0;
-        total += quantity * price;
+
+    function showNewItemForm() {
+        currentItemType = 'new';
+        document.getElementById('initialButtons').classList.add('hidden');
+        document.getElementById('itemFormsContainer').classList.remove('hidden');
+        document.getElementById('additionalButtons').classList.remove('hidden');
+        addNewItem();
     }
-    
-    const totalElement = document.getElementById('total');
-    if (totalElement) {
-        totalElement.textContent = total.toFixed(2);
-    }
-}
 
-// Function to add existing item
-function addExistingItem() {
-    const container = document.getElementById('itemsContainer');
-    const template = document.getElementById('existingItemTemplate');
-    const newItem = template.content.cloneNode(true);
-    
-    // Add remove button event listener
-    const removeBtn = newItem.querySelector('button');
-    removeBtn.addEventListener('click', function() {
-        removeItem(this);
-    });
-    
-    container.appendChild(newItem);
-    updateTotals();
-}
-
-// Function to add new item
-function addNewItem() {
-    const container = document.getElementById('itemsContainer');
-    const template = document.getElementById('newItemTemplate');
-    const newItem = template.content.cloneNode(true);
-    
-    // Add remove button event listener
-    const removeBtn = newItem.querySelector('button');
-    removeBtn.addEventListener('click', function() {
-        removeItem(this);
-    });
-    
-    container.appendChild(newItem);
-    updateTotals();
-}
-
-// Function to remove item row
-function removeItem(button) {
-    const row = button.closest('.item-row');
-    row.remove();
-    updateTotals();
-    
-    // If no items left, show initial buttons
-    const container = document.getElementById('itemsContainer');
-    if (container.children.length === 0) {
-        document.getElementById('initialButtons').classList.remove('hidden');
-        document.getElementById('additionalButtons').classList.add('hidden');
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('purchaseOrderForm');
-    
-    // Call updateTotals initially to set the initial values
-    updateTotals();
-    
-    // Add event listeners for price and quantity changes
-    form.addEventListener('input', function(e) {
-        if (e.target.matches('input[name="unit_prices[]"], input[name="quantities[]"], input[name="new_items[][unit_price]"], input[name="new_items[][quantity]"]')) {
-            updateTotals();
+    function addExistingItem() {
+        if (currentItemType === 'new') {
+            // If switching from new to existing, clear the container
+            document.getElementById('itemsContainer').innerHTML = '';
+            currentItemType = 'existing';
         }
-    });
+        const template = document.getElementById('existingItemTemplate');
+        const container = document.getElementById('itemsContainer');
+        const clone = template.content.cloneNode(true);
+        container.appendChild(clone);
+    }
 
-    // Add event listeners for buttons
-    document.getElementById('addExistingItemBtn').addEventListener('click', showExistingItemForm);
-    document.getElementById('addNewItemBtn').addEventListener('click', showNewItemForm);
-    document.getElementById('addAnotherExistingItemBtn').addEventListener('click', addExistingItem);
-    document.getElementById('addAnotherNewItemBtn').addEventListener('click', addNewItem);
-});
+    function addNewItem() {
+        if (currentItemType === 'existing') {
+            // If switching from existing to new, clear the container
+            document.getElementById('itemsContainer').innerHTML = '';
+            currentItemType = 'new';
+        }
+        const template = document.getElementById('newItemTemplate');
+        const container = document.getElementById('itemsContainer');
+        const clone = template.content.cloneNode(true);
+        container.appendChild(clone);
+    }
+
+    function removeItem(button) {
+        const itemRow = button.closest('.item-row');
+        itemRow.remove();
+        
+        // If no items left, show initial buttons and hide forms
+        const container = document.getElementById('itemsContainer');
+        if (container.children.length === 0) {
+            document.getElementById('initialButtons').classList.remove('hidden');
+            document.getElementById('itemFormsContainer').classList.add('hidden');
+            document.getElementById('additionalButtons').classList.add('hidden');
+            currentItemType = null;
+        }
+    }
 </script>
 {% endblock %}

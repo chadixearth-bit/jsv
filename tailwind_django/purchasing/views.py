@@ -833,5 +833,6 @@ def create_purchase_order(request):
     return render(request, 'purchasing/purchase_order_form.html', {
         'form': form,
         'requisition': requisition,
-        'available_items': available_items
+        'available_items': available_items,
+        'title': 'Create Purchase Order'
     })
