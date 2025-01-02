@@ -54,19 +54,6 @@
             transform: rotate(180deg);
         }
 
-        /* Modern loading animation */
-        .loading-dots::after {
-            content: '.';
-            animation: dots 1.5s steps(5, end) infinite;
-        }
-
-        @keyframes dots {
-            0%, 20% { content: '.'; }
-            40% { content: '..'; }
-            60% { content: '...'; }
-            80%, 100% { content: ''; }
-        }
-
         /* Smooth page transitions */
         .page-transition {
             animation: pageLoad 0.6s ease-out;
@@ -89,7 +76,7 @@
         }
 
         .nav-indicator::before {
-            content: '';
+            content: none;
             position: absolute;
             left: 0;
             top: 50%;
@@ -98,11 +85,11 @@
             background-color: #6366f1;
             border-radius: 50%;
             transform: translateY(-50%);
-            opacity: 0;
             transition: opacity 0.3s ease;
         }
 
         .nav-indicator.active::before {
+            content: '';
             opacity: 1;
         }
 
@@ -183,7 +170,7 @@
                                 <div class="dropdown-content pl-2 mt-2 space-y-3 relative">
                                     <div class="nav-line"></div>
                                     <!-- View Requisition -->
-                                    <a href="{% url 'requisition:requisition_list' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200 active" data-item-id="nav_item_0">
+                                    <a href="{% url 'requisition:requisition_list' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200" data-item-id="nav_item_0">
                                         <span>View Requisition</span>
                                     </a>
                                     <!-- Requisition History -->
@@ -214,7 +201,7 @@
                                 <div class="dropdown-content pl-2 mt-2 space-y-3 relative">
                                     <div class="nav-line"></div>
                                     <!-- Internal Deliveries -->
-                                    <a href="{% url 'requisition:delivery_list' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200 active" data-item-id="nav_item_2">
+                                    <a href="{% url 'requisition:delivery_list' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200" data-item-id="nav_item_2">
                                         <span>Internal Deliveries</span>
                                     </a>
                                     <!-- External Deliveries -->
@@ -246,7 +233,7 @@
                                 <div class="dropdown-content pl-2 mt-2 space-y-3 relative">
                                     <div class="nav-line"></div>
                                     <!-- Create New PO -->
-                                    <a href="{% url 'purchasing:create_purchase_order' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200 active" data-item-id="nav_item_4">
+                                    <a href="{% url 'purchasing:create_purchase_order' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200" data-item-id="nav_item_4">
                                         <span>Create New PO</span>
                                     </a>
                                     <!-- Purchase Orders -->
@@ -277,11 +264,9 @@
                                 </button>
                                 <div class="dropdown-content pl-2 mt-2 space-y-3 relative">
                                     <div class="nav-line"></div>
-                                    <!-- Create New Sale -->
-                                    <a href="{% url 'sales:create_sale' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200 active" data-item-id="nav_item_4">
+                                    <a href="{% url 'sales:create_sale' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200" data-item-id="nav_item_4">
                                         <span>Create New Sale</span>
                                     </a>
-                                    <!-- Sales History -->
                                     <a href="{% url 'sales:sale_list' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200" data-item-id="nav_item_5">
                                         <span>Sales History</span>
                                     </a>
@@ -348,7 +333,7 @@
 
                             <a href="{% url 'account:add_account' %}" class="nav-item flex items-center px-4 py-2.5 text-gray-100 rounded-lg group">
                                 <svg class="w-5 h-5 mr-3 text-gray-300 group-hover:text-blue-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 0118 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
                                 </svg>
                                 <span class="group-hover:text-blue-400 transition-colors duration-200">Add Account</span>
                             </a>
@@ -384,177 +369,217 @@
         <!-- Main Content with smooth page transitions -->
         <div class="lg:ml-64 min-h-screen">
             <main class="container">
-                <!-- Page header with modern design -->
-                <!-- {% if messages %}
-                <div class="mb-8">
+                <!-- Messages -->
+                {% if messages %}
+                <div class="fixed top-4 right-4 z-50 space-y-4">
                     {% for message in messages %}
-                    <div class="rounded-lg p-4 mb-4 {% if message.tags == 'success' %}bg-green-50 text-green-700 border border-green-200{% elif message.tags == 'error' %}bg-red-50 text-red-700 border border-red-200{% else %}bg-blue-50 text-blue-700 border border-blue-200{% endif %} animate-fade-in">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                {% if message.tags == 'success' %}
-                                <svg class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                                </svg>
-                                {% elif message.tags == 'error' %}
-                                <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-                                </svg>
-                                {% else %}
-                                <svg class="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0z" clip-rule="evenodd"/>
-                                </svg>
-                                {% endif %}
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm">{{ message }}</p>
+                    <div class="animate-fade-in-down rounded-lg p-4 flex items-center shadow-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                        <div class="flex-shrink-0">
+                            {% if message.tags == 'success' %}
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                            {% elif message.tags == 'error' %}
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                            </svg>
+                            {% elif message.tags == 'warning' %}
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                            </svg>
+                            {% else %}
+                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                            </svg>
+                            {% endif %}
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium">{{ message }}</p>
+                        </div>
+                        <div class="ml-auto pl-3">
+                            <div class="-mx-1.5 -my-1.5">
+                                <button type="button" class="message-close inline-flex rounded-md p-1.5 focus:outline-none focus:ring-2 focus:ring-offset-2 {% if message.tags == 'success' %}hover:bg-green-200 focus:ring-green-600{% elif message.tags == 'error' %}hover:bg-red-200 focus:ring-red-600{% elif message.tags == 'warning' %}hover:bg-yellow-200 focus:ring-yellow-600{% else %}hover:bg-blue-200 focus:ring-blue-600{% endif %}">
+                                    <span class="sr-only">Dismiss</span>
+                                    <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                                    </svg>
+                                </button>
                             </div>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
-                {% endif %} -->
-
-                <!-- Content block with smooth transition -->
-                <div class="page-transition">
-                    {% block main_content %}{% endblock %}
-                </div>
+                {% endif %}
+                
+                {% block main_content %}{% endblock %}
             </main>
         </div>
     {% endif %}
 
     {% block extra_content %}{% endblock %}
 
-    <!-- Modern loading indicator -->
-    <div id="loading" class="fixed inset-0 flex items-center justify-center bg-gray-900/50 backdrop-blur-sm z-50 hidden">
-        <div class="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
-            <div class="animate-pulse flex space-x-4">
-                <div class="flex-1 space-y-4 py-1">
-                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                    <div class="space-y-2">
-                        <div class="h-4 bg-gray-200 rounded"></div>
-                        <div class="h-4 bg-gray-200 rounded w-5/6"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="mt-4 text-center text-gray-600">
-                Loading<span class="loading-dots"></span>
-            </div>
-        </div>
-    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const dropdowns = document.querySelectorAll('.dropdown-content');
+            const dropdownTriggers = document.querySelectorAll('.dropdown-trigger');
+            const currentPath = window.location.pathname;
 
-    <style>
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .page-transition {
-            animation: fadeIn 0.3s ease-in-out;
-        }
-    </style>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const dropdowns = document.querySelectorAll('.dropdown-content');
-        const dropdownTriggers = document.querySelectorAll('.dropdown-trigger');
-
-        // Function to close all dropdowns except the specified one
-        function closeOtherDropdowns(exceptDropdown) {
-            dropdowns.forEach(dropdown => {
-                if (dropdown !== exceptDropdown) {
-                    dropdown.classList.remove('show');
-                    const trigger = dropdown.previousElementSibling;
-                    const arrow = trigger.querySelector('.dropdown-arrow');
-                    if (arrow) arrow.classList.remove('rotate');
+            // Remove active class from all nav indicators
+            document.querySelectorAll('.nav-indicator').forEach(item => {
+                item.classList.remove('active');
+                if (item.getAttribute('href') === currentPath) {
+                    item.classList.add('active');
                 }
             });
-        }
 
-        // Function to load content via AJAX
-        function loadContent(url) {
-            fetch(url, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.text())
-            .then(html => {
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                const mainContent = doc.querySelector('main');
-                if (mainContent) {
-                    document.querySelector('main').innerHTML = mainContent.innerHTML;
-                    window.history.pushState({}, '', url);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                window.location.href = url; // Fallback to normal navigation
+            // Function to close all dropdowns except the specified one
+            function closeOtherDropdowns(exceptDropdown) {
+                dropdowns.forEach(dropdown => {
+                    if (dropdown !== exceptDropdown) {
+                        dropdown.classList.remove('show');
+                        const trigger = dropdown.previousElementSibling;
+                        const arrow = trigger.querySelector('.dropdown-arrow');
+                        if (arrow) arrow.classList.remove('rotate');
+                    }
+                });
+            }
+
+            // Function to load content via AJAX
+            function loadContent(url) {
+                fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const mainContent = doc.querySelector('main');
+                    if (mainContent) {
+                        document.querySelector('main').innerHTML = mainContent.innerHTML;
+                        window.history.pushState({}, '', url);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    window.location.href = url; // Fallback to normal navigation
+                });
+            }
+
+            // Handle dropdown trigger clicks
+            dropdownTriggers.forEach(trigger => {
+                trigger.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const content = this.nextElementSibling;
+                    const arrow = this.querySelector('.dropdown-arrow');
+
+                    if (!content.classList.contains('show')) {
+                        closeOtherDropdowns(content);
+                    }
+                    
+                    content.classList.toggle('show');
+                    arrow.classList.toggle('rotate');
+                });
             });
-        }
 
-        // Handle dropdown trigger clicks
-        dropdownTriggers.forEach(trigger => {
-            trigger.addEventListener('click', function(e) {
+            // Handle link clicks
+            document.querySelector('nav').addEventListener('click', function(e) {
+                const clickedLink = e.target.closest('a');
+                if (!clickedLink) return;
+
+                // Skip if it's a dropdown trigger
+                if (clickedLink.classList.contains('dropdown-trigger')) return;
+
+                // Prevent default navigation
                 e.preventDefault();
-                const content = this.nextElementSibling;
-                const arrow = this.querySelector('.dropdown-arrow');
 
-                if (!content.classList.contains('show')) {
-                    closeOtherDropdowns(content);
+                // If it's a link inside a dropdown, just update active state
+                if (clickedLink.closest('.dropdown-content')) {
+                    document.querySelectorAll('.nav-indicator').forEach(item => {
+                        item.classList.remove('active');
+                    });
+                    clickedLink.classList.add('active');
+                    loadContent(clickedLink.href);
+                    return; // Don't close any dropdowns
                 }
-                
-                content.classList.toggle('show');
-                arrow.classList.toggle('rotate');
-            });
-        });
 
-        // Handle link clicks
-        document.querySelector('nav').addEventListener('click', function(e) {
-            const clickedLink = e.target.closest('a');
-            if (!clickedLink) return;
+                // If it's a top-level link, close all dropdowns
+                if (!clickedLink.closest('.dropdown-content')) {
+                    closeOtherDropdowns(null);
+                }
 
-            // Skip if it's a dropdown trigger
-            if (clickedLink.classList.contains('dropdown-trigger')) return;
-
-            // Prevent default navigation
-            e.preventDefault();
-
-            // If it's a link inside a dropdown, just update active state
-            if (clickedLink.closest('.dropdown-content')) {
+                // Update active state
                 document.querySelectorAll('.nav-indicator').forEach(item => {
                     item.classList.remove('active');
                 });
                 clickedLink.classList.add('active');
                 loadContent(clickedLink.href);
-                return; // Don't close any dropdowns
-            }
-
-            // If it's a top-level link, close all dropdowns
-            if (!clickedLink.closest('.dropdown-content')) {
-                closeOtherDropdowns(null);
-            }
-
-            // Update active state
-            document.querySelectorAll('.nav-indicator').forEach(item => {
-                item.classList.remove('active');
             });
-            clickedLink.classList.add('active');
-            loadContent(clickedLink.href);
+
+            // Handle browser back/forward buttons
+            window.addEventListener('popstate', function() {
+                loadContent(window.location.href);
+            });
         });
 
-        // Handle browser back/forward buttons
-        window.addEventListener('popstate', function() {
-            loadContent(window.location.href);
+        // Message handling
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-hide messages after 5 seconds
+            const messages = document.querySelectorAll('.animate-fade-in-down');
+            messages.forEach(message => {
+                setTimeout(() => {
+                    message.classList.add('animate-fade-out-up');
+                    setTimeout(() => message.remove(), 500);
+                }, 5000);
+            });
+
+            // Handle close button clicks
+            const closeButtons = document.querySelectorAll('.message-close');
+            closeButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const message = button.closest('.animate-fade-in-down');
+                    message.classList.add('animate-fade-out-up');
+                    setTimeout(() => message.remove(), 500);
+                });
+            });
         });
-    });
-</script>
+
+        // Add Tailwind animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeInDown {
+                from {
+                    opacity: 0;
+                    transform: translateY(-1rem);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            @keyframes fadeOutUp {
+                from {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+                to {
+                    opacity: 0;
+                    transform: translateY(-1rem);
+                }
+            }
+
+            .animate-fade-in-down {
+                animation: fadeInDown 0.5s ease-out forwards;
+            }
+
+            .animate-fade-out-up {
+                animation: fadeOutUp 0.5s ease-out forwards;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
 
     {% block extra_scripts %}{% endblock %}
 </body>

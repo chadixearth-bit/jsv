@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block content %}
+{% block main_content %}
 <div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-4 px-2 sm:px-4 lg:px-6">
     <!-- Page Header -->
     <div class="w-full max-w-[1920px] mx-auto mb-6">
@@ -25,7 +25,7 @@
     <!-- Form Container -->
     <div class="w-full max-w-[1920px] mx-auto">
         <div class="bg-white rounded-xl shadow-md">
-            <form method="post" id="requisitionForm" class="p-4 sm:p-6">
+            <form method="post" id="requisitionForm" class="p-4 sm:p-6" action="{% url 'requisition:create_requisition' %}">
                 {% csrf_token %}
                 {{ form.non_field_errors }}
                 
@@ -33,17 +33,6 @@
                 <input type="hidden" name="quantities" value="{}">
                 <input type="hidden" name="request_type" value="item">
                 <div id="selectedItemsContainer"></div>
-                
-                <!-- Source Warehouse Section -->
-                {% if user.customuser.role == 'attendance' %}
-                <div class="mb-6">
-                    <label for="{{ form.source_warehouse.id_for_label }}" class="flex items-center text-base sm:text-lg font-semibold text-gray-700">
-                        <i class="fas fa-warehouse mr-2 text-indigo-500"></i>Request From Warehouse
-                    </label>
-                    {{ form.source_warehouse }}
-                    {{ form.source_warehouse.errors }}
-                </div>
-                {% endif %}
 
                 <!-- Main Content Area with Two Columns -->
                 <div class="flex flex-col xl:flex-row gap-6">
@@ -57,7 +46,7 @@
                         </div>
                         
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
-                            {% for item in items %}
+                            {% for item in form.items.field.queryset %}
                             <div class="item-card cursor-pointer group relative bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-all duration-300
                                       {% if item.stock == 0 %}bg-red-50/50{% elif item.stock <= 5 %}bg-yellow-50/50{% endif %}
                                       hover:shadow-md transform hover:-translate-y-1"
@@ -93,7 +82,7 @@
                                     <div class="space-y-2">
                                         <h3 class="font-medium text-gray-900 line-clamp-2">{{ item.item_name }}</h3>
                                         <div class="flex items-center text-sm text-gray-500">
-                                            <i class="fas fa-cubes mr-1.5"></i>
+                                            <i class="fas fa-cubes mr-1"></i>
                                             <span>Stock: {{ item.stock }}</span>
                                         </div>
                                     </div>
@@ -129,7 +118,6 @@
                 <!-- Submit Button -->
                 <div class="mt-6 flex justify-end">
                     <button type="submit" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
-                        <i class="fas fa-paper-plane mr-2"></i>
                         Submit Requisition
                     </button>
                 </div>
@@ -186,9 +174,9 @@ function createQuantityField(itemId, itemName) {
                     class="text-gray-500 hover:text-indigo-600 focus:outline-none">
                 <i class="fas fa-minus"></i>
             </button>
-            <input type="number" min="1" value="${selectedItems.get(itemId).quantity}" 
-                   onchange="updateItemQuantity('${itemId}', this.value)"
-                   class="w-16 text-center border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500" />
+            <input type="number" min="1" value="${selectedItems.get(itemId).quantity}"
+                   class="w-16 text-center border border-gray-300 rounded-md focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                   onchange="updateItemQuantity('${itemId}', this.value)">
             <button type="button" onclick="adjustQuantity('${itemId}', 1)"
                     class="text-gray-500 hover:text-indigo-600 focus:outline-none">
                 <i class="fas fa-plus"></i>
@@ -227,9 +215,7 @@ function updateQuantitiesInput() {
 function updateItemsInput() {
     // Create hidden inputs for each selected item
     const itemsContainer = document.getElementById('selectedItemsContainer');
-    
     itemsContainer.innerHTML = ''; // Clear existing inputs
-    
     selectedItems.forEach((item, id) => {
         const input = document.createElement('input');
         input.type = 'hidden';

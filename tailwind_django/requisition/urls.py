@@ -7,6 +7,7 @@ urlpatterns = [
     path('create/', views.create_requisition, name='create_requisition'),
     path('list/', views.requisition_list, name='requisition_list'),
     path('edit/<int:pk>/', views.edit_requisition, name='edit_requisition'),
+    path('requisition/<int:pk>/', views.view_requisition, name='view_requisition'),
     path('requisition/<int:pk>/approve/', views.approve_requisition, name='approve_requisition'),
     path('requisition/<int:pk>/reject/', views.reject_requisition, name='reject_requisition'),
     path('requisition/<int:pk>/delete/', views.delete_requisition, name='delete_requisition'),

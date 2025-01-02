@@ -105,10 +105,17 @@ def inventory_list(request):
 
 def inventory_detail(request, pk):
     item = get_object_or_404(
-        InventoryItem.objects.select_related('warehouse', 'brand', 'category'),
+        InventoryItem.objects.select_related('warehouse', 'brand', 'category')
+        .annotate(
+            total_stock=Sum('stock'),
+        ),
         pk=pk
     )
-    return render(request, 'inventory/inventory_detail.html', {'item': item})
+    context = {
+        'item': item,
+        'title': f'Item Details - {item.item_name}',
+    }
+    return render(request, 'inventory/inventory_detail.html', context)
 
 def inventory_create(request):
     if request.method == 'POST':
@@ -119,6 +126,16 @@ def inventory_create(request):
             
             if request.user.customuser.role == 'admin':
                 # For admin, create item in both warehouses with stock 0
+                # Get or create warehouses
+                manager_warehouse, _ = Warehouse.objects.get_or_create(
+                    name='Manager Warehouse',
+                    defaults={'is_main': False}
+                )
+                attendant_warehouse, _ = Warehouse.objects.get_or_create(
+                    name='Attendant Warehouse',
+                    defaults={'is_main': False}
+                )
+                
                 # Create for manager warehouse
                 InventoryItem.objects.create(
                     brand=base_item.brand,
@@ -129,6 +146,7 @@ def inventory_create(request):
                     stock=0,  # Default stock 0
                     availability=True,
                     location='manager_warehouse',
+                    warehouse=manager_warehouse,  # Assign warehouse
                     image=base_item.image,
                     description=base_item.description
                 )
@@ -142,14 +160,22 @@ def inventory_create(request):
                     stock=0,  # Default stock 0
                     availability=True,
                     location='attendant_warehouse',
+                    warehouse=attendant_warehouse,  # Assign warehouse
                     image=base_item.image,
                     description=base_item.description
                 )
                 messages.success(request, 'Item created successfully in both warehouses.')
             else:
-                # For non-admin users, save as normal
-                base_item.save()
-                messages.success(request, 'Item created successfully.')
+                # For non-admin users, get their warehouse
+                user_warehouse = request.user.customuser.warehouses.first()
+                if user_warehouse:
+                    base_item.warehouse = user_warehouse
+                    base_item.location = 'attendant_warehouse' if request.user.customuser.role == 'attendant' else 'manager_warehouse'
+                    base_item.save()
+                    messages.success(request, 'Item created successfully.')
+                else:
+                    messages.error(request, 'Error: No warehouse assigned to your account.')
+                    return redirect('inventory:list')
             
             return redirect('inventory:list')
         else:
@@ -165,16 +191,27 @@ def inventory_update(request, pk):
     if request.method == 'POST':
         form = InventoryItemForm(request.POST, request.FILES, instance=item, user=request.user)
         if form.is_valid():
-            updated_item = form.save(commit=False)
-            updated_item.save()
-            messages.success(request, 'Item updated successfully.')
-            return redirect('inventory:list')
+            try:
+                updated_item = form.save(commit=False)
+                if 'image' in request.FILES:
+                    updated_item.image = request.FILES['image']
+                updated_item.save()
+                messages.success(request, 'Item updated successfully.')
+                return redirect('inventory:list')
+            except Exception as e:
+                messages.error(request, f'Error updating item: {str(e)}')
         else:
-            messages.error(request, 'Error updating item. Please check the form.')
+            messages.error(request, 'Please correct the errors below.')
     else:
         form = InventoryItemForm(instance=item, user=request.user)
     
-    return render(request, 'inventory/inventory_form.html', {'form': form, 'action': 'Update'})
+    context = {
+        'form': form,
+        'action': 'Update',
+        'title': 'Update Item',
+        'item': item
+    }
+    return render(request, 'inventory/inventory_form.html', context)
 
 def inventory_delete(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)
@@ -237,10 +274,39 @@ def set_price(request, pk):
     return render(request, 'inventory/set_price.html', {'item': item})
 
 def store_inventory(request):
-    """View for store inventory (attendant view)"""
-    # Get all warehouses with attendant role
-    attendant_warehouses = Warehouse.objects.filter(custom_users__role='attendant')
-    items = InventoryItem.objects.filter(warehouse__in=attendant_warehouses).select_related('warehouse', 'brand', 'category')
+    # Debug logging
+    print("\n=== DEBUG: Store Inventory ===")
+    print(f"User: {request.user.username}")
+    print(f"Role: {request.user.customuser.role if hasattr(request.user, 'customuser') else None}")
+    
+    # Get user's warehouse
+    user_warehouse = request.user.customuser.warehouses.first() if hasattr(request.user, 'customuser') else None
+    print(f"User Warehouse: {user_warehouse.name if user_warehouse else None}")
+    
+    # Get items in user's warehouse
+    if user_warehouse:
+        items = InventoryItem.objects.filter(warehouse=user_warehouse)
+        print("\nItems in warehouse:")
+        for item in items:
+            print(f"- {item.item_name} (Stock: {item.stock})")
+        print(f"Total items: {items.count()}")
+    
+    # Get all warehouses for debugging
+    all_warehouses = Warehouse.objects.all()
+    print("\nAll Warehouses:")
+    for warehouse in all_warehouses:
+        warehouse_items = InventoryItem.objects.filter(warehouse=warehouse)
+        print(f"- {warehouse.name}: {warehouse_items.count()} items")
+        print(f"  Users: {', '.join([u.username for u in warehouse.custom_users.all()])}")
+    
+    # Original function logic
+    if not hasattr(request.user, 'customuser') or request.user.customuser.role != 'attendant':
+        messages.error(request, "You don't have permission to view the store inventory.")
+        return redirect('inventory:list')
+    
+    items = InventoryItem.objects.filter(
+        warehouse=request.user.customuser.warehouses.first()
+    ).select_related('brand', 'category')
     
     # Search functionality
     query = request.GET.get('q')
@@ -248,20 +314,18 @@ def store_inventory(request):
         items = items.filter(
             Q(item_name__icontains=query) |
             Q(model__icontains=query) |
-            Q(brand__name__icontains=query) |
-            Q(category__name__icontains=query)
+            Q(brand__name__icontains=query)
         )
     
-    # Get global settings
-    global_settings, created = GlobalSettings.objects.get_or_create()
+    # Pagination
+    paginator = Paginator(items, 10)
+    page = request.GET.get('page')
+    items = paginator.get_page(page)
     
-    context = {
+    return render(request, 'inventory/store_inventory.html', {
         'items': items,
-        'global_settings': global_settings,
-        'view_type': 'store'
-    }
-    
-    return render(request, 'inventory/inventory_list.html', context)
+        'search_query': query
+    })
 
 def warehouse_inventory(request):
     """View for warehouse inventory (manager view)"""

@@ -86,161 +86,181 @@ def create_delivery_notification(delivery, action, user=None):
 
 @login_required(login_url='account:login')
 def requisition_list(request):
-    user = request.user
-    user_role = user.customuser.role if hasattr(user, 'customuser') else None
-
-    if not user_role:
-        raise PermissionDenied("You don't have permission to view requisitions.")
-
-    # Get query parameters
-    query = request.GET.get('q', '')
-    status = request.GET.get('status', '')
-
-    if user_role == 'attendance':
-        requisitions = Requisition.objects.filter(requester=user)
+    print("\n=== DEBUG: Requisition List ===")
+    print(f"User: {request.user.username}")
+    print(f"Role: {request.user.customuser.role if hasattr(request.user, 'customuser') else None}")
+    
+    user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
+    
+    # Build the base queryset
+    requisitions = Requisition.objects.select_related(
+        'requester',
+        'source_warehouse',
+        'destination_warehouse'
+    ).prefetch_related(
+        'items',
+        'items__item'
+    )
+    
+    # Filter based on user role
+    if user_role == 'attendant':
+        # Attendants can only see their own requisitions
+        requisitions = requisitions.filter(requester=request.user)
     elif user_role == 'manager':
-        # Get the warehouses assigned to the manager
-        manager_warehouses = user.customuser.warehouses.all()
-        # Get all requisitions related to manager's warehouses
-        requisitions = Requisition.objects.filter(
-            Q(source_warehouse__in=manager_warehouses) | 
-            Q(destination_warehouse__in=manager_warehouses)
+        # Managers can see:
+        # 1. Requisitions they created
+        # 2. Requisitions from attendants where they are the destination warehouse
+        user_warehouse = request.user.customuser.warehouses.first()
+        requisitions = requisitions.filter(
+            Q(requester=request.user) |  # Their own requisitions
+            Q(destination_warehouse=user_warehouse, requester__customuser__role='attendant')  # Attendant requisitions to their warehouse
         )
     elif user_role == 'admin':
-        # Only show requisitions from managers
-        requisitions = Requisition.objects.filter(
-            requester__customuser__role='manager'
-        )
+        # Admins can only see requisitions from managers
+        requisitions = requisitions.filter(requester__customuser__role='manager')
     else:
-        requisitions = Requisition.objects.none()
-
-    # Apply status filter if provided
-    if status:
-        requisitions = requisitions.filter(status=status)
-
-    # Apply search query if provided
-    if query:
-        requisitions = requisitions.filter(
-            Q(item__item__item_name__icontains=query) |
-            Q(status__icontains=query)
-        )
-
+        # If role not recognized, show no requisitions
+        requisitions = requisitions.none()
+    
     # Order by most recent first
     requisitions = requisitions.order_by('-created_at')
-
-    # Pagination
-    paginator = Paginator(requisitions, 10)  # Show 10 requisitions per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
     
-    # Get unread notifications count
-    notifications_count = Notification.objects.filter(user=user, is_read=False).count()
-
+    print(f"\n=== DEBUG: Filtered Requisitions ===")
+    print(f"Total requisitions: {requisitions.count()}")
+    for req in requisitions:
+        print(f"ID: {req.id}, Requester: {req.requester.username}, Role: {req.requester.customuser.role}")
+    
     context = {
-        'requisitions': page_obj,
-        'user_role': user_role,
-        'query': query,
-        'status': status,
-        'notifications_count': notifications_count,
-        'pending_count': requisitions.filter(status='pending').count(),
+        'requisitions': requisitions,
+        'user_role': user_role
     }
     return render(request, 'requisition/requisition_list.html', context)
 
+@login_required
 def create_requisition(request):
+    # Debug logging
+    print("\n=== DEBUG: Create Requisition ===")
+    print(f"User: {request.user.username}")
+    print(f"Role: {request.user.customuser.role if hasattr(request.user, 'customuser') else None}")
+    
+    # Get user's warehouse
+    user_warehouse = request.user.customuser.warehouses.first() if hasattr(request.user, 'customuser') else None
+    print(f"User Warehouse: {user_warehouse.name if user_warehouse else None}")
+    
     # Check if user has permission to create requisition
     if not hasattr(request.user, 'customuser') or request.user.customuser.role not in ['attendant', 'manager']:
         messages.error(request, "You don't have permission to create requisitions.")
         return redirect('requisition:requisition_list')
-        
-    # Add debug logging
-    print("\nDEBUG: Starting create_requisition")
-    print(f"DEBUG: User: {request.user.username}")
-    print(f"DEBUG: User role: {request.user.customuser.role if hasattr(request.user, 'customuser') else None}")
-    user_warehouse = request.user.customuser.warehouses.first() if hasattr(request.user, 'customuser') else None
-    print(f"DEBUG: User warehouse: {user_warehouse.name if user_warehouse else None}")
     
     if request.method == 'POST':
+        print("\n=== DEBUG: Processing POST request ===")
+        print(f"POST data: {request.POST}")
+        
         form = RequisitionForm(request.POST, user=request.user)
-        if form.is_valid():
-            try:
-                with transaction.atomic():
-                    requisition = form.save(commit=False)
-                    requisition.requester = request.user
+        print(f"Form is valid: {form.is_valid()}")
+        
+        if not form.is_valid():
+            print(f"\n=== DEBUG: Form Errors ===")
+            for field, errors in form.errors.items():
+                print(f"Field '{field}': {errors}")
+            for error in form.non_field_errors():
+                print(f"Non-field error: {error}")
+            messages.error(request, "Please correct the errors below.")
+            return render(request, 'requisition/create_requisition.html', {'form': form})
+            
+        try:
+            with transaction.atomic():
+                print("\n=== DEBUG: Creating Requisition ===")
+                requisition = form.save(commit=False)
+                requisition.requester = request.user
+                requisition.request_type = 'item'  # Set default request type
+                
+                # Set status and warehouse based on user role
+                if request.user.customuser.role == 'attendant':
+                    print("\n=== DEBUG: Setting up attendant requisition ===")
+                    requisition.status = 'pending'  # Pending manager approval
+                    requisition.source_warehouse = request.user.customuser.warehouses.first()  # Source is attendant's warehouse
                     
-                    # Set status and warehouse based on user role
-                    if request.user.customuser.role == 'attendant':
-                        requisition.status = 'pending'  # Pending manager approval
-                        requisition.source_warehouse = form.cleaned_data.get('source_warehouse')
-                        requisition.destination_warehouse = request.user.customuser.warehouses.first()
-                    elif request.user.customuser.role == 'manager':
-                        # For managers, set status to pending admin approval
-                        requisition.status = 'pending_admin_approval'
-                        requisition.source_warehouse = request.user.customuser.warehouses.first()
-                    elif request.user.customuser.role == 'admin':
-                        # For admin, set status to approved
-                        requisition.status = 'approved'
-                        requisition.source_warehouse = form.cleaned_data.get('source_warehouse')
-                        requisition.destination_warehouse = form.cleaned_data.get('destination_warehouse')
+                    # Find a manager's warehouse
+                    manager_warehouse = Warehouse.objects.filter(
+                        custom_users__role='manager'
+                    ).exclude(
+                        id=requisition.source_warehouse.id
+                    ).first()
                     
-                    requisition.save()
-
-                    items = form.cleaned_data.get('items')
-                    quantities_json = form.cleaned_data.get('quantities', '{}')
-                    try:
-                        quantities = json.loads(quantities_json)
-                    except json.JSONDecodeError:
-                        messages.error(request, "Invalid quantities format.")
+                    if not manager_warehouse:
+                        messages.error(request, "No manager warehouse found.")
                         return redirect('requisition:create_requisition')
                     
-                    # Create RequisitionItem for each selected item
+                    requisition.destination_warehouse = manager_warehouse
+                    print(f"Source warehouse: {requisition.source_warehouse.name}")
+                    print(f"Destination warehouse: {requisition.destination_warehouse.name}")
+                
+                elif request.user.customuser.role == 'manager':
+                    requisition.status = 'pending_admin_approval'
+                    requisition.source_warehouse = request.user.customuser.warehouses.first()
+                
+                print("\n=== DEBUG: Saving requisition ===")
+                print(f"Request type: {requisition.request_type}")
+                print(f"Status: {requisition.status}")
+                print(f"Source warehouse: {requisition.source_warehouse}")
+                print(f"Destination warehouse: {requisition.destination_warehouse}")
+                print(f"Requester: {requisition.requester}")
+                requisition.save()
+                print("Requisition saved successfully")
+
+                # Process selected items and quantities
+                items = form.cleaned_data.get('items')
+                quantities_json = form.cleaned_data.get('quantities', '{}')
+                print(f"\n=== DEBUG: Processing items ===")
+                print(f"Items: {items}")
+                print(f"Quantities JSON: {quantities_json}")
+                
+                try:
+                    quantities = json.loads(quantities_json)
+                    print(f"Parsed quantities: {quantities}")
+                    
+                    # Create RequisitionItem objects
                     for item in items:
-                        item_id = str(item.id)
-                        quantity = quantities.get(item_id, 0)  # Default to 0 if not found
-                        
+                        quantity = int(quantities.get(str(item.id), 1))
                         if quantity <= 0:
-                            messages.error(request, f"Invalid quantity ({quantity}) for item {item.item_name}.")
-                            return redirect('requisition:create_requisition')
+                            raise ValueError(f"Invalid quantity ({quantity}) for item {item.item_name}")
                         
-                        RequisitionItem.objects.create(
+                        print(f"Creating requisition item: {item.item_name} (Quantity: {quantity})")
+                        requisition_item = RequisitionItem.objects.create(
                             requisition=requisition,
                             item=item,
                             quantity=quantity
                         )
+                        print(f"Created requisition item: {requisition_item}")
 
-                    # Create notification for the requisition
-                    create_notification(requisition)
+                except json.JSONDecodeError:
+                    raise ValueError("Invalid quantities format")
+                except (TypeError, ValueError) as e:
+                    raise ValueError(f"Invalid quantity value: {str(e)}")
+
+                # Create notification for the requisition
+                create_notification(requisition)
+                print("\n=== DEBUG: Notification created ===")
 
                 messages.success(request, 'Requisition created successfully.')
-                return redirect('requisition:requisition_list')  
+                print("\n=== DEBUG: Redirecting to requisition list ===")
+                return redirect('requisition:requisition_list')
 
-            except Exception as e:
-                messages.error(request, str(e))
-                return redirect('requisition:create_requisition')
+        except Exception as e:
+            print(f"\n=== DEBUG: Error creating requisition ===")
+            print(f"Error type: {type(e)}")
+            print(f"Error message: {str(e)}")
+            print(f"Error details: {e}")
+            messages.error(request, f"Error creating requisition: {str(e)}")
+            return render(request, 'requisition/create_requisition.html', {'form': form})
     else:
         form = RequisitionForm(user=request.user)
     
-    # Get items for the template context
-    user_warehouse = request.user.customuser.warehouses.first() if hasattr(request.user, 'customuser') else None
-    items = []
-    categories = []
-    brands = []
-    
-    if user_warehouse:
-        # Show items from user's warehouse for both managers and attendants
-        items = InventoryItem.objects.filter(
-            warehouse=user_warehouse
-        ).select_related('category', 'brand').order_by('item_name')
-
-        # Get unique categories and brands for filters
-        categories = set(items.values_list('category__name', 'category__id'))
-        brands = set(items.values_list('brand__name', flat=True))
-
-    return render(request, 'requisition/create_requisition.html', {
+    context = {
         'form': form,
-        'items': items,
-        'categories': sorted(categories),
-        'brands': sorted(brands)
-    })
+    }
+    return render(request, 'requisition/create_requisition.html', context)
 
 def edit_requisition(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
@@ -646,7 +666,7 @@ def delivery_list(request):
             'delivered_by'
         ).prefetch_related('items__item__brand')
         
-    elif user_role == 'attendance':
+    elif user_role == 'attendant':
         deliveries = Delivery.objects.filter(
             Q(status='in_delivery') |
             Q(status='pending_delivery') |
@@ -861,7 +881,7 @@ def confirm_delivery(request, pk):
     delivery = get_object_or_404(Delivery, pk=pk)
     user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
     
-    if user_role == 'attendance':
+    if user_role == 'attendant':
         if 'delivery_image' not in request.FILES:
             messages.error(request, 'Please upload a delivery image.')
             return redirect('requisition:delivery_list')
@@ -976,7 +996,7 @@ def get_delivery_details(request, pk):
 
         # Get personnel info
         personnel_name = delivery.delivery_personnel_name or (
-            delivery.delivered_by.get_full_name() if delivery.delivered_by else 'Not Assigned'
+            delivery.delivered_by.get_full_name() or delivery.delivered_by.username
         )
         contact_number = delivery.delivery_personnel_phone or 'N/A'
 
@@ -993,7 +1013,7 @@ def get_delivery_details(request, pk):
             'estimated_delivery_date': delivery.estimated_delivery_date.strftime('%B %d, %Y') if delivery.estimated_delivery_date else None,
             'delivery_personnel': personnel_name,
             'contact_number': contact_number,
-            'requester': requester_name,  # This will now use username if full name is empty
+            'requester': requester_name,  
             'items': items_data,
             'notes': delivery.notes or ''
         }
@@ -1536,3 +1556,46 @@ def view_requisition_pdf(request, pk):
                 os.remove(filepath)
             except:
                 pass
+
+@login_required
+def view_requisition(request, pk):
+    """
+    View details of a specific requisition
+    """
+    requisition = get_object_or_404(Requisition.objects.select_related(
+        'requester',
+        'source_warehouse',
+        'destination_warehouse'
+    ).prefetch_related(
+        'items',
+        'items__item'
+    ), pk=pk)
+    
+    # Check if user has permission to view this requisition
+    user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
+    
+    if user_role == 'attendant':
+        # Attendants can only view their own requisitions
+        if requisition.requester != request.user:
+            raise PermissionDenied
+    elif user_role == 'manager':
+        # Managers can view:
+        # 1. Their own requisitions
+        # 2. Requisitions from attendants where they are the destination warehouse manager
+        user_warehouse = request.user.customuser.warehouses.first()
+        if not (requisition.requester == request.user or 
+                (requisition.destination_warehouse == user_warehouse and 
+                 requisition.requester.customuser.role == 'attendant')):
+            raise PermissionDenied
+    elif user_role == 'admin':
+        # Admins can only view requisitions from managers
+        if requisition.requester.customuser.role != 'manager':
+            raise PermissionDenied
+    else:
+        raise PermissionDenied
+    
+    context = {
+        'requisition': requisition,
+        'user_role': user_role
+    }
+    return render(request, 'requisition/view_requisition.html', context)
