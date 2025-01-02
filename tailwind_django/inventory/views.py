@@ -105,10 +105,17 @@ def inventory_list(request):
 
 def inventory_detail(request, pk):
     item = get_object_or_404(
-        InventoryItem.objects.select_related('warehouse', 'brand', 'category'),
+        InventoryItem.objects.select_related('warehouse', 'brand', 'category')
+        .annotate(
+            total_stock=Sum('stock'),
+        ),
         pk=pk
     )
-    return render(request, 'inventory/inventory_detail.html', {'item': item})
+    context = {
+        'item': item,
+        'title': f'Item Details - {item.item_name}',
+    }
+    return render(request, 'inventory/inventory_detail.html', context)
 
 def inventory_create(request):
     if request.method == 'POST':
@@ -165,16 +172,27 @@ def inventory_update(request, pk):
     if request.method == 'POST':
         form = InventoryItemForm(request.POST, request.FILES, instance=item, user=request.user)
         if form.is_valid():
-            updated_item = form.save(commit=False)
-            updated_item.save()
-            messages.success(request, 'Item updated successfully.')
-            return redirect('inventory:list')
+            try:
+                updated_item = form.save(commit=False)
+                if 'image' in request.FILES:
+                    updated_item.image = request.FILES['image']
+                updated_item.save()
+                messages.success(request, 'Item updated successfully.')
+                return redirect('inventory:list')
+            except Exception as e:
+                messages.error(request, f'Error updating item: {str(e)}')
         else:
-            messages.error(request, 'Error updating item. Please check the form.')
+            messages.error(request, 'Please correct the errors below.')
     else:
         form = InventoryItemForm(instance=item, user=request.user)
     
-    return render(request, 'inventory/inventory_form.html', {'form': form, 'action': 'Update'})
+    context = {
+        'form': form,
+        'action': 'Update',
+        'title': 'Update Item',
+        'item': item
+    }
+    return render(request, 'inventory/inventory_form.html', context)
 
 def inventory_delete(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)

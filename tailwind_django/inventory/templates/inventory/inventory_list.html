@@ -63,7 +63,7 @@
             {% endif %}
 
             <!-- Search and Filter Section -->
-            <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+            <div class="mb-8">
                 <div class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <!-- Search Bar -->
@@ -86,7 +86,7 @@
 
                         <!-- Category Filter -->
                         <div>
-                            <select id="category" name="category" onchange="applyCategoryFilter(this.value)" class="w-full rounded-lg border-0 ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-500 bg-gray-50 py-2 px-3 text-gray-900">
+                            <select id="category" name="category" onchange="applyCategoryFilter(this.value)" class="w-full bg-white rounded-lg border-0 ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-500 bg-gray-50 py-2 px-3 text-gray-900">
                                 <option value="">All Categories</option>
                                 {% for category in all_categories %}
                                     <option value="{{ category.id }}" {% if selected_category == category.id|stringformat:'s' %}selected{% endif %}>
@@ -98,7 +98,7 @@
 
                         <!-- Brand Filter -->
                         <div>
-                            <select id="brand" name="brand" onchange="applyBrandFilter(this.value)" class="w-full rounded-lg border-0 ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-500 bg-gray-50 py-2 px-3 text-gray-900">
+                            <select id="brand" name="brand" onchange="applyBrandFilter(this.value)" class="w-full bg-white rounded-lg border-0 ring-1 ring-gray-200 focus:ring-2 focus:ring-indigo-500 bg-gray-50 py-2 px-3 text-gray-900">
                                 <option value="">All Brands</option>
                                 {% for brand in all_brands %}
                                     <option value="{{ brand.id }}" {% if selected_brand == brand.id|stringformat:'s' %}selected{% endif %}>
@@ -143,7 +143,7 @@
             </div>
 
             <!-- Table Section -->
-            <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div class="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-300">
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">
