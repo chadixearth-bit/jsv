@@ -401,7 +401,7 @@ def approve_requisition(request, pk):
                                 new_requisition = Requisition.objects.create(
                                     requester=request.user,
                                     status='pending_admin_approval',
-                                    request_type='purchase',
+                                    # request_type='purchase',
                                     reason=f"Auto-generated from rejected requisition #{requisition.id} - No items available",
                                     source_warehouse=requisition.source_warehouse,
                                     destination_warehouse=requisition.destination_warehouse
@@ -415,7 +415,7 @@ def approve_requisition(request, pk):
                                         quantity=req_item.quantity
                                     )
                                 
-                                messages.warning(request, 'Requisition rejected due to no available items. A new requisition for purchase order has been created.')
+                                messages.warning(request, 'Requisition rejected due to no available items. Requisition sent to Admin for approval.')
                                 return redirect('requisition:requisition_list')
                             
                             # Create delivery for available items
