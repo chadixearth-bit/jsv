@@ -371,15 +371,120 @@
     </div>
 </div>
 
+<<<<<<< Updated upstream
+=======
+<!-- Existing Item Row Template -->
+<template id="existingItemRowTemplate">
+    <tr class="item-row">
+        <td class="px-6 py-4">
+            <select name="items[]" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <option value="">Select an item...</option>
+                {% for item in available_items %}
+                    <option value="{{ item.id }}">{{ item.item_name }} ({{ item.brand.name }} - {{ item.model }})</option>
+                {% endfor %}
+            </select>
+        </td>
+        <td class="px-6 py-4">
+            <input type="text" name="brands[]" readonly class="bg-gray-50 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        </td>
+        <td class="px-6 py-4">
+            <input type="text" name="models[]" readonly class="bg-gray-50 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        </td>
+        <td class="px-6 py-4">
+            <input type="number" name="quantities[]" required min="1" 
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                   onchange="updateCalculations()">
+        </td>
+        <td class="px-6 py-4">
+            <input type="number" name="unit_prices[]" required min="0.01" step="0.01" 
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                   onchange="updateCalculations()">
+        </td>
+        <td class="px-6 py-4">
+            <span class="subtotal">$0.00</span>
+        </td>
+        <td class="px-6 py-4">
+            <button type="button" onclick="removeItem(this)" 
+                    class="text-red-600 hover:text-red-900 inline-flex items-center">
+                <i class="fas fa-trash mr-1"></i>
+                Remove
+            </button>
+        </td>
+    </tr>
+</template>
+
+<!-- New Item Row Template -->
+<template id="newItemRowTemplate">
+    <tr class="item-row">
+        <td class="px-6 py-4">
+            <input type="text" name="new_item_names[]" required placeholder="Enter item name" 
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        </td>
+        <td class="px-6 py-4">
+            <input type="text" name="new_brands[]" required placeholder="Enter brand"
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        </td>
+        <td class="px-6 py-4">
+            <input type="text" name="new_models[]" required placeholder="Enter model"
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        </td>
+        <td class="px-6 py-4">
+            <input type="number" name="new_quantities[]" required min="1" placeholder="Quantity"
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                   onchange="updateCalculations()">
+        </td>
+        <td class="px-6 py-4">
+            <input type="number" name="new_unit_prices[]" required min="0.01" step="0.01" placeholder="Unit Price"
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                   onchange="updateCalculations()">
+        </td>
+        <td class="px-6 py-4">
+            <span class="subtotal">$0.00</span>
+        </td>
+        <td class="px-6 py-4">
+            <button type="button" onclick="removeItem(this)" 
+                    class="text-red-600 hover:text-red-900 inline-flex items-center">
+                <i class="fas fa-trash mr-1"></i>
+                Remove
+            </button>
+        </td>
+    </tr>
+</template>
+
+>>>>>>> Stashed changes
 <script>
     let currentItemType = null;
 
+<<<<<<< Updated upstream
     function showExistingItemForm() {
         currentItemType = 'existing';
         document.getElementById('initialButtons').classList.add('hidden');
         document.getElementById('itemFormsContainer').classList.remove('hidden');
         document.getElementById('additionalButtons').classList.remove('hidden');
         addExistingItem();
+=======
+function addRowListeners(row) {
+    row.querySelectorAll('input').forEach(input => {
+        input.addEventListener('change', updateCalculations);
+    });
+    
+    // For existing items, update brand and model when item is selected
+    const itemSelect = row.querySelector('select[name="items[]"]');
+    if (itemSelect) {
+        itemSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.value) {
+                const [itemName, brandAndModel] = selectedOption.text.split(' (');
+
+                const [brand, model] = brandAndModel.slice(0, -1).split(' - ');
+                row.querySelector('input[name="brands[]"]').value = brand;
+                row.querySelector('input[name="models[]"]').value = model;
+            } else {
+                row.querySelector('input[name="brands[]"]').value = '';
+                row.querySelector('input[name="models[]"]').value = '';
+            }
+        });
+>>>>>>> Stashed changes
     }
 
     function showNewItemForm() {
