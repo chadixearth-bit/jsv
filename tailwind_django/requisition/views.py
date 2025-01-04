@@ -321,19 +321,48 @@ def approve_requisition(request, pk):
     items_with_availability = []
     for req_item in requisition.items.all():
         try:
-            inventory_item = InventoryItem.objects.get(
-                warehouse=requisition.source_warehouse,
-                item_name=req_item.item.item_name,
-                brand=req_item.item.brand,
-                model=req_item.item.model
-            )
-            availability = {
-                'item': req_item,
-                'stock': inventory_item.stock,
-                'is_available': inventory_item.stock >= req_item.quantity,
-                'is_partial': 0 < inventory_item.stock < req_item.quantity,
-                'not_available': False
-            }
+            # First try to get item from source warehouse if specified
+            if requisition.source_warehouse:
+                inventory_items = InventoryItem.objects.filter(
+                    warehouse=requisition.source_warehouse,
+                    item_name=req_item.item.item_name,
+                    brand=req_item.item.brand,
+                    model=req_item.item.model
+                )
+                if inventory_items.exists():
+                    # If multiple items exist, sum their stock
+                    total_stock = sum(item.stock for item in inventory_items)
+                    inventory_item = inventory_items.first()  # Use first item for other details
+                    availability = {
+                        'item': req_item,
+                        'stock': total_stock,
+                        'is_available': total_stock >= req_item.quantity,
+                        'is_partial': 0 < total_stock < req_item.quantity,
+                        'not_available': False
+                    }
+                else:
+                    raise InventoryItem.DoesNotExist
+            else:
+                # If no source warehouse, get all available items
+                inventory_items = InventoryItem.objects.filter(
+                    item_name=req_item.item.item_name,
+                    brand=req_item.item.brand,
+                    model=req_item.item.model
+                )
+                if inventory_items.exists():
+                    # Sum stock across all warehouses
+                    total_stock = sum(item.stock for item in inventory_items)
+                    inventory_item = inventory_items.first()  # Use first item for other details
+                    availability = {
+                        'item': req_item,
+                        'stock': total_stock,
+                        'is_available': total_stock >= req_item.quantity,
+                        'is_partial': 0 < total_stock < req_item.quantity,
+                        'not_available': False
+                    }
+                else:
+                    raise InventoryItem.DoesNotExist
+                
         except InventoryItem.DoesNotExist:
             availability = {
                 'item': req_item,
@@ -376,18 +405,45 @@ def approve_requisition(request, pk):
                             # Check each requested item's availability
                             for req_item in requisition.items.all():
                                 try:
-                                    inventory_item = InventoryItem.objects.get(
-                                        warehouse=requisition.source_warehouse,
-                                        item_name=req_item.item.item_name,
-                                        brand=req_item.item.brand,
-                                        model=req_item.item.model
-                                    )
-                                    
-                                    if inventory_item.stock >= req_item.quantity:
-                                        available_items.append((req_item, inventory_item))
-                                        has_any_available = True
+                                    # First try to get item from source warehouse if specified
+                                    if requisition.source_warehouse:
+                                        inventory_items = InventoryItem.objects.filter(
+                                            warehouse=requisition.source_warehouse,
+                                            item_name=req_item.item.item_name,
+                                            brand=req_item.item.brand,
+                                            model=req_item.item.model
+                                        )
+                                        if inventory_items.exists():
+                                            # Sum stock across all matching items
+                                            total_stock = sum(item.stock for item in inventory_items)
+                                            inventory_item = inventory_items.first()  # Use first item for other details
+                                            
+                                            if total_stock >= req_item.quantity:
+                                                available_items.append((req_item, inventory_item))
+                                                has_any_available = True
+                                            else:
+                                                unavailable_items.append((req_item, inventory_item if total_stock > 0 else None))
+                                        else:
+                                            raise InventoryItem.DoesNotExist
                                     else:
-                                        unavailable_items.append((req_item, inventory_item if inventory_item.stock > 0 else None))
+                                        # If no source warehouse, get all available items
+                                        inventory_items = InventoryItem.objects.filter(
+                                            item_name=req_item.item.item_name,
+                                            brand=req_item.item.brand,
+                                            model=req_item.item.model
+                                        )
+                                        if inventory_items.exists():
+                                            # Sum stock across all warehouses
+                                            total_stock = sum(item.stock for item in inventory_items)
+                                            inventory_item = inventory_items.first()  # Use first item for other details
+                                            
+                                            if total_stock >= req_item.quantity:
+                                                available_items.append((req_item, inventory_item))
+                                                has_any_available = True
+                                            else:
+                                                unavailable_items.append((req_item, inventory_item if total_stock > 0 else None))
+                                        else:
+                                            raise InventoryItem.DoesNotExist
                                 except InventoryItem.DoesNotExist:
                                     unavailable_items.append((req_item, None))
                             

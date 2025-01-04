@@ -318,25 +318,34 @@
                                 </div>
                             </div>
                         </div>
-
+                        
+                        <!-- Accounts Section -->
                         {% if user.is_superuser %}
-                        <!-- Admin Section -->
-                        <div class="pt-2 mt-6 border-t border-gray-700/30 space-y-2">
-                            <!-- <span class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Admin</span> -->
-                            
-                            <a href="{% url 'account:list_accounts' %}" class="nav-item flex items-center px-4 py-2.5 text-gray-100 rounded-lg group">
-                                <svg class="w-5 h-5 mr-3 text-gray-300 group-hover:text-blue-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                                </svg>
-                                <span class="group-hover:text-blue-400 transition-colors duration-200">Manage Users</span>
-                            </a>
-
-                            <a href="{% url 'account:add_account' %}" class="nav-item flex items-center px-4 py-2.5 text-gray-100 rounded-lg group">
-                                <svg class="w-5 h-5 mr-3 text-gray-300 group-hover:text-blue-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
-                                </svg>
-                                <span class="group-hover:text-blue-400 transition-colors duration-200">Add Account</span>
-                            </a>
+                        <div class="space-y-2">
+                            <div class="nav-item px-4 py-2.5 text-gray-100 rounded-lg">
+                                <button class="dropdown-trigger flex items-center justify-between w-full group">
+                                    <div class="flex items-center">
+                                        <svg class="w-5 h-5 mr-3 text-gray-300 group-hover:text-blue-400 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                                        </svg>
+                                        <span class="group-hover:text-indigo-400 transition-colors duration-200">Account</span>
+                                    </div>
+                                    <svg class="dropdown-arrow w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                <div class="dropdown-content pl-2 mt-2 space-y-3 relative">
+                                    <div class="nav-line"></div>
+                                    {% if request.user.customuser.role == 'admin' %}
+                                    <a href="{% url 'account:add_account' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200">
+                                        <span>Add Account</span>
+                                    </a>
+                                    <a href="{% url 'account:list_accounts' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200">
+                                        <span>Manage Users</span>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
                         {% endif %}
                     {% endif %}

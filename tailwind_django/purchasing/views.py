@@ -113,15 +113,17 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
                             unit_price=Decimal(price)
                         )
 
-                # Handle new items
-                new_items_name = self.request.POST.getlist('new_items[][name]')
-                new_items_brand = self.request.POST.getlist('new_items[][brand]')
-                new_items_model = self.request.POST.getlist('new_items[][model_name]')
-                new_items_qty = self.request.POST.getlist('new_items[][quantity]')
-                new_items_price = self.request.POST.getlist('new_items[][unit_price]')
+                # Process new items
+                new_items_data = zip(
+                    self.request.POST.getlist('new_item_names[]'),
+                    self.request.POST.getlist('new_brands[]'),
+                    self.request.POST.getlist('new_models[]'),
+                    self.request.POST.getlist('new_quantities[]'),
+                    self.request.POST.getlist('new_unit_prices[]')
+                )
 
-                for name, brand_name, model, qty, price in zip(new_items_name, new_items_brand, new_items_model, new_items_qty, new_items_price):
-                    if name and brand_name and qty and price:  # Skip empty entries
+                for name, brand_name, model_name, qty, price in new_items_data:
+                    if all([name, brand_name, model_name, qty, price]):  # Skip if any field is empty
                         # Get or create brand
                         brand, _ = Brand.objects.get_or_create(name=brand_name)
                         
@@ -129,27 +131,26 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
                         new_item = InventoryItem.objects.create(
                             item_name=name,
                             brand=brand,
-                            model=model,
-                            stock=0,  # Initial stock is 0
-                            price=Decimal(price),
-                            category_id=1  # Default category
+                            model=model_name,
+                            availability=True
                         )
-                        
+
                         # Create purchase order item
                         PurchaseOrderItem.objects.create(
                             purchase_order=po,
                             item=new_item,
+                            brand=brand_name,
+                            model_name=model_name,
                             quantity=int(qty),
                             unit_price=Decimal(price)
                         )
 
                 po.calculate_total()
-                messages.success(self.request, 'Purchase Order created and submitted for supplier approval.')
-                return super().form_valid(form)
-
+                messages.success(self.request, 'Purchase order created successfully.')
+                return redirect(self.success_url)
         except Exception as e:
             messages.error(self.request, f'Error creating purchase order: {str(e)}')
-            return super().form_invalid(form)
+            return self.form_invalid(form)
 
     def form_invalid(self, form: PurchaseOrderForm) -> Any:
         messages.error(self.request, 'Error creating purchase order.')
