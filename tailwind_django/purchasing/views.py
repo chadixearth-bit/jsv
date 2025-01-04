@@ -23,7 +23,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from typing import Any, Dict, Optional, Type, Union
 
 from requisition.models import Requisition
-from inventory.models import InventoryItem, Brand
+from inventory.models import InventoryItem, Brand, Warehouse
 from .models import PurchaseOrder, PurchaseOrderItem, Supplier, Delivery, DeliveryItem
 from .forms import PurchaseOrderForm, PurchaseOrderItemForm, SupplierForm, DeliveryReceiptForm
 from .utils import generate_purchase_order_pdf
@@ -64,10 +64,11 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy('purchasing:list')
 
     def dispatch(self, request, *args, **kwargs) -> Any:
-        if not hasattr(request.user, 'customuser') or request.user.customuser.role != 'admin':
-            messages.error(request, "Only admin users can create purchase orders.")
-            return redirect('purchasing:list')
-        return super().dispatch(request, *args, **kwargs)
+        # Allow both superusers and admin users to create POs
+        if request.user.is_superuser or (hasattr(request.user, 'customuser') and request.user.customuser.role == 'admin'):
+            return super().dispatch(request, *args, **kwargs)
+        messages.error(request, "Only admin users can create purchase orders.")
+        return redirect('purchasing:list')
 
     def get_form_kwargs(self) -> Dict:
         kwargs = super().get_form_kwargs()
@@ -77,6 +78,8 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
     def get_context_data(self, **kwargs: Any) -> Dict:
         context = super().get_context_data(**kwargs)
         context['title'] = 'Create Purchase Order'
+        context['suppliers'] = Supplier.objects.all()
+        context['warehouses'] = Warehouse.objects.all()
         context['pending_requisitions'] = Requisition.objects.filter(
             request_type='item',
             status='approved_by_admin',
@@ -86,7 +89,7 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
             'brand', 
             'category'
         ).filter(
-            stock__lte=10
+            availability=True
         ).order_by('brand__name', 'model', 'item_name')
         return context
 
@@ -95,65 +98,79 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
             with transaction.atomic():
                 po = form.save(commit=False)
                 po.created_by = self.request.user
-                po.status = 'pending_supplier'  # Automatically set to pending_supplier instead of draft
+                po.status = 'pending_supplier'
                 po.save()
 
-                # Handle existing items
-                items = self.request.POST.getlist('items[]')
-                quantities = self.request.POST.getlist('quantities[]')
-                unit_prices = self.request.POST.getlist('unit_prices[]')
+                # Process existing items
+                existing_items_data = zip(
+                    self.request.POST.getlist('items[]'),
+                    self.request.POST.getlist('quantities[]'),
+                    self.request.POST.getlist('unit_prices[]'),
+                    self.request.POST.getlist('brands[]'),
+                    self.request.POST.getlist('models[]')
+                )
 
-                for item_id, qty, price in zip(items, quantities, unit_prices):
+                for item_id, qty, price, brand_name, model_name in existing_items_data:
                     if item_id and qty and price:  # Skip empty selections
-                        item = InventoryItem.objects.get(id=item_id)
-                        PurchaseOrderItem.objects.create(
-                            purchase_order=po,
-                            item=item,
-                            quantity=int(qty),
-                            unit_price=Decimal(price)
-                        )
+                        try:
+                            item = InventoryItem.objects.get(id=item_id)
+                            PurchaseOrderItem.objects.create(
+                                purchase_order=po,
+                                item=item,
+                                brand=brand_name or item.brand.name,
+                                model_name=model_name or item.model,
+                                quantity=int(qty),
+                                unit_price=Decimal(price)
+                            )
+                        except InventoryItem.DoesNotExist:
+                            continue
 
-                # Handle new items
-                new_items_name = self.request.POST.getlist('new_items[][name]')
-                new_items_brand = self.request.POST.getlist('new_items[][brand]')
-                new_items_model = self.request.POST.getlist('new_items[][model_name]')
-                new_items_qty = self.request.POST.getlist('new_items[][quantity]')
-                new_items_price = self.request.POST.getlist('new_items[][unit_price]')
+                # Process new items
+                new_items = []
+                for key, value in self.request.POST.items():
+                    if key.startswith('new_items[') and key.endswith('[name]'):
+                        index = key[10:-6]  # Extract index from the key
+                        item_data = {
+                            'name': value,
+                            'brand': self.request.POST.get(f'new_items[{index}][brand]'),
+                            'model_name': self.request.POST.get(f'new_items[{index}][model_name]'),
+                            'quantity': self.request.POST.get(f'new_items[{index}][quantity]'),
+                            'unit_price': self.request.POST.get(f'new_items[{index}][unit_price]')
+                        }
+                        if all(item_data.values()):  # Only add if all fields are present
+                            new_items.append(item_data)
 
-                for name, brand_name, model, qty, price in zip(new_items_name, new_items_brand, new_items_model, new_items_qty, new_items_price):
-                    if name and brand_name and qty and price:  # Skip empty entries
-                        # Get or create brand
-                        brand, _ = Brand.objects.get_or_create(name=brand_name)
-                        
-                        # Create new inventory item
-                        new_item = InventoryItem.objects.create(
-                            item_name=name,
-                            brand=brand,
-                            model=model,
-                            stock=0,  # Initial stock is 0
-                            price=Decimal(price),
-                            category_id=1  # Default category
-                        )
-                        
-                        # Create purchase order item
-                        PurchaseOrderItem.objects.create(
-                            purchase_order=po,
-                            item=new_item,
-                            quantity=int(qty),
-                            unit_price=Decimal(price)
-                        )
+                for item_data in new_items:
+                    # Get or create brand
+                    brand, _ = Brand.objects.get_or_create(name=item_data['brand'])
+                    
+                    # Create new inventory item
+                    new_item = InventoryItem.objects.create(
+                        item_name=item_data['name'],
+                        brand=brand,
+                        model=item_data['model_name'],
+                        stock=0,
+                        price=Decimal(item_data['unit_price']),
+                        category_id=1  # Default category
+                    )
+                    
+                    # Create purchase order item
+                    PurchaseOrderItem.objects.create(
+                        purchase_order=po,
+                        item=new_item,
+                        brand=item_data['brand'],
+                        model_name=item_data['model_name'],
+                        quantity=int(item_data['quantity']),
+                        unit_price=Decimal(item_data['unit_price'])
+                    )
 
                 po.calculate_total()
-                messages.success(self.request, 'Purchase Order created and submitted for supplier approval.')
+                messages.success(self.request, 'Purchase Order created successfully.')
                 return super().form_valid(form)
 
         except Exception as e:
             messages.error(self.request, f'Error creating purchase order: {str(e)}')
             return super().form_invalid(form)
-
-    def form_invalid(self, form: PurchaseOrderForm) -> Any:
-        messages.error(self.request, 'Error creating purchase order.')
-        return self.render_to_response(self.get_context_data(form=form))
 
 class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
     model = PurchaseOrder
@@ -161,15 +178,12 @@ class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'purchasing/purchase_order_form.html'
     success_url = reverse_lazy('purchasing:list')
 
-    def dispatch(self, request, *args, **kwargs):
-        po = self.get_object()
-        if po.status != 'draft':
-            messages.error(request, "Only draft purchase orders can be edited.")
-            return redirect('purchasing:list')
-        if not hasattr(request.user, 'customuser') or request.user.customuser.role != 'admin':
-            messages.error(request, "Only admin users can edit purchase orders.")
-            return redirect('purchasing:list')
-        return super().dispatch(request, *args, **kwargs)
+    def dispatch(self, request, *args, **kwargs) -> Any:
+        # Allow both superusers and admin users to update POs
+        if request.user.is_superuser or (hasattr(request.user, 'customuser') and request.user.customuser.role == 'admin'):
+            return super().dispatch(request, *args, **kwargs)
+        messages.error(request, "Only admin users can update purchase orders.")
+        return redirect('purchasing:list')
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -242,7 +256,11 @@ class AddItemsView(LoginRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         context = super().get_context_data(**kwargs)
         context['po'] = self.object
-        context['items'] = self.object.items.all()
+        if self.object:
+            for item in self.object.items.all():
+                item.subtotal = item.quantity * item.unit_price
+            context['items'] = self.object.items.all()
+        context['available_items'] = InventoryItem.objects.all()
         return context
 
     def form_valid(self, form: PurchaseOrderItemForm) -> HttpResponseRedirect:
@@ -607,7 +625,7 @@ def view_delivery(request, pk: int) -> Any:
     context = {
         'delivery': delivery,
         'form': form,
-        'title': f'Delivery #{delivery.id}'
+        'po': delivery.purchase_order
     }
     return render(request, 'purchasing/view_delivery.html', context)
 

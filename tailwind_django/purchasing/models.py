@@ -48,7 +48,7 @@ class PurchaseOrder(models.Model):
 
     def calculate_total(self) -> None:
         from decimal import Decimal
-        total = sum((Decimal(item.subtotal) for item in self.items.all()), Decimal('0'))
+        total = sum((item.subtotal for item in self.items.all()), Decimal('0'))
         self.total_amount = total
         self.save()
 
@@ -115,21 +115,19 @@ class PurchaseOrderItem(models.Model):
     model_name = models.CharField(max_length=100)
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
-    def save(self, *args, **kwargs) -> None:
-        # Ensure quantity is an integer and unit_price is Decimal
-        self.quantity = int(str(self.quantity or 0))
-        if isinstance(self.unit_price, (int, float, str, Decimal)):
-            self.unit_price = Decimal(str(self.unit_price))
-        # Calculate subtotal
-        self.subtotal = Decimal(str(self.quantity)) * Decimal(str(self.unit_price))
+    @property
+    def subtotal(self):
+        return self.quantity * self.unit_price
+
+    def save(self, *args, **kwargs):
+        if not self.brand:
+            self.brand = self.item.brand.name
+        if not self.model_name:
+            self.model_name = self.item.model
         super().save(*args, **kwargs)
-        # Update purchase order total
-        if self.purchase_order:
-            self.purchase_order.calculate_total()
 
-    def __str__(self) -> str:
+    def __str__(self):
         return f"{self.item.item_name} - {self.quantity} units"
 
 class Delivery(models.Model):

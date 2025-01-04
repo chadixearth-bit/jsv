@@ -9,6 +9,11 @@
                 Sign in to your account
             </h2>
         </div>
+        <div class="mt-4 text-center">
+            <a href="{% url 'account:password_reset' %}" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                Forgot your password?
+            </a>
+        </div>
         <form class="mt-8 space-y-6" method="POST">
             {% csrf_token %}
             <div class="rounded-md shadow-sm -space-y-px">

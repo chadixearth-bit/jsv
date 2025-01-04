@@ -14,5 +14,6 @@ class PurchaseOrderAdmin(admin.ModelAdmin):
 
 @admin.register(PurchaseOrderItem)
 class PurchaseOrderItemAdmin(admin.ModelAdmin):
-    list_display = ('purchase_order', 'item', 'quantity', 'unit_price', 'subtotal')
-    list_filter = ('purchase_order__supplier',)
+    list_display = ('purchase_order', 'item', 'quantity', 'unit_price')
+    search_fields = ('purchase_order__po_number', 'item__item_name')
+    list_filter = ('purchase_order__status',)

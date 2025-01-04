@@ -16,6 +16,10 @@ class UserRegistrationForm(UserCreationForm):
         user.email = self.cleaned_data['email']
         role = self.cleaned_data['role']
         
+        if role == 'admin':
+            user.is_staff = True  # Gives access to admin interface
+            user.is_superuser = True  # Gives superuser privileges
+        
         if commit:
             user.save()
             CustomUser.objects.create(
@@ -25,5 +29,5 @@ class UserRegistrationForm(UserCreationForm):
         return user
 
 class UserLoginForm(forms.Form):
-    username = forms.CharField(max_length=150)
+    username = forms.CharField(max_length=150)  
     password = forms.CharField(widget=forms.PasswordInput)

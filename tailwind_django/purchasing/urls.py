@@ -5,7 +5,7 @@ app_name = 'purchasing'
 
 urlpatterns = [
     path('', views.PurchaseOrderListView.as_view(), name='list'),
-    path('create/', views.create_purchase_order, name='create_purchase_order'),
+    path('create/', views.PurchaseOrderCreateView.as_view(), name='create_purchase_order'),
     path('create/<int:requisition_id>/', views.create_purchase_order, name='create_purchase_order_with_requisition'),
     path('add-supplier/', views.SupplierCreateView.as_view(), name='add_supplier'),
     path('<int:pk>/add-items/', views.AddItemsView.as_view(), name='add_items'),

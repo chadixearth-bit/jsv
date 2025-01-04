@@ -119,69 +119,20 @@ def inventory_detail(request, pk):
 
 def inventory_create(request):
     if request.method == 'POST':
-        form = InventoryItemForm(request.POST, request.FILES, user=request.user)
+        form = InventoryItemForm(request.POST, request.FILES)
         if form.is_valid():
-            # Get the base item data without saving
-            base_item = form.save(commit=False)
+            result = form.save()
             
-            if request.user.customuser.role == 'admin':
-                # For admin, create item in both warehouses with stock 0
-                # Get or create warehouses
-                manager_warehouse, _ = Warehouse.objects.get_or_create(
-                    name='Manager Warehouse',
-                    defaults={'is_main': False}
-                )
-                attendant_warehouse, _ = Warehouse.objects.get_or_create(
-                    name='Attendant Warehouse',
-                    defaults={'is_main': False}
-                )
-                
-                # Create for manager warehouse
-                InventoryItem.objects.create(
-                    brand=base_item.brand,
-                    category=base_item.category,
-                    model=base_item.model,
-                    item_name=base_item.item_name,
-                    price=base_item.price,
-                    stock=0,  # Default stock 0
-                    availability=True,
-                    location='manager_warehouse',
-                    warehouse=manager_warehouse,  # Assign warehouse
-                    image=base_item.image,
-                    description=base_item.description
-                )
-                # Create for attendant warehouse
-                InventoryItem.objects.create(
-                    brand=base_item.brand,
-                    category=base_item.category,
-                    model=base_item.model,
-                    item_name=base_item.item_name,
-                    price=base_item.price,
-                    stock=0,  # Default stock 0
-                    availability=True,
-                    location='attendant_warehouse',
-                    warehouse=attendant_warehouse,  # Assign warehouse
-                    image=base_item.image,
-                    description=base_item.description
-                )
+            if isinstance(result, list):
                 messages.success(request, 'Item created successfully in both warehouses.')
             else:
-                # For non-admin users, get their warehouse
-                user_warehouse = request.user.customuser.warehouses.first()
-                if user_warehouse:
-                    base_item.warehouse = user_warehouse
-                    base_item.location = 'attendant_warehouse' if request.user.customuser.role == 'attendant' else 'manager_warehouse'
-                    base_item.save()
-                    messages.success(request, 'Item created successfully.')
-                else:
-                    messages.error(request, 'Error: No warehouse assigned to your account.')
-                    return redirect('inventory:list')
+                messages.success(request, 'Item created successfully.')
             
             return redirect('inventory:list')
         else:
             messages.error(request, 'Error creating item. Please check the form.')
     else:
-        form = InventoryItemForm(user=request.user)
+        form = InventoryItemForm()
     
     return render(request, 'inventory/inventory_form.html', {'form': form, 'action': 'Create'})
 
