@@ -201,9 +201,11 @@
                                 <div class="dropdown-content pl-2 mt-2 space-y-3 relative">
                                     <div class="nav-line"></div>
                                     <!-- Internal Deliveries -->
+                                    {% if user.customuser.role == 'manager' or user.customuser.role == 'attendant' %}
                                     <a href="{% url 'requisition:delivery_list' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200" data-item-id="nav_item_2">
                                         <span>Internal Deliveries</span>
                                     </a>
+                                    {% endif %}
                                     <!-- External Deliveries -->
                                     <a href="{% url 'purchasing:delivery_list' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200" data-item-id="nav_item_3">
                                         <span>External Deliveries</span>

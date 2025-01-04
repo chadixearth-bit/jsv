@@ -321,18 +321,21 @@ def approve_requisition(request, pk):
     items_with_availability = []
     for req_item in requisition.items.all():
         try:
-            inventory_item = InventoryItem.objects.get(
+            # Get all matching inventory items and sum their stock
+            inventory_items = InventoryItem.objects.filter(
                 warehouse=requisition.source_warehouse,
                 item_name=req_item.item.item_name,
                 brand=req_item.item.brand,
                 model=req_item.item.model
             )
+            total_stock = sum(item.stock for item in inventory_items)
+            
             availability = {
                 'item': req_item,
-                'stock': inventory_item.stock,
-                'is_available': inventory_item.stock >= req_item.quantity,
-                'is_partial': 0 < inventory_item.stock < req_item.quantity,
-                'not_available': False
+                'stock': total_stock,
+                'is_available': total_stock >= req_item.quantity,
+                'is_partial': 0 < total_stock < req_item.quantity,
+                'not_available': total_stock == 0
             }
         except InventoryItem.DoesNotExist:
             availability = {
@@ -376,18 +379,23 @@ def approve_requisition(request, pk):
                             # Check each requested item's availability
                             for req_item in requisition.items.all():
                                 try:
-                                    inventory_item = InventoryItem.objects.get(
+                                    # Get all matching inventory items and sum their stock
+                                    inventory_items = InventoryItem.objects.filter(
                                         warehouse=requisition.source_warehouse,
                                         item_name=req_item.item.item_name,
                                         brand=req_item.item.brand,
                                         model=req_item.item.model
                                     )
+                                    total_stock = sum(item.stock for item in inventory_items)
                                     
-                                    if inventory_item.stock >= req_item.quantity:
-                                        available_items.append((req_item, inventory_item))
+                                    if total_stock >= req_item.quantity:
+                                        # Use the first inventory item for now
+                                        available_items.append((req_item, inventory_items.first()))
                                         has_any_available = True
                                     else:
-                                        unavailable_items.append((req_item, inventory_item if inventory_item.stock > 0 else None))
+                                        # If there's any stock, use the first item, otherwise None
+                                        inventory_item = inventory_items.first() if total_stock > 0 else None
+                                        unavailable_items.append((req_item, inventory_item))
                                 except InventoryItem.DoesNotExist:
                                     unavailable_items.append((req_item, None))
                             

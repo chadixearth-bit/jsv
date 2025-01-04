@@ -110,40 +110,18 @@ class PurchaseOrderItemForm(forms.ModelForm):
 class DeliveryReceiptForm(forms.ModelForm):
     class Meta:
         model = Delivery
-        fields = ['receipt_photo', 'delivery_confirmation_file', 'notes']
+        fields = ['delivery_image', 'delivery_note']
         widgets = {
-            'receipt_photo': forms.FileInput(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                'accept': 'image/*',
-                'data-max-size': '5242880'  # 5MB in bytes
+            'delivery_image': forms.FileInput(attrs={
+                'class': 'py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full text-sm',
+                'accept': 'image/*'
             }),
-            'delivery_confirmation_file': forms.FileInput(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                'accept': '.pdf,.doc,.docx,image/*',
-                'data-max-size': '10485760'  # 10MB in bytes
-            }),
-            'notes': forms.Textarea(attrs={
+            'delivery_note': forms.Textarea(attrs={
+                'class': 'shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md',
                 'rows': 3,
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                'placeholder': 'Add any additional notes about the delivery...'
+                'placeholder': 'Add any notes about the delivery...'
             })
         }
-
-    def clean_receipt_photo(self):
-        photo = self.cleaned_data.get('receipt_photo')
-        if photo:
-            if photo.size > 5242880:  # 5MB limit
-                raise forms.ValidationError('File size must be under 5MB.')
-            return photo
-        return None
-
-    def clean_delivery_confirmation_file(self):
-        file = self.cleaned_data.get('delivery_confirmation_file')
-        if file:
-            if file.size > 10485760:  # 10MB limit
-                raise forms.ValidationError('File size must be under 10MB.')
-            return file
-        return None
 
 class DeliveryStatusForm(forms.Form):
     STATUS_CHOICES = [

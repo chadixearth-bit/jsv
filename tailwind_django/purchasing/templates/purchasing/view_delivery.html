@@ -1,180 +1,172 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block content %}
+{% block main_content %}
 <div class="container mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold">Delivery #{{ delivery.id }}</h1>
-        <a href="{% url 'purchasing:delivery_list' %}" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Back to List</a>
-    </div>
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold">Delivery #{{ delivery.id }}</h1>
+            <div class="flex space-x-4">
+                {% if user.customuser.role == 'admin' and delivery.status == 'pending_confirmation' %}
+                <a href="{% url 'purchasing:confirm_delivery' delivery.id %}" 
+                   class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                    <i class="fas fa-check mr-2"></i>
+                    Confirm Delivery
+                </a>
+                {% endif %}
+                <a href="{% url 'purchasing:delivery_list' %}" 
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <i class="fas fa-arrow-left mr-2"></i>
+                    Back to List
+                </a>
+            </div>
+        </div>
 
-    <div class="bg-white shadow-md rounded-lg p-6 mb-6">
-        <div class="grid grid-cols-2 gap-6">
-            <div>
-                <h2 class="text-lg font-semibold mb-4">Delivery Information</h2>
-                <div class="space-y-3">
+        <!-- Delivery Details Card -->
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+            <div class="px-4 py-5 sm:px-6 bg-gradient-to-r from-blue-600 to-indigo-600">
+                <h3 class="text-lg leading-6 font-medium text-white">Delivery Details</h3>
+            </div>
+            <div class="border-t border-gray-200 px-4 py-5 sm:px-6">
+                <dl class="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
                     <div>
-                        <span class="font-medium">Status:</span>
-                        <span class="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                            {% if delivery.status == 'pending_delivery' %}bg-yellow-100 text-yellow-800
-                            {% elif delivery.status == 'in_delivery' %}bg-blue-100 text-blue-800
-                            {% elif delivery.status == 'pending_admin_confirmation' %}bg-purple-100 text-purple-800
-                            {% elif delivery.status == 'verified' %}bg-green-100 text-green-800
-                            {% else %}bg-gray-100 text-gray-800{% endif %}">
-                            {{ delivery.get_status_display }}
-                        </span>
+                        <dt class="text-sm font-medium text-gray-500">Purchase Order</dt>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            <a href="{% url 'purchasing:view_purchase_order' delivery.purchase_order.id %}" 
+                               class="text-blue-600 hover:text-blue-900 hover:underline">
+                                #{{ delivery.purchase_order.id }}
+                            </a>
+                        </dd>
                     </div>
                     <div>
-                        <span class="font-medium">Purchase Order:</span>
-                        <span class="ml-2">{{ delivery.purchase_order.po_number }}</span>
+                        <dt class="text-sm font-medium text-gray-500">Status</dt>
+                        <dd class="mt-1">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                {% if delivery.status == 'pending_delivery' %}bg-yellow-100 text-yellow-800
+                                {% elif delivery.status == 'pending_confirmation' %}bg-blue-100 text-blue-800
+                                {% elif delivery.status == 'confirmed' %}bg-green-100 text-green-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ delivery.get_status_display }}
+                            </span>
+                        </dd>
                     </div>
                     <div>
-                        <span class="font-medium">Estimated Delivery:</span>
-                        <span class="ml-2">{{ delivery.estimated_delivery_date|date:"M d, Y" }}</span>
+                        <dt class="text-sm font-medium text-gray-500">Delivery Date</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.delivery_date|date:"F j, Y, g:i a" }}</dd>
                     </div>
-                    {% if delivery.delivery_date %}
-                    <div>
-                        <span class="font-medium">Delivery Date:</span>
-                        <span class="ml-2">{{ delivery.delivery_date|date:"M d, Y, g:i a" }}</span>
-                    </div>
-                    {% endif %}
                     {% if delivery.received_by %}
                     <div>
-                        <span class="font-medium">Received By:</span>
-                        <span class="ml-2">{{ delivery.received_by.get_full_name }}</span>
+                        <dt class="text-sm font-medium text-gray-500">Received By</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.received_by.get_full_name }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Received Date</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.received_date|date:"F j, Y, g:i a" }}</dd>
                     </div>
                     {% endif %}
-                </div>
+                    {% if delivery.confirmed_by %}
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Confirmed By</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.confirmed_by.get_full_name }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Confirmed Date</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.confirmed_date|date:"F j, Y, g:i a" }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
             </div>
+        </div>
 
-            {% if delivery.receipt_photo or delivery.delivery_confirmation_file %}
-            <div>
-                <h2 class="text-lg font-semibold mb-4">Proof of Delivery</h2>
-                <div class="space-y-4">
-                    {% if delivery.receipt_photo %}
-                    <div>
-                        <p class="font-medium mb-2">Delivery Photo:</p>
-                        <img src="{{ delivery.receipt_photo.url }}" alt="Delivery Photo" class="max-w-full border rounded">
-                    </div>
-                    {% endif %}
-                    {% if delivery.delivery_confirmation_file %}
-                    <div>
-                        <p class="font-medium mb-2">Confirmation Document:</p>
-                        {% if delivery.delivery_confirmation_file.name|lower|slice:"-4:" == ".pdf" %}
-                            <a href="{{ delivery.delivery_confirmation_file.url }}" target="_blank" class="inline-flex items-center text-blue-600 hover:text-blue-800">
-                                <i class="fas fa-file-pdf mr-2"></i>View Document
-                            </a>
-                        {% else %}
-                            <img src="{{ delivery.delivery_confirmation_file.url }}" alt="Confirmation Document" class="max-w-full border rounded">
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                    {% if delivery.notes %}
-                    <div>
-                        <p class="font-medium mb-2">Notes:</p>
-                        <p class="text-gray-700">{{ delivery.notes }}</p>
-                    </div>
-                    {% endif %}
-                </div>
+        <!-- Image Upload Section -->
+        {% if user.customuser.role == 'attendant' or user.customuser.role == 'manager' and delivery.status == 'pending_delivery' %}
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+            <div class="px-4 py-5 sm:px-6 bg-gradient-to-r from-green-600 to-teal-600">
+                <h3 class="text-lg leading-6 font-medium text-white">Upload Delivery Image</h3>
             </div>
-            {% elif delivery.status == 'in_delivery' and user.customuser.role == 'manager' %}
-            <div>
-                <h2 class="text-lg font-semibold mb-4">Upload Delivery Receipt</h2>
-                <form method="post" enctype="multipart/form-data" class="space-y-4">
+            <div class="border-t border-gray-200 px-4 py-5 sm:px-6">
+                <form method="post" enctype="multipart/form-data" action="{% url 'purchasing:upload_delivery_image' delivery.id %}" class="space-y-4">
                     {% csrf_token %}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Delivery Receipt</label>
-                        {{ form.delivery_confirmation_file }}
-                        {% if form.delivery_confirmation_file.errors %}
-                        <p class="mt-2 text-sm text-red-600">{{ form.delivery_confirmation_file.errors.0 }}</p>
-                        {% endif %}
-                        <p class="mt-1 text-sm text-gray-500">Upload a PDF, DOC, or DOCX file (max 10MB)</p>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Additional Documents (Optional)</label>
-                        {{ form.receipt_photo }}
-                        {% if form.receipt_photo.errors %}
-                        <p class="mt-2 text-sm text-red-600">{{ form.receipt_photo.errors.0 }}</p>
-                        {% endif %}
-                        <p class="mt-1 text-sm text-gray-500">Upload supporting documents if needed</p>
+                        <label class="block text-sm font-medium text-gray-700">Delivery Image</label>
+                        <div class="mt-1 flex items-center">
+                            <input type="file" name="delivery_image" accept="image/*" required
+                                   class="py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full text-sm">
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Notes</label>
-                        {{ form.notes }}
-                        {% if form.notes.errors %}
-                        <p class="mt-2 text-sm text-red-600">{{ form.notes.errors.0 }}</p>
-                        {% endif %}
+                        <div class="mt-1">
+                            <textarea name="delivery_note" rows="3" 
+                                      class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md"
+                                      placeholder="Add any notes about the delivery..."></textarea>
+                        </div>
                     </div>
                     <div class="flex justify-end">
-                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-                            Submit Delivery Receipt
+                        <button type="submit" 
+                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <i class="fas fa-upload mr-2"></i>
+                            Upload Image
                         </button>
                     </div>
                 </form>
             </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="bg-white shadow-md rounded-lg p-6">
-        <h2 class="text-lg font-semibold mb-4">Delivered Items</h2>
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-                {% for item in delivery.items.all %}
-                <tr>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ item.purchase_order_item.item.item_name }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ item.purchase_order_item.item.brand.name }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ item.purchase_order_item.item.model }}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {{ item.quantity_delivered }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        {% if delivery.status == 'pending_admin_confirmation' and user.customuser.role == 'admin' %}
-        <div class="mt-6 flex justify-end space-x-4">
-            <form method="post" action="{% url 'purchasing:confirm_delivery' delivery.id %}">
-                {% csrf_token %}
-                <div class="space-x-4">
-                    <button type="submit" name="action" value="reject" 
-                            class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-                        Reject Receipt
-                    </button>
-                    <button type="submit" name="action" value="confirm" 
-                            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
-                        Confirm Receipt
-                    </button>
-                </div>
-            </form>
         </div>
         {% endif %}
-    </div>
 
-    {% if delivery.status == 'awaiting_confirmation' and user.customuser.role == 'admin' %}
-    <div class="mt-6 flex justify-end">
-        <form method="post" action="{% url 'purchasing:confirm_delivery' delivery.id %}">
-            {% csrf_token %}
-            <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">
-                Confirm Receipt
-            </button>
-        </form>
+        <!-- Delivery Image Display -->
+        {% if delivery.delivery_image %}
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+            <div class="px-4 py-5 sm:px-6 bg-gradient-to-r from-purple-600 to-pink-600">
+                <h3 class="text-lg leading-6 font-medium text-white">Delivery Image</h3>
+            </div>
+            <div class="border-t border-gray-200">
+                <div class="p-4">
+                    <img src="{{ delivery.delivery_image.url }}" alt="Delivery Image" class="w-full rounded-lg shadow-lg">
+                    {% if delivery.delivery_note %}
+                    <div class="mt-4">
+                        <h4 class="text-sm font-medium text-gray-700">Notes:</h4>
+                        <p class="mt-1 text-sm text-gray-600">{{ delivery.delivery_note }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Delivery Items -->
+        <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+            <div class="px-4 py-5 sm:px-6 bg-gradient-to-r from-blue-600 to-indigo-600">
+                <h3 class="text-lg leading-6 font-medium text-white">Delivery Items</h3>
+            </div>
+            <div class="border-t border-gray-200">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for item in delivery.items.all %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.purchase_order_item.item.item_name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.purchase_order_item.item.brand.name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.purchase_order_item.item.model }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.quantity_delivered }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${{ item.unit_price }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${{ item.total_price }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-    {% endif %}
 </div>
 {% endblock %}

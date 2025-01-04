@@ -20,6 +20,7 @@ urlpatterns = [
     path('delivery/<int:pk>/confirm/', views.confirm_delivery, name='confirm_delivery'),
     path('delivery/<int:pk>/start/', views.start_delivery, name='start_delivery'),
     path('delivery/<int:pk>/receive/', views.receive_delivery, name='receive_delivery'),
+    path('delivery/<int:pk>/upload-image/', views.upload_delivery_image, name='upload_delivery_image'),
     path('delivery/clear-history/', views.clear_delivery_history, name='clear_delivery_history'),
     # Shortcuts for easier access
     path('dl/', views.delivery_list, name='delivery_list_shortcut'),  # Short for delivery list
