@@ -321,12 +321,24 @@ def approve_requisition(request, pk):
     items_with_availability = []
     for req_item in requisition.items.all():
         try:
-            inventory_item = InventoryItem.objects.get(
-                warehouse=requisition.source_warehouse,
-                item_name=req_item.item.item_name,
-                brand=req_item.item.brand,
-                model=req_item.item.model
-            )
+            # First try to get item from source warehouse if specified
+            if requisition.source_warehouse:
+                inventory_item = InventoryItem.objects.get(
+                    warehouse=requisition.source_warehouse,
+                    item_name=req_item.item.item_name,
+                    brand=req_item.item.brand,
+                    model=req_item.item.model
+                )
+            else:
+                # If no source warehouse, get first available item
+                inventory_item = InventoryItem.objects.filter(
+                    item_name=req_item.item.item_name,
+                    brand=req_item.item.brand,
+                    model=req_item.item.model
+                ).first()
+                if not inventory_item:
+                    raise InventoryItem.DoesNotExist
+            
             availability = {
                 'item': req_item,
                 'stock': inventory_item.stock,
@@ -376,12 +388,23 @@ def approve_requisition(request, pk):
                             # Check each requested item's availability
                             for req_item in requisition.items.all():
                                 try:
-                                    inventory_item = InventoryItem.objects.get(
-                                        warehouse=requisition.source_warehouse,
-                                        item_name=req_item.item.item_name,
-                                        brand=req_item.item.brand,
-                                        model=req_item.item.model
-                                    )
+                                    # First try to get item from source warehouse if specified
+                                    if requisition.source_warehouse:
+                                        inventory_item = InventoryItem.objects.get(
+                                            warehouse=requisition.source_warehouse,
+                                            item_name=req_item.item.item_name,
+                                            brand=req_item.item.brand,
+                                            model=req_item.item.model
+                                        )
+                                    else:
+                                        # If no source warehouse, get first available item
+                                        inventory_item = InventoryItem.objects.filter(
+                                            item_name=req_item.item.item_name,
+                                            brand=req_item.item.brand,
+                                            model=req_item.item.model
+                                        ).first()
+                                        if not inventory_item:
+                                            raise InventoryItem.DoesNotExist
                                     
                                     if inventory_item.stock >= req_item.quantity:
                                         available_items.append((req_item, inventory_item))
