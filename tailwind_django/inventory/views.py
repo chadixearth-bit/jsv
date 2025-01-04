@@ -124,10 +124,17 @@ def inventory_create(request):
             # Check if item already exists in the warehouse
             item_name = form.cleaned_data['item_name']
             model = form.cleaned_data['model']
-            warehouse = form.cleaned_data['warehouse']
+            warehouse_choice = form.cleaned_data['warehouse_choice']
+            
+            # Convert warehouse_choice to location value
+            location_mapping = {
+                'attendant': 'attendant_warehouse',
+                'manager': 'manager_warehouse',
+            }
+            location = location_mapping.get(warehouse_choice)
             
             # Query to check if the item already exists
-            if InventoryItem.objects.filter(item_name=item_name, model=model, warehouse=warehouse).exists():
+            if InventoryItem.objects.filter(item_name=item_name, model=model, location=location).exists():
                 messages.error(request, 'Error: This item is already in the warehouse.')
             else:
                 result = form.save()

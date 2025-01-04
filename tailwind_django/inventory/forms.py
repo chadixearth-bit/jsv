@@ -85,42 +85,33 @@ class InventoryItemForm(forms.ModelForm):
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        warehouse_choice = self.cleaned_data.get('warehouse_choice')
+        warehouse_choice = self.cleaned_data['warehouse_choice']
         
-        if warehouse_choice == 'both':
-            # Create a copy for each warehouse
-            attendant_item = InventoryItem(
-                brand=instance.brand,
-                category=instance.category,
-                model=instance.model,
-                item_name=instance.item_name,
-                price=instance.price,
-                stock=instance.stock,
-                image=instance.image,
-                location='attendant_warehouse'
-            )
+        # Convert warehouse_choice to location value
+        location_mapping = {
+            'attendant': 'attendant_warehouse',
+            'manager': 'manager_warehouse',
+            'both': 'attendant_warehouse',  # Default to attendant for 'both' option
+        }
+        instance.location = location_mapping.get(warehouse_choice)
+        
+        if commit:
+            instance.save()
             
-            manager_item = InventoryItem(
-                brand=instance.brand,
-                category=instance.category,
-                model=instance.model,
-                item_name=instance.item_name,
-                price=instance.price,
-                stock=instance.stock,
-                image=instance.image,
-                location='manager_warehouse'
-            )
-            
-            if commit:
-                attendant_item.save()
-                manager_item.save()
-            return [attendant_item, manager_item]
-        else:
-            # Set the location based on the choice
-            instance.location = 'attendant_warehouse' if warehouse_choice == 'attendant' else 'manager_warehouse'
-            if commit:
-                instance.save()
-            return instance
+            # If 'both' is selected, create another instance for manager warehouse
+            if warehouse_choice == 'both':
+                manager_instance = InventoryItem.objects.create(
+                    brand=instance.brand,
+                    category=instance.category,
+                    model=instance.model,
+                    item_name=instance.item_name,
+                    price=instance.price,
+                    stock=instance.stock,
+                    image=instance.image,
+                    location='manager_warehouse'
+                )
+        
+        return instance
 
 class GlobalSettingsForm(forms.ModelForm):
     class Meta:

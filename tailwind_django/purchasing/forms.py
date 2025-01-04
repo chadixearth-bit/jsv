@@ -2,7 +2,7 @@ from django import forms
 from django.db.models.query import QuerySet
 from typing import Any
 from .models import Supplier, PurchaseOrder, PurchaseOrderItem, Delivery
-from inventory.models import InventoryItem
+from inventory.models import InventoryItem, Warehouse
 import json
 
 class SupplierForm(forms.ModelForm):
@@ -37,8 +37,10 @@ class PurchaseOrderForm(forms.ModelForm):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        if user and not user.is_superuser and not user.customuser.role == 'admin':
-            self.fields['warehouse'].queryset = user.warehouses.all()
+        # Set warehouse queryset to only show Attendant and Manager warehouses
+        self.fields['warehouse'].queryset = Warehouse.objects.filter(
+            name__in=['Attendant Warehouse', 'Manager Warehouse']
+        )
 
     def clean(self) -> dict:
         cleaned_data = super().clean()

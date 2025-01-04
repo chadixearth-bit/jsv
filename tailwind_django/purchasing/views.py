@@ -78,7 +78,9 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Create Purchase Order'
         context['suppliers'] = Supplier.objects.all()
-        context['warehouses'] = Warehouse.objects.all()
+        context['warehouses'] = Warehouse.objects.filter(
+            name__in=['Attendant Warehouse', 'Manager Warehouse']
+        )
         context['pending_requisitions'] = Requisition.objects.filter(
             request_type='item',
             status='approved_by_admin',
@@ -779,7 +781,9 @@ def create_purchase_order(request, requisition_id=None):
         requisition = get_object_or_404(Requisition, id=requisition_id)
 
     suppliers = Supplier.objects.all()
-    warehouses = Warehouse.objects.all()
+    warehouses = Warehouse.objects.filter(
+        name__in=['Attendant Warehouse', 'Manager Warehouse']
+    )
     available_items = InventoryItem.objects.all()
 
     if request.method == 'POST':
