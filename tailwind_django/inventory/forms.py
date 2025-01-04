@@ -63,6 +63,8 @@ class InventoryItemForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        instance = kwargs.get('instance')
+        self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         self.fields['brand'].required = True
         self.fields['category'].required = True
@@ -70,7 +72,13 @@ class InventoryItemForm(forms.ModelForm):
         self.fields['item_name'].required = True
         self.fields['price'].required = True
         self.fields['stock'].required = True
-        self.fields['warehouse_choice'].required = True
+        
+        # Only show warehouse_choice field for new items
+        if instance:
+            if 'warehouse_choice' in self.fields:
+                del self.fields['warehouse_choice']
+        else:
+            self.fields['warehouse_choice'].required = True
         
         # Add help text
         self.fields['image'].help_text = 'Upload an image of the item (optional)'

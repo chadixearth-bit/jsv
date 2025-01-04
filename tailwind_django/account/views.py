@@ -121,6 +121,62 @@ def home(request):
     
     return render(request, 'account/home.html', context)
 
+@login_required(login_url='account:login')
+def manage_account(request):
+    return render(request, 'account/manage_account.html')
+
+@login_required(login_url='account:login')
+def update_display_name(request):
+    if request.method == 'POST':
+        display_name = request.POST.get('display_name')
+        if display_name:
+            request.user.customuser.display_name = display_name
+            request.user.customuser.save()
+            messages.success(request, 'Display name updated successfully')
+    return redirect('account:manage_account')
+
+@login_required(login_url='account:login')
+def update_password(request):
+    if request.method == 'POST':
+        current_password = request.POST.get('current_password')
+        new_password = request.POST.get('new_password')
+        confirm_password = request.POST.get('confirm_password')
+        
+        if not request.user.check_password(current_password):
+            messages.error(request, 'Current password is incorrect')
+        elif new_password != confirm_password:
+            messages.error(request, 'New passwords do not match')
+        elif len(new_password) < 8:
+            messages.error(request, 'Password must be at least 8 characters long')
+        else:
+            request.user.set_password(new_password)
+            request.user.save()
+            messages.success(request, 'Password changed successfully')
+            return redirect('account:login')
+    return redirect('account:manage_account')
+
+@login_required(login_url='account:login')
+def update_email(request):
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        if email:
+            request.user.email = email
+            request.user.save()
+            messages.success(request, 'Recovery email updated successfully')
+    return redirect('account:manage_account')
+
+@login_required(login_url='account:login')
+def profile(request):
+    return redirect('account:manage_account')
+
+@login_required(login_url='account:login')
+def change_password(request):
+    return redirect('account:manage_account')
+
+@login_required(login_url='account:login')
+def recovery_email(request):
+    return redirect('account:manage_account')
+
 def add_account(request):
     if not request.user.is_superuser:
         messages.error(request, 'You do not have permission to access this page.')

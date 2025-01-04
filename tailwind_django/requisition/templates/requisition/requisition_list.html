@@ -31,16 +31,7 @@
     <!-- Main Content -->
     <div class="w-full max-w-[1920px] mx-auto">
         <!-- Action Bar -->
-        <div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-            <!-- Create Requisition Button -->
-            {% if user_role == 'attendant' or user_role == 'manager' %}
-            <a href="{% url 'requisition:create_requisition' %}" 
-               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                <i class="fas fa-plus mr-2"></i>
-                Create Requisition
-            </a>
-            {% endif %}
-        </div>
+        
 
         <!-- Requisitions Table -->
         <div class="bg-white shadow-md rounded-lg overflow-hidden">

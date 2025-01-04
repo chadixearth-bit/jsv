@@ -14,6 +14,15 @@ urlpatterns = [
     path('accounts/', views.list_accounts, name='list_accounts'),
     path('accounts/<int:user_id>/delete/', views.delete_account, name='delete_account'),
     
+    # Account Management URLs
+    path('manage/', views.manage_account, name='manage_account'),
+    path('manage/update-display-name/', views.update_display_name, name='update_display_name'),
+    path('manage/update-password/', views.update_password, name='update_password'),
+    path('manage/update-email/', views.update_email, name='update_email'),
+    path('profile/', views.manage_account, name='profile'),  
+    path('change-password/', views.manage_account, name='change_password'),  
+    path('recovery-email/', views.manage_account, name='recovery_email'),  
+    
     # Password Reset URLs
     path('password_reset/', auth_views.PasswordResetView.as_view(
         template_name='account/password_reset.html',

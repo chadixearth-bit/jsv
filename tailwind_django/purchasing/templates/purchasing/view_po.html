@@ -5,16 +5,16 @@
     <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
         <div>
             <h3 class="text-lg leading-6 font-medium text-gray-900">Purchase Order Details</h3>
-            <p class="mt-1 max-w-2xl text-sm text-gray-500">{{ po.po_number }}</p>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">{{ purchase_order.po_number }}</p>
         </div>
         <div>
             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                {% if po.status == 'draft' %}bg-gray-100 text-gray-800
-                {% elif po.status == 'pending' %}bg-yellow-100 text-yellow-800
-                {% elif po.status == 'approved' %}bg-green-100 text-green-800
-                {% elif po.status == 'cancelled' %}bg-red-100 text-red-800
-                {% endif %}">
-                {{ po.get_status_display }}
+                {% if purchase_order.status == 'pending_supplier' %}bg-yellow-100 text-yellow-800
+                {% elif purchase_order.status == 'supplier_approved' %}bg-green-100 text-green-800
+                {% elif purchase_order.status == 'supplier_rejected' %}bg-red-100 text-red-800
+                {% elif purchase_order.status == 'completed' %}bg-blue-100 text-blue-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ purchase_order.get_status_display }}
             </span>
         </div>
     </div>
@@ -24,41 +24,43 @@
                 <dt class="text-sm font-medium text-gray-500">Supplier Details</dt>
                 <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                     <div class="space-y-2">
-                        <p><span class="font-medium">Company Name:</span> {{ po.supplier.name }}</p>
-                        <p><span class="font-medium">Contact Person:</span> {{ po.supplier.contact_person }}</p>
-                        <p><span class="font-medium">Email:</span> {{ po.supplier.email }}</p>
-                        <p><span class="font-medium">Phone:</span> {{ po.supplier.phone }}</p>
-                        <p><span class="font-medium">Address:</span> {{ po.supplier.address }}</p>
+                        <p><span class="font-medium">Company Name:</span> {{ purchase_order.supplier.name }}</p>
+                        <p><span class="font-medium">Contact Person:</span> {{ purchase_order.supplier.contact_person }}</p>
+                        <p><span class="font-medium">Email:</span> {{ purchase_order.supplier.email }}</p>
+                        <p><span class="font-medium">Phone:</span> {{ purchase_order.supplier.phone }}</p>
+                        <p><span class="font-medium">Address:</span> {{ purchase_order.supplier.address }}</p>
                     </div>
                 </dd>
             </div>
             <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Warehouse</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ po.warehouse.name }}</dd>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ purchase_order.warehouse.name }}</dd>
             </div>
             <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Order Date</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ po.order_date }}</dd>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ purchase_order.order_date }}</dd>
             </div>
             <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Expected Delivery</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ po.expected_delivery_date }}</dd>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ purchase_order.expected_delivery_date }}</dd>
             </div>
             <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Created By</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ po.created_by.get_full_name }}</dd>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ purchase_order.created_by.get_full_name }}</dd>
             </div>
             <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                 <dt class="text-sm font-medium text-gray-500">Notes</dt>
-                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ po.notes|default:"No notes" }}</dd>
+                <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{ purchase_order.notes|default:"No notes" }}</dd>
             </div>
         </dl>
     </div>
 
     <!-- Order Items -->
-    <div class="px-4 py-5 sm:px-6">
-        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Order Items</h3>
-        <div class="overflow-x-auto">
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Order Items</h3>
+        </div>
+        <div class="border-t border-gray-200">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
@@ -71,25 +73,25 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    {% for item in po.items.all %}
+                    {% for item in purchase_order.items.all %}
                     <tr>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ item.item.brand.name }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ item.item.item_name }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ item.item.model }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">{{ item.quantity }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${{ item.unit_price }}</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${{ item.subtotal }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.brand }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.item.item_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.model_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.quantity }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ item.unit_price|floatformat:2 }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ item.subtotal|floatformat:2 }}</td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">No items in this purchase order</td>
+                        <td colspan="6" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No items in this purchase order</td>
                     </tr>
                     {% endfor %}
                 </tbody>
-                <tfoot class="bg-gray-50">
+                <tfoot>
                     <tr>
                         <td colspan="5" class="px-6 py-4 text-right text-sm font-medium text-gray-900">Total Amount:</td>
-                        <td class="px-6 py-4 text-sm text-gray-900">${{ po.total_amount }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱{{ purchase_order.total_amount|floatformat:2 }}</td>
                     </tr>
                 </tfoot>
             </table>
@@ -97,7 +99,7 @@
     </div>
 
     <!-- Related Requisitions -->
-    {% if po.requisitions.exists %}
+    {% if purchase_order.requisitions.exists %}
     <div class="px-4 py-5 sm:px-6">
         <h4 class="text-lg leading-6 font-medium text-gray-900 mb-4">Related Requisitions</h4>
         <div class="shadow overflow-x-auto border-b border-gray-200 sm:rounded-lg">
@@ -111,7 +113,7 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    {% for req in po.requisitions.all %}
+                    {% for req in purchase_order.requisitions.all %}
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ req.requisition_number }}</td>
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -135,7 +137,7 @@
 
     <div class="px-4 py-5 sm:px-6 flex justify-end space-x-3">
         {% if user_role == 'admin' %}
-            <form action="{% url 'purchasing:confirm_purchase_order' po.pk %}" method="post">
+            <form action="{% url 'purchasing:confirm_purchase_order' purchase_order.pk %}" method="post">
                 {% csrf_token %}
                 <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     Confirm Purchase Order

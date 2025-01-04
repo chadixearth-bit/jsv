@@ -50,7 +50,6 @@ class PurchaseOrder(models.Model):
         from decimal import Decimal
         total = sum((item.subtotal for item in self.items.all()), Decimal('0'))
         self.total_amount = total
-        self.save()
 
     def link_requisitions(self) -> None:
         """Link this purchase order with relevant requisitions"""

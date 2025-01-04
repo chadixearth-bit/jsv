@@ -23,7 +23,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from typing import Any, Dict, Optional, Type, Union
 
 from requisition.models import Requisition
-from inventory.models import InventoryItem, Brand, Warehouse
+from inventory.models import InventoryItem, Brand, Warehouse, Category
 from .models import PurchaseOrder, PurchaseOrderItem, Supplier, Delivery, DeliveryItem
 from .forms import PurchaseOrderForm, PurchaseOrderItemForm, SupplierForm, DeliveryReceiptForm
 from .utils import generate_purchase_order_pdf
@@ -61,8 +61,7 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
     model = PurchaseOrder
     form_class = PurchaseOrderForm
     template_name = 'purchasing/purchase_order_form.html'
-    success_url = reverse_lazy('purchasing:list')
-
+    
     def dispatch(self, request, *args, **kwargs) -> Any:
         # Allow both superusers and admin users to create POs
         if request.user.is_superuser or (hasattr(request.user, 'customuser') and request.user.customuser.role == 'admin'):
@@ -101,76 +100,58 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
                 po.status = 'pending_supplier'
                 po.save()
 
-                # Process existing items
-                existing_items_data = zip(
-                    self.request.POST.getlist('items[]'),
-                    self.request.POST.getlist('quantities[]'),
-                    self.request.POST.getlist('unit_prices[]'),
-                    self.request.POST.getlist('brands[]'),
-                    self.request.POST.getlist('models[]')
-                )
+                # Get items data from the form
+                items_data = self.request.POST.get('items_data', '[]')
+                items = json.loads(items_data)
 
-                for item_id, qty, price, brand_name, model_name in existing_items_data:
-                    if item_id and qty and price:  # Skip empty selections
-                        try:
-                            item = InventoryItem.objects.get(id=item_id)
-                            PurchaseOrderItem.objects.create(
-                                purchase_order=po,
-                                item=item,
-                                brand=brand_name or item.brand.name,
-                                model_name=model_name or item.model,
-                                quantity=int(qty),
-                                unit_price=Decimal(price)
-                            )
-                        except InventoryItem.DoesNotExist:
-                            continue
+                for item_data in items:
+                    # Handle both existing and new items
+                    if item_data.get('item_id'):
+                        # Existing item
+                        item = InventoryItem.objects.get(id=item_data['item_id'])
+                    else:
+                        # Create or get brand
+                        brand, _ = Brand.objects.get_or_create(name=item_data['brand'])
+                        
+                        # Get or create a default category
+                        category, _ = Category.objects.get_or_create(name='General')
+                        
+                        # Create new item with the item name from the form
+                        item_name = item_data.get('itemName', f"{item_data['brand']} {item_data['model']}")
+                        
+                        # Create new item
+                        item = InventoryItem.objects.create(
+                            brand=brand,
+                            category=category,
+                            model=item_data['model'],
+                            item_name=item_name,
+                            price=Decimal(str(item_data['unitPrice'])),
+                            stock=0,  # Initial stock is 0 until delivery
+                            warehouse=po.warehouse,  # Assign to PO's warehouse
+                            location='manager_warehouse' if po.warehouse.name == 'Manager Warehouse' else 'attendant_warehouse',
+                            availability=True
+                        )
 
-                # Process new items
-                new_items = []
-                for key, value in self.request.POST.items():
-                    if key.startswith('new_items[') and key.endswith('[name]'):
-                        index = key[10:-6]  # Extract index from the key
-                        item_data = {
-                            'name': value,
-                            'brand': self.request.POST.get(f'new_items[{index}][brand]'),
-                            'model_name': self.request.POST.get(f'new_items[{index}][model_name]'),
-                            'quantity': self.request.POST.get(f'new_items[{index}][quantity]'),
-                            'unit_price': self.request.POST.get(f'new_items[{index}][unit_price]')
-                        }
-                        if all(item_data.values()):  # Only add if all fields are present
-                            new_items.append(item_data)
-
-                for item_data in new_items:
-                    # Get or create brand
-                    brand, _ = Brand.objects.get_or_create(name=item_data['brand'])
-                    
-                    # Create new inventory item
-                    new_item = InventoryItem.objects.create(
-                        item_name=item_data['name'],
-                        brand=brand,
-                        model=item_data['model_name'],
-                        stock=0,
-                        price=Decimal(item_data['unit_price']),
-                        category_id=1  # Default category
-                    )
-                    
                     # Create purchase order item
                     PurchaseOrderItem.objects.create(
                         purchase_order=po,
-                        item=new_item,
+                        item=item,
                         brand=item_data['brand'],
-                        model_name=item_data['model_name'],
+                        model_name=item_data['model'],
                         quantity=int(item_data['quantity']),
-                        unit_price=Decimal(item_data['unit_price'])
+                        unit_price=Decimal(str(item_data['unitPrice']))
                     )
 
-                po.calculate_total()
-                messages.success(self.request, 'Purchase Order created successfully.')
-                return super().form_valid(form)
+                messages.success(self.request, "Purchase order created successfully!")
+                return redirect('purchasing:list')
 
         except Exception as e:
-            messages.error(self.request, f'Error creating purchase order: {str(e)}')
+            print(f"Error creating purchase order: {str(e)}")
+            messages.error(self.request, f"Error creating purchase order: {str(e)}")
             return super().form_invalid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('purchasing:view_purchase_order', kwargs={'pk': self.object.pk})
 
 class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
     model = PurchaseOrder
@@ -357,18 +338,17 @@ def update_po_status(request, pk: int) -> Any:
 
 @login_required
 def view_purchase_order(request, pk: int) -> Any:
-    po = get_object_or_404(PurchaseOrder.objects.select_related(
-        'supplier',
-        'created_by',
-        'delivery_verified_by'
-    ).prefetch_related(
-        'items__item',
-        'deliveries'
-    ), pk=pk)
+    purchase_order = get_object_or_404(PurchaseOrder.objects.prefetch_related('items', 'items__item', 'deliveries'), pk=pk)
+    
+    # Debug: Print out the items associated with the purchase order
+    print("\n====== DEBUG: Purchase Order Items ======")
+    for item in purchase_order.items.all():
+        print(f"Item: {item.item.item_name}, Quantity: {item.quantity}, Unit Price: {item.unit_price}")
+    print("========================================\n")
     
     # Check user permissions
     if not hasattr(request.user, 'customuser'):
-        messages.error(request, "You don't have permission to view purchase orders.")
+        messages.error(request, "User profile not found.")
         return redirect('purchasing:list')
     
     user_role = request.user.customuser.role
@@ -377,7 +357,7 @@ def view_purchase_order(request, pk: int) -> Any:
     if user_role == 'admin':
         can_view = True
     elif user_role in ['manager', 'attendant']:
-        can_view = po.warehouse in request.user.warehouses.all()
+        can_view = purchase_order.warehouse in request.user.warehouses.all()
     
     if not can_view:
         messages.error(request, "You don't have permission to view this purchase order.")
@@ -386,17 +366,14 @@ def view_purchase_order(request, pk: int) -> Any:
     # Get available status changes for the user
     available_status_changes = []
     for status_choice in PurchaseOrder.STATUS_CHOICES:
-        if po.can_change_status(request.user, status_choice[0]):
+        if purchase_order.can_change_status(request.user, status_choice[0]):
             available_status_changes.append(status_choice)
     
     context = {
-        'po': po,
-        'items': po.items.all().select_related('item'),
-        'deliveries': po.deliveries.all(),
+        'purchase_order': purchase_order,
         'available_status_changes': available_status_changes,
-        'user_role': user_role
+        'user_role': user_role,
     }
-    
     return render(request, 'purchasing/view_po.html', context)
 
 @login_required
@@ -476,32 +453,44 @@ def confirm_delivery(request, pk: int) -> Any:
                     for delivery_item in delivery.items.all():
                         po_item = delivery_item.purchase_order_item
                         
-                        # Get or create inventory item in the receiving warehouse
-                        inventory_item, created = InventoryItem.objects.get_or_create(
+                        # Try to find existing item in manager's warehouse first
+                        inventory_item = InventoryItem.objects.filter(
                             warehouse=delivery.purchase_order.warehouse,
                             brand=po_item.item.brand,
                             model=po_item.item.model,
                             item_name=po_item.item.item_name,
-                            defaults={
-                                'category': po_item.item.category,
-                                'stock': 0,
-                                'price': 0,  # Set initial price to 0 as requested
-                                'availability': True
-                            }
-                        )
+                            location='manager_warehouse'
+                        ).first()
                         
-                        # Update stock quantity
-                        inventory_item.stock += delivery_item.quantity_delivered
-                        inventory_item.save()
+                        if inventory_item:
+                            # Update existing item quantity
+                            inventory_item.stock += delivery_item.quantity_delivered
+                            inventory_item.save()
+                        else:
+                            # Create new inventory item in manager's warehouse
+                            inventory_item = InventoryItem.objects.create(
+                                warehouse=delivery.purchase_order.warehouse,
+                                brand=po_item.item.brand,
+                                category=po_item.item.category,
+                                model=po_item.item.model,
+                                item_name=po_item.item.item_name,
+                                stock=delivery_item.quantity_delivered,
+                                price=po_item.unit_price,
+                                availability=True,
+                                location='manager_warehouse'
+                            )
                     
+                    # Update delivery status
                     delivery.status = 'verified'
+                    delivery.confirmed_by = request.user
+                    delivery.confirmed_date = timezone.now()
                     delivery.save()
                     
                     # Update PO status to completed
                     po.status = 'completed'
                     po.save()
                     
-                    messages.success(request, 'Delivery confirmed successfully. Inventory quantities have been updated.')
+                    messages.success(request, 'Delivery confirmed successfully. Inventory quantities have been updated in the manager warehouse.')
             except Exception as e:
                 messages.error(request, f'Error confirming delivery: {str(e)}')
                 return redirect('purchasing:delivery_list')
@@ -524,6 +513,7 @@ def delivery_list(request) -> Any:
     all_deliveries = Delivery.objects.select_related(
         'purchase_order',
         'purchase_order__supplier',
+        'purchase_order__warehouse',
         'received_by',
         'confirmed_by'
     ).prefetch_related(
@@ -538,12 +528,28 @@ def delivery_list(request) -> Any:
         if user_role == 'admin':
             # Admin sees all deliveries
             deliveries = all_deliveries
-        elif user_role in ['manager', 'attendant']:
-            # Managers and attendants see deliveries they received
+        elif user_role == 'manager':
+            # Get the warehouses this manager has access to
+            manager_warehouses = request.user.warehouses.all()
+            # Also get warehouses where they are assigned as manager via CustomUser
+            manager_warehouses_via_role = Warehouse.objects.filter(custom_users__user=request.user, custom_users__role='manager')
+            # Combine both sets of warehouses
+            all_manager_warehouses = manager_warehouses | manager_warehouses_via_role
+            # Managers see deliveries for their assigned warehouses
             deliveries = all_deliveries.filter(
-                Q(received_by=request.user) |  # Deliveries they received
-                Q(purchase_order__created_by=request.user)  # Deliveries for POs they created
-            )
+                purchase_order__warehouse__in=all_manager_warehouses
+            ).distinct()
+        elif user_role == 'attendant':
+            # Get the warehouses this attendant has access to
+            attendant_warehouses = request.user.warehouses.all()
+            # Also get warehouses where they are assigned as attendant via CustomUser
+            attendant_warehouses_via_role = Warehouse.objects.filter(custom_users__user=request.user, custom_users__role='attendant')
+            # Combine both sets of warehouses
+            all_attendant_warehouses = attendant_warehouses | attendant_warehouses_via_role
+            # Attendants see deliveries for their assigned warehouses
+            deliveries = all_deliveries.filter(
+                purchase_order__warehouse__in=all_attendant_warehouses
+            ).distinct()
         else:
             deliveries = Delivery.objects.none()
     else:
@@ -615,6 +621,7 @@ def view_delivery(request, pk: int) -> Any:
         form = DeliveryReceiptForm(request.POST, request.FILES, instance=delivery)
         if form.is_valid():
             delivery = form.save(commit=False)
+            delivery.delivery_date = timezone.now()  # Set the delivery date
             delivery.status = 'pending_admin_confirmation'
             delivery.save()
             messages.success(request, "Delivery receipt uploaded successfully. Awaiting admin confirmation.")
@@ -768,135 +775,112 @@ def upcoming_deliveries(request) -> Any:
 @login_required
 def create_purchase_order(request, requisition_id=None):
     requisition = None
-    
     if requisition_id:
-        requisition = get_object_or_404(Requisition, pk=requisition_id)
-        if requisition.status != 'approved_by_admin':
-            messages.error(request, "This requisition has not been approved by admin.")
-            return redirect('purchasing:list')
+        requisition = get_object_or_404(Requisition, id=requisition_id)
+
+    suppliers = Supplier.objects.all()
+    warehouses = Warehouse.objects.all()
+    available_items = InventoryItem.objects.all()
 
     if request.method == 'POST':
+        print("\n====== DEBUG: POST DATA ======")
+        print("Raw POST data:")
+        for key, value in request.POST.items():
+            print(f"{key}: {value}")
+        
+        # Deserialize items_data
+        items_data = json.loads(request.POST.get('items_data', '[]'))
+        print("Deserialized items data:", items_data)
+        
         form = PurchaseOrderForm(request.POST)
         if form.is_valid():
             try:
                 with transaction.atomic():
+                    print("\n====== Creating Purchase Order ======")
                     # Create the purchase order
                     po = form.save(commit=False)
                     po.created_by = request.user
-                    po.status = 'draft'
+                    po.status = 'pending_supplier'
                     po.save()
+                    print(f"Created PO: {po.po_number}")
 
                     if requisition:
                         # Add requisition to purchase order
                         po.requisitions.add(requisition)
-                        
-                        # Get unit prices from the form
-                        unit_prices = request.POST.getlist('unit_prices[]')
-                        
-                        # Create purchase order items from requisition items
-                        for index, req_item in enumerate(requisition.items.all()):
-                            try:
-                                unit_price = Decimal(unit_prices[index])
-                            except (IndexError, ValueError, TypeError):
-                                unit_price = Decimal('0')
-                                
+                        # Add requisition items to purchase order
+                        for req_item in requisition.items.all():
                             PurchaseOrderItem.objects.create(
                                 purchase_order=po,
                                 item=req_item.item,
                                 quantity=req_item.quantity,
-                                unit_price=unit_price,
-                                brand=req_item.item.brand.name if req_item.item.brand else '',
-                                model_name=req_item.item.model or ''
+                                unit_price=req_item.item.price,
+                                brand=req_item.item.brand.name,
+                                model_name=req_item.item.model
                             )
                     else:
-                        # Get all form data
-                        form_data = request.POST
-                        
-                        # Extract item data from form
-                        items = {}
-                        quantities = {}
-                        unit_prices = {}
-                        item_names = {}
-                        brands = {}
-                        models = {}
-                        
-                        # Collect all form data into dictionaries
-                        for key, value in form_data.items():
-                            if key.startswith('items['):
-                                index = key[6:-1]  # Extract index from 'items[X]'
-                                items[index] = value
-                            elif key.startswith('quantities['):
-                                index = key[11:-1]
-                                quantities[index] = value
-                            elif key.startswith('unit_prices['):
-                                index = key[12:-1]
-                                unit_prices[index] = value
-                            elif key.startswith('item_names['):
-                                index = key[11:-1]
-                                item_names[index] = value
-                            elif key.startswith('brands['):
-                                index = key[7:-1]
-                                brands[index] = value
-                            elif key.startswith('models['):
-                                index = key[7:-1]
-                                models[index] = value
-
-                        # Process existing items
-                        for index in items.keys():
-                            if items[index] and quantities.get(index) and unit_prices.get(index):
-                                item = InventoryItem.objects.get(id=items[index])
-                                PurchaseOrderItem.objects.create(
-                                    purchase_order=po,
-                                    item=item,
-                                    quantity=int(quantities[index]),
-                                    unit_price=Decimal(unit_prices[index]),
-                                    brand=item.brand.name if item.brand else '',
-                                    model_name=item.model or ''
-                                )
-
-                        # Process new items
-                        for index in item_names.keys():
-                            if item_names[index] and brands.get(index) and quantities.get(index) and unit_prices.get(index):
+                        # Process deserialized items
+                        print("\n====== Processing Deserialized Items ======")
+                        for item_data in items_data:
+                            try:
+                                print(f"\nCreating new item:")
+                                print(f"Data: {item_data}")
+                                
                                 # Create or get brand
-                                brand, _ = Brand.objects.get_or_create(name=brands[index])
+                                brand, _ = Brand.objects.get_or_create(name=item_data['brand'])
+                                print(f"Using brand: {brand}")
                                 
                                 # Create new inventory item
                                 item = InventoryItem.objects.create(
-                                    item_name=item_names[index],
+                                    item_name=item_data['itemName'],
                                     brand=brand,
-                                    model=models.get(index, ''),
-                                    stock=0  # Initial stock is 0
+                                    model=item_data['model'],
+                                    warehouse=po.warehouse,
+                                    category=Category.objects.get_or_create(name='General')[0],
+                                    stock=0,
+                                    price=Decimal(item_data['unitPrice']),
+                                    availability=True,
+                                    location='manager_warehouse'
                                 )
+                                print(f"Created inventory item: {item}")
                                 
                                 # Create purchase order item
-                                PurchaseOrderItem.objects.create(
+                                po_item = PurchaseOrderItem.objects.create(
                                     purchase_order=po,
                                     item=item,
-                                    quantity=int(quantities[index]),
-                                    unit_price=Decimal(unit_prices[index]),
-                                    brand=brands[index],
-                                    model_name=models.get(index, '')
+                                    quantity=int(item_data['quantity']),
+                                    unit_price=Decimal(item_data['unitPrice']),
+                                    brand=item_data['brand'],
+                                    model_name=item_data['model']
                                 )
-                    po.calculate_total()
+                                print(f"Created PO item: {po_item}")
+                                
+                                # Verify the item was created
+                                print(f"Verifying PO item exists: {PurchaseOrderItem.objects.filter(id=po_item.id).exists()}")
+                                print(f"PO item details: {vars(po_item)}")
+                            except Exception as e:
+                                print(f"Error creating item: {str(e)}")
+                                raise
+                        
+                    # Update total amount
+                    print("\n====== Updating Total Amount ======")
+                    po.total_amount = sum(item.unit_price * item.quantity for item in po.items.all())
+                    po.save()
+                    print(f"Updated total amount: {po.total_amount}")
+
                     messages.success(request, 'Purchase order created successfully.')
-                    return redirect('purchasing:view_purchase_order', pk=po.id)
+                    return redirect('purchasing:view', pk=po.id)
             except Exception as e:
-                messages.error(request, f'Error creating purchase order: {str(e)}')
-    else:
-        initial_data = {}
-        if requisition:
-            initial_data['warehouse'] = requisition.source_warehouse
-        form = PurchaseOrderForm(initial=initial_data)
+                print(f"Error creating purchase order: {str(e)}")
+                messages.error(request, 'An error occurred while creating the purchase order.')
 
-    # Get available items for selection
-    available_items = InventoryItem.objects.select_related('brand').all()
-
-    return render(request, 'purchasing/purchase_order_form.html', {
+    context = {
         'form': form,
-        'requisition': requisition,
+        'suppliers': suppliers,
+        'warehouses': warehouses,
         'available_items': available_items,
-        'title': 'Create Purchase Order'
-    })
+        'requisition': requisition
+    }
+    return render(request, 'purchasing/purchase_order_form.html', context)
 
 @login_required
 def upload_delivery_image(request, pk):
@@ -927,6 +911,7 @@ def upload_delivery_image(request, pk):
             delivery.delivery_note = delivery_note
             delivery.received_by = request.user
             delivery.received_date = timezone.now()
+            delivery.delivery_date = timezone.now()  # Set the delivery date
             delivery.status = 'pending_confirmation'
             delivery.save()
             

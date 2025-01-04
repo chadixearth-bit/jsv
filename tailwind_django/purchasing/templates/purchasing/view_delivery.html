@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load purchasing_extras %}
 
 {% block main_content %}
 <div class="container mx-auto px-4 py-8">
@@ -52,29 +53,59 @@
                         </dd>
                     </div>
                     <div>
-                        <dt class="text-sm font-medium text-gray-500">Delivery Date</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.delivery_date|date:"F j, Y, g:i a" }}</dd>
+                        <dt class="text-sm font-medium text-gray-500">Warehouse</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.purchase_order.warehouse.name }}</dd>
                     </div>
-                    {% if delivery.received_by %}
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Delivery Date</dt>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            {% if delivery.delivery_date %}
+                                {{ delivery.delivery_date|date:"F j, Y, g:i a" }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </dd>
+                    </div>
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Received By</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.received_by.get_full_name }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            {% if delivery.received_by %}
+                                {{ delivery.received_by.get_full_name|default:delivery.received_by.username }}
+                            {% else %}
+                                None
+                            {% endif %}
+                        </dd>
                     </div>
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Received Date</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.received_date|date:"F j, Y, g:i a" }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            {% if delivery.received_date %}
+                                {{ delivery.received_date|date:"F j, Y, g:i a" }}
+                            {% else %}
+                                None
+                            {% endif %}
+                        </dd>
                     </div>
-                    {% endif %}
-                    {% if delivery.confirmed_by %}
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Confirmed By</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.confirmed_by.get_full_name }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            {% if delivery.confirmed_by %}
+                                {{ delivery.confirmed_by.get_full_name|default:delivery.confirmed_by.username }}
+                            {% else %}
+                                None
+                            {% endif %}
+                        </dd>
                     </div>
                     <div>
                         <dt class="text-sm font-medium text-gray-500">Confirmed Date</dt>
-                        <dd class="mt-1 text-sm text-gray-900">{{ delivery.confirmed_date|date:"F j, Y, g:i a" }}</dd>
+                        <dd class="mt-1 text-sm text-gray-900">
+                            {% if delivery.confirmed_date %}
+                                {{ delivery.confirmed_date|date:"F j, Y, g:i a" }}
+                            {% else %}
+                                None
+                            {% endif %}
+                        </dd>
                     </div>
-                    {% endif %}
                 </dl>
             </div>
         </div>
@@ -156,11 +187,11 @@
                         {% for item in delivery.items.all %}
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.purchase_order_item.item.item_name }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.purchase_order_item.item.brand.name }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.purchase_order_item.item.model }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.purchase_order_item.brand }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.purchase_order_item.model_name }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.quantity_delivered }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${{ item.unit_price }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${{ item.total_price }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₱{{ item.purchase_order_item.unit_price|floatformat:2 }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₱{{ item.purchase_order_item.unit_price|multiply:item.quantity_delivered|floatformat:2 }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

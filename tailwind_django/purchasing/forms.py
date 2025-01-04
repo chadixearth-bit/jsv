@@ -59,11 +59,19 @@ class PurchaseOrderItemForm(forms.ModelForm):
         # Type hint for queryset to help type checker
         self.fields['item'].queryset = InventoryItem.objects.filter(availability=True)  # type: ignore
         self.fields['item'].label_from_instance = lambda obj: f"{obj.item_name} ({obj.item_code})"
+        self.fields['item'].required = False  # Make item field optional for new items
 
     def clean(self) -> dict:
         cleaned_data = super().clean()
         quantity = cleaned_data.get('quantity')
         unit_price = cleaned_data.get('unit_price')
+        item = cleaned_data.get('item')
+        brand = cleaned_data.get('brand')
+        model_name = cleaned_data.get('model_name')
+
+        # Validate required fields for new items
+        if not item and (not brand or not model_name):
+            raise forms.ValidationError("For new items, brand and model name are required")
 
         if quantity and quantity < 1:
             raise forms.ValidationError("Quantity must be at least 1")

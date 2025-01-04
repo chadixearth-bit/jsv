@@ -121,14 +121,23 @@ def inventory_create(request):
     if request.method == 'POST':
         form = InventoryItemForm(request.POST, request.FILES)
         if form.is_valid():
-            result = form.save()
+            # Check if item already exists in the warehouse
+            item_name = form.cleaned_data['item_name']
+            model = form.cleaned_data['model']
+            warehouse = form.cleaned_data['warehouse']
             
-            if isinstance(result, list):
-                messages.success(request, 'Item created successfully in both warehouses.')
+            # Query to check if the item already exists
+            if InventoryItem.objects.filter(item_name=item_name, model=model, warehouse=warehouse).exists():
+                messages.error(request, 'Error: This item is already in the warehouse.')
             else:
-                messages.success(request, 'Item created successfully.')
-            
-            return redirect('inventory:list')
+                result = form.save()
+                
+                if isinstance(result, list):
+                    messages.success(request, 'Item created successfully in both warehouses.')
+                else:
+                    messages.success(request, 'Item created successfully.')
+                
+                return redirect('inventory:list')
         else:
             messages.error(request, 'Error creating item. Please check the form.')
     else:

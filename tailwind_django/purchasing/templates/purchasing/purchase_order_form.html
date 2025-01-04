@@ -17,7 +17,7 @@
 
         <!-- Main Form -->
         <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-            <form method="post" class="space-y-8 divide-y divide-gray-200">
+            <form method="post" class="space-y-8 divide-y divide-gray-200" onsubmit="return validateForm()">
                 {% csrf_token %}
                 
                 <!-- Order Details Section -->
@@ -83,42 +83,39 @@
                             Order Items
                         </h3>
                         <div class="flex space-x-3">
-                            <button type="button" onclick="addExistingItem()" 
-                                    class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                <i class="fas fa-plus mr-2"></i>
-                                Add Existing Item
-                            </button>
                             <button type="button" onclick="addNewItem()" 
-                                    class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                                <i class="fas fa-plus-circle mr-2"></i>
+                                    class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <i class="fas fa-plus mr-2"></i>
                                 Add New Item
+                            </button>
+                            <button type="button" onclick="addExistingItem()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                Add Existing Item
                             </button>
                         </div>
                     </div>
-
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-white divide-y divide-gray-200" id="itemsContainer">
+                            <tbody id="itemsContainer" class="bg-white divide-y divide-gray-200">
                                 <!-- Items will be added here dynamically -->
                             </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="5" class="px-6 py-4 text-right font-medium">Total Amount:</td>
+                                    <td colspan="2" class="px-6 py-4 text-left total-amount">₱0.00</td>
+                                </tr>
+                            </tfoot>
                         </table>
-                    </div>
-
-                    <div class="mt-6 flex justify-end">
-                        <div class="text-lg font-medium text-gray-900">
-                            Total Amount: $<span id="total-amount">0.00</span>
-                        </div>
                     </div>
                 </div>
 
@@ -129,7 +126,7 @@
                         Cancel
                     </a>
                     <button type="submit" 
-                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Create Order
                     </button>
                 </div>
@@ -143,36 +140,37 @@
     <tr class="item-row">
         <td class="px-6 py-4">
             <select name="items[]" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                <option value="">Select an item...</option>
+                <option value="">Select Item</option>
                 {% for item in available_items %}
-                    <option value="{{ item.id }}">{{ item.item_name }} ({{ item.brand.name }} - {{ item.model }})</option>
+                <option value="{{ item.id }}">{{ item.item_name }} ({{ item.brand.name }} - {{ item.model|default:'N/A' }})</option>
                 {% endfor %}
             </select>
         </td>
         <td class="px-6 py-4">
-            <input type="text" name="brands[]" readonly class="bg-gray-50 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            <input type="text" name="brands[]" readonly
+                   class="block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
         </td>
         <td class="px-6 py-4">
-            <input type="text" name="models[]" readonly class="bg-gray-50 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            <input type="text" name="models[]" readonly
+                   class="block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
         </td>
         <td class="px-6 py-4">
-            <input type="number" name="quantities[]" required min="1" 
+            <input type="number" name="quantities[]" placeholder="Quantity" required min="1"
                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                    onchange="updateCalculations()">
         </td>
         <td class="px-6 py-4">
-            <input type="number" name="unit_prices[]" required min="0.01" step="0.01" 
+            <input type="number" name="unit_prices[]" placeholder="Price" required min="0" step="0.01"
                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                    onchange="updateCalculations()">
         </td>
-        <td class="px-6 py-4">
-            <span class="subtotal">$0.00</span>
+        <td class="px-6 py-4 text-right">
+            <span class="subtotal">₱0.00</span>
         </td>
-        <td class="px-6 py-4">
+        <td class="px-6 py-4 text-right">
             <button type="button" onclick="removeItem(this)" 
-                    class="text-red-600 hover:text-red-900 inline-flex items-center">
-                <i class="fas fa-trash mr-1"></i>
-                Remove
+                    class="text-red-600 hover:text-red-900">
+                <i class="fas fa-trash"></i>
             </button>
         </td>
     </tr>
@@ -182,34 +180,33 @@
 <template id="newItemRowTemplate">
     <tr class="item-row new-item">
         <td class="px-6 py-4">
-            <input type="text" name="new_items[][name]" required placeholder="Enter item name"
+            <input type="text" name="new_items[0][brand]" placeholder="Brand" required
                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
         </td>
         <td class="px-6 py-4">
-            <input type="text" name="new_items[][brand]" required placeholder="Enter brand"
+            <input type="text" name="new_items[0][name]" placeholder="Item Name" required
                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
         </td>
         <td class="px-6 py-4">
-            <input type="text" name="new_items[][model_name]" required placeholder="Enter model"
+            <input type="text" name="new_items[0][model_name]" placeholder="Model" required
                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
         </td>
         <td class="px-6 py-4">
-            <input type="number" name="new_items[][quantity]" required min="1" placeholder="Enter quantity"
+            <input type="number" name="new_items[0][quantity]" placeholder="Quantity" required min="1"
                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                    onchange="updateCalculations()">
         </td>
         <td class="px-6 py-4">
-            <input type="number" name="new_items[][unit_price]" required min="0.01" step="0.01" placeholder="Enter price"
+            <input type="number" name="new_items[0][unit_price]" placeholder="Price" required min="0"
                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                    onchange="updateCalculations()">
         </td>
-        <td class="px-6 py-4">
-            <span class="subtotal">$0.00</span>
+        <td class="px-6 py-4 text-right">
+            <span class="subtotal">₱0.00</span>
         </td>
-        <td class="px-6 py-4">
-            <button type="button" onclick="removeItem(this)" 
-                    class="text-red-600 hover:text-red-900 inline-flex items-center">
-                <i class="fas fa-trash mr-1"></i>
+        <td class="px-6 py-4 text-right">
+            <button type="button" onclick="removeItem(this)"
+                    class="text-red-600 hover:text-red-900 focus:outline-none focus:underline">
                 Remove
             </button>
         </td>
@@ -217,65 +214,214 @@
 </template>
 
 <script>
+let items = [];
+let newItemIndex = 0;
+
+function validateForm() {
+    // Get all item rows
+    const itemRows = document.querySelectorAll('.item-row');
+    if (itemRows.length === 0) {
+        alert('Please add at least one item to the purchase order.');
+        return false;
+    }
+
+    // Check each row for valid data
+    for (const row of itemRows) {
+        if (row.classList.contains('new-item')) {
+            // For new items
+            const index = row.dataset.index;
+            const brand = row.querySelector(`input[name="new_items[${index}][brand]"]`).value;
+            const name = row.querySelector(`input[name="new_items[${index}][name]"]`).value;
+            const model = row.querySelector(`input[name="new_items[${index}][model_name]"]`).value;
+            const quantity = row.querySelector(`input[name="new_items[${index}][quantity]"]`).value;
+            const price = row.querySelector(`input[name="new_items[${index}][unit_price]"]`).value;
+
+            if (!brand || !name || !model || !quantity || !price) {
+                alert('Please fill in all fields for new items.');
+                return false;
+            }
+        } else {
+            // For existing items
+            const item = row.querySelector('select[name="items[]"]').value;
+            const quantity = row.querySelector('input[name="quantities[]"]').value;
+            const price = row.querySelector('input[name="unit_prices[]"]').value;
+
+            if (!item || !quantity || !price) {
+                alert('Please fill in all fields for existing items.');
+                return false;
+            }
+        }
+    }
+
+    // All validations passed
+    return true;
+}
+
 function updateCalculations() {
     let total = 0;
     document.querySelectorAll('.item-row').forEach(row => {
         let quantity, unitPrice;
         if (row.classList.contains('new-item')) {
-            quantity = parseFloat(row.querySelector('input[name*="[quantity]"]').value) || 0;
-            unitPrice = parseFloat(row.querySelector('input[name*="[unit_price]"]').value) || 0;
+            const index = row.dataset.index;
+            quantity = parseFloat(row.querySelector(`input[name="new_items[${index}][quantity]"]`).value) || 0;
+            unitPrice = parseFloat(row.querySelector(`input[name="new_items[${index}][unit_price]"]`).value) || 0;
         } else {
             quantity = parseFloat(row.querySelector('input[name="quantities[]"]').value) || 0;
             unitPrice = parseFloat(row.querySelector('input[name="unit_prices[]"]').value) || 0;
         }
+        
         const subtotal = quantity * unitPrice;
-        row.querySelector('.subtotal').textContent = `$${subtotal.toFixed(2)}`;
+        row.querySelector('.subtotal').textContent = '₱' + subtotal.toFixed(2);
         total += subtotal;
     });
-    document.getElementById('total-amount').textContent = total.toFixed(2);
+    
+    document.querySelector('.total-amount').textContent = '₱' + total.toFixed(2);
 }
 
 function addRowListeners(row) {
-    row.querySelectorAll('input').forEach(input => {
-        input.addEventListener('change', updateCalculations);
-    });
-    
-    // For existing items, update brand and model when item is selected
-    const itemSelect = row.querySelector('select[name="items[]"]');
-    if (itemSelect) {
-        itemSelect.addEventListener('change', function() {
-            const selectedOption = this.options[this.selectedIndex];
-            if (selectedOption.value) {
-                const [itemName, brandAndModel] = selectedOption.text.split(' (');
-                const [brand, model] = brandAndModel.slice(0, -1).split(' - ');
-                row.querySelector('input[name="brands[]"]').value = brand;
-                row.querySelector('input[name="models[]"]').value = model;
-            } else {
-                row.querySelector('input[name="brands[]"]').value = '';
-                row.querySelector('input[name="models[]"]').value = '';
-            }
-        });
+    if (row.classList.contains('new-item')) {
+        const index = row.dataset.index;
+        const quantityInput = row.querySelector(`input[name="new_items[${index}][quantity]"]`);
+        const priceInput = row.querySelector(`input[name="new_items[${index}][unit_price]"]`);
+        
+        if (quantityInput) {
+            quantityInput.addEventListener('change', updateCalculations);
+            quantityInput.addEventListener('input', updateCalculations);
+        }
+        if (priceInput) {
+            priceInput.addEventListener('change', updateCalculations);
+            priceInput.addEventListener('input', updateCalculations);
+        }
+    } else {
+        const quantityInput = row.querySelector('input[name="quantities[]"]');
+        const priceInput = row.querySelector('input[name="unit_prices[]"]');
+        const itemSelect = row.querySelector('select[name="items[]"]');
+
+        if (quantityInput) {
+            quantityInput.addEventListener('change', updateCalculations);
+            quantityInput.addEventListener('input', updateCalculations);
+        }
+        if (priceInput) {
+            priceInput.addEventListener('change', updateCalculations);
+            priceInput.addEventListener('input', updateCalculations);
+        }
+        if (itemSelect) {
+            itemSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                if (selectedOption.value) {
+                    const [itemName, brandAndModel] = selectedOption.text.split(' (');
+                    const [brand, model] = brandAndModel.slice(0, -1).split(' - ');
+                    row.querySelector('input[name="brands[]"]').value = brand;
+                    row.querySelector('input[name="models[]"]').value = model;
+                } else {
+                    row.querySelector('input[name="brands[]"]').value = '';
+                    row.querySelector('input[name="models[]"]').value = '';
+                }
+            });
+        }
     }
 }
 
 function addExistingItem() {
+    const itemSelect = document.querySelector('select[name="items[]"]');
+    const quantityInput = document.querySelector('input[name="quantities[]"]');
+    
+    if (!itemSelect) {
+        console.error('Item select element not found');
+        return;
+    }
+    if (!quantityInput) {
+        console.error('Quantity input element not found');
+        return;
+    }
+    
+    if (!itemSelect.value) {
+        alert('Please select an item');
+        return;
+    }
+    if (!quantityInput.value || quantityInput.value <= 0) {
+        alert('Please enter a valid quantity');
+        return;
+    }
+
+    console.log('Adding existing item:', itemSelect.value, 'Quantity:', quantityInput.value);
+
     const template = document.getElementById('existingItemRowTemplate');
     const clone = template.content.cloneNode(true);
-    document.getElementById('itemsContainer').appendChild(clone);
-    const newRow = document.querySelector('#itemsContainer tr:last-child');
-    addRowListeners(newRow);
+    const row = clone.querySelector('tr');
+    
+    // Set values from selected item
+    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+    const [itemName, brandAndModel] = selectedOption.text.split(' (');
+    const [brand, model] = brandAndModel.slice(0, -1).split(' - ');
+    
+    row.querySelector('select[name="items[]"]').value = itemSelect.value;
+    row.querySelector('input[name="quantities[]"]').value = quantityInput.value;
+    row.querySelector('input[name="brands[]"]').value = brand;
+    row.querySelector('input[name="models[]"]').value = model;
+    
+    document.getElementById('itemsContainer').appendChild(row);
+    addRowListeners(row);
+    
+    // Clear inputs
+    itemSelect.selectedIndex = 0;
+    quantityInput.value = '';
+    
+    console.log('Existing item added:', row);
+
+    updateCalculations();
 }
 
 function addNewItem() {
+    console.log('Adding new item with index:', newItemIndex);
+
     const template = document.getElementById('newItemRowTemplate');
     const clone = template.content.cloneNode(true);
-    document.getElementById('itemsContainer').appendChild(clone);
-    const newRow = document.querySelector('#itemsContainer tr:last-child');
-    addRowListeners(newRow);
+    const row = clone.querySelector('tr');
+    
+    // Set the index for this row
+    row.dataset.index = newItemIndex;
+    
+    // Update input names with current index
+    row.querySelectorAll('input').forEach(input => {
+        input.name = input.name.replace('[0]', `[${newItemIndex}]`);
+    });
+    
+    document.getElementById('itemsContainer').appendChild(row);
+    addRowListeners(row);
+
+    // Add item to the items array
+    const item = {
+        brand: row.querySelector('input[name="new_items[' + newItemIndex + '][brand]"]').value,
+        itemName: row.querySelector('input[name="new_items[' + newItemIndex + '][name]"]').value,
+        model: row.querySelector('input[name="new_items[' + newItemIndex + '][model_name]"]').value,
+        quantity: parseFloat(row.querySelector('input[name="new_items[' + newItemIndex + '][quantity]"]').value) || 0,
+        unitPrice: parseFloat(row.querySelector('input[name="new_items[' + newItemIndex + '][unit_price]"]').value) || 0
+    };
+    items.push(item);
+
+    newItemIndex++;
+    console.log('New item added:', item);
 }
 
+function serializeItems() {
+    return JSON.stringify(items);
+}
+
+document.querySelector('form').addEventListener('submit', function(event) {
+    const serializedItems = serializeItems();
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.name = 'items_data';
+    hiddenInput.value = serializedItems;
+    this.appendChild(hiddenInput);
+
+    console.log('Serialized items:', serializedItems);
+});
+
 function removeItem(button) {
-    button.closest('tr').remove();
+    const row = button.closest('tr');
+    row.remove();
     updateCalculations();
 }
 
@@ -283,13 +429,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add validation for dates
     const orderDateInput = document.querySelector('input[name="order_date"]');
     const deliveryDateInput = document.querySelector('input[name="expected_delivery_date"]');
-
+    
+    const today = new Date().toISOString().split('T')[0];
+    orderDateInput.value = today;
+    orderDateInput.min = today;
+    deliveryDateInput.min = today;
+    
     function validateDates() {
         const orderDate = new Date(orderDateInput.value);
         const deliveryDate = new Date(deliveryDateInput.value);
         
         if (deliveryDate < orderDate) {
-            deliveryDateInput.setCustomValidity('Expected delivery date cannot be earlier than order date');
+            deliveryDateInput.setCustomValidity('Expected delivery date must be after or equal to the order date');
         } else {
             deliveryDateInput.setCustomValidity('');
         }
