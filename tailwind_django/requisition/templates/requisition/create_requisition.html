@@ -2,15 +2,15 @@
 {% load static %}
 
 {% block main_content %}
-<div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-4 px-2 sm:px-4 lg:px-6">
+<div class="min-h-screen bg-[#F3F3F3] to-gray-100 py-4 px-2 sm:px-4 lg:px-6">
     <!-- Page Header -->
     <div class="w-full max-w-[1920px] mx-auto mb-6">
         <div class="bg-white rounded-xl shadow-md overflow-hidden">
-            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-6 sm:px-6">
+            <div class="bg-white px-4 py-6 sm:px-6">
                 <div class="flex items-center justify-between">
                     <div class="space-y-1">
-                        <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Create Requisition</h1>
-                        <p class="text-blue-100 text-base sm:text-lg">
+                        <h1 class="text-2xl sm:text-3xl font-bold text-black tracking-tight">Create Requisition</h1>
+                        <p class="text-gray-600 text-base sm:text-lg">
                             Submit a new item requisition request
                         </p>
                     </div>
@@ -56,13 +56,15 @@
                                  data-category="{{ item.category.id }}"
                                  data-brand="{{ item.brand }}"
                                  data-name="{{ item.item_name|lower }}">
-                                
+                                 
                                 <!-- Selection Indicator -->
                                 <div class="absolute inset-0 bg-indigo-100/50 opacity-0 transition-opacity duration-300 pointer-events-none selection-overlay rounded-lg"></div>
                                 
                                 <!-- Checkmark Icon -->
-                                <div class="absolute top-3 right-3 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center transform scale-0 transition-transform duration-300 checkmark-icon">
-                                    <i class="fas fa-check text-white text-xs"></i>
+                                <div class="absolute top-3 right-3 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center transform scale-0 transition-transform duration-300 checkmark-icon z-10">
+                                    <svg class="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
                                 </div>
                                 
                                 <!-- Item Content -->
@@ -117,7 +119,7 @@
 
                 <!-- Submit Button -->
                 <div class="mt-6 flex justify-end">
-                    <button type="submit" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                    <button type="submit" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-[#121221] hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
                         Submit Requisition
                     </button>
                 </div>
