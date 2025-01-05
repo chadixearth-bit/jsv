@@ -6,7 +6,7 @@
     <div class="max-w-7xl mx-auto sm:px-4 lg:px-8">
         <div class="min-h-screen bg-gray-50 py-2 sm:px-4 lg:px-2">
             <!-- Messages Section -->
-            {% if messages %}
+            <!-- {% if messages %}
             <div class="mb-8">
                 {% for message in messages %}
                 <div class="p-4 rounded-xl {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-blue-100 text-blue-700{% endif %} flex items-center">
@@ -15,7 +15,7 @@
                 </div>
                 {% endfor %}
             </div>
-            {% endif %}
+            {% endif %} -->
 
             <!-- Page Header -->
             <div class="mb-8 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-lg transform hover:scale-[1.02] transition-transform duration-300">
@@ -294,14 +294,15 @@
                                     <td colspan="6" class="px-6 py-12">
                                         <div class="flex flex-col items-center">
                                             <div class="rounded-full bg-gray-50 p-3 ring-1 ring-gray-200">
-                                                <i class="fas fa-box-open text-3xl text-gray-400"></i>
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 0 1 2.012 1.244l.256.512a2.25 2.25 0 0 0 2.013 1.244h3.218a2.25 2.25 0 0 0 2.013-1.244l.256-.512a2.25 2.25 0 0 1 2.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 0 0-2.15-1.588H6.911a2.25 2.25 0 0 0-2.15 1.588L2.35 13.177a2.25 2.25 0 0 0-.1.661Z" />
+                                                  </svg>                                                  
                                             </div>
                                             <h3 class="mt-4 text-sm font-medium text-gray-900">No items found</h3>
                                             <p class="mt-1 text-sm text-gray-500">Get started by adding some items to your inventory.</p>
                                             {% if perms.inventory.add_inventoryitem %}
                                                 <div class="mt-4">
                                                     <a href="{% url 'inventory:create' %}" class="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors duration-200">
-                                                        <i class="fas fa-plus mr-2"></i>
                                                         Add Item
                                                     </a>
                                                 </div>

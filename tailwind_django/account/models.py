@@ -13,6 +13,7 @@ class CustomUser(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    display_name = models.CharField(max_length=100, blank=True, null=True)
     warehouses = models.ManyToManyField('inventory.Warehouse', related_name='custom_users')
 
     def __str__(self):
@@ -32,16 +33,9 @@ class CustomUser(models.Model):
             
             # For manager and attendant roles
             elif self.role in ['manager', 'attendant']:
-                warehouse_name = 'Manager Warehouse' if self.role == 'manager' else 'Warehouse Attendant'
-                
-                # Get or create the warehouse
-                warehouse, created = Warehouse.objects.get_or_create(
-                    name=warehouse_name,
-                    defaults={'is_main': False}
-                )
-                
-                # Assign warehouse to user
-                self.warehouses.add(warehouse)
+                # Don't automatically assign warehouses for managers and attendants
+                # Let admin assign them explicitly through the admin interface
+                pass
 
     def update_permissions(self):
         # Remove all existing permissions

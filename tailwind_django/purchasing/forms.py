@@ -2,7 +2,7 @@ from django import forms
 from django.db.models.query import QuerySet
 from typing import Any
 from .models import Supplier, PurchaseOrder, PurchaseOrderItem, Delivery
-from inventory.models import InventoryItem
+from inventory.models import InventoryItem, Warehouse
 import json
 
 class SupplierForm(forms.ModelForm):
@@ -37,8 +37,10 @@ class PurchaseOrderForm(forms.ModelForm):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        if user and not user.is_superuser and not user.customuser.role == 'admin':
-            self.fields['warehouse'].queryset = user.warehouses.all()
+        # Set warehouse queryset to only show Attendant and Manager warehouses
+        self.fields['warehouse'].queryset = Warehouse.objects.filter(
+            name__in=['Attendant Warehouse', 'Manager Warehouse']
+        )
 
     def clean(self) -> dict:
         cleaned_data = super().clean()
@@ -59,11 +61,19 @@ class PurchaseOrderItemForm(forms.ModelForm):
         # Type hint for queryset to help type checker
         self.fields['item'].queryset = InventoryItem.objects.filter(availability=True)  # type: ignore
         self.fields['item'].label_from_instance = lambda obj: f"{obj.item_name} ({obj.item_code})"
+        self.fields['item'].required = False  # Make item field optional for new items
 
     def clean(self) -> dict:
         cleaned_data = super().clean()
         quantity = cleaned_data.get('quantity')
         unit_price = cleaned_data.get('unit_price')
+        item = cleaned_data.get('item')
+        brand = cleaned_data.get('brand')
+        model_name = cleaned_data.get('model_name')
+
+        # Validate required fields for new items
+        if not item and (not brand or not model_name):
+            raise forms.ValidationError("For new items, brand and model name are required")
 
         if quantity and quantity < 1:
             raise forms.ValidationError("Quantity must be at least 1")
@@ -110,40 +120,18 @@ class PurchaseOrderItemForm(forms.ModelForm):
 class DeliveryReceiptForm(forms.ModelForm):
     class Meta:
         model = Delivery
-        fields = ['receipt_photo', 'delivery_confirmation_file', 'notes']
+        fields = ['delivery_image', 'delivery_note']
         widgets = {
-            'receipt_photo': forms.FileInput(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                'accept': 'image/*',
-                'data-max-size': '5242880'  # 5MB in bytes
+            'delivery_image': forms.FileInput(attrs={
+                'class': 'py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full text-sm',
+                'accept': 'image/*'
             }),
-            'delivery_confirmation_file': forms.FileInput(attrs={
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                'accept': '.pdf,.doc,.docx,image/*',
-                'data-max-size': '10485760'  # 10MB in bytes
-            }),
-            'notes': forms.Textarea(attrs={
+            'delivery_note': forms.Textarea(attrs={
+                'class': 'shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md',
                 'rows': 3,
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                'placeholder': 'Add any additional notes about the delivery...'
+                'placeholder': 'Add any notes about the delivery...'
             })
         }
-
-    def clean_receipt_photo(self):
-        photo = self.cleaned_data.get('receipt_photo')
-        if photo:
-            if photo.size > 5242880:  # 5MB limit
-                raise forms.ValidationError('File size must be under 5MB.')
-            return photo
-        return None
-
-    def clean_delivery_confirmation_file(self):
-        file = self.cleaned_data.get('delivery_confirmation_file')
-        if file:
-            if file.size > 10485760:  # 10MB limit
-                raise forms.ValidationError('File size must be under 10MB.')
-            return file
-        return None
 
 class DeliveryStatusForm(forms.Form):
     STATUS_CHOICES = [

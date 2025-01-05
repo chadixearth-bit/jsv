@@ -18,10 +18,23 @@ class InventoryItemForm(forms.ModelForm):
             'required': True
         })
     )
+    WAREHOUSE_CHOICES = [
+        ('', 'Select a warehouse'),
+        ('attendant', 'Attendant Warehouse'),
+        ('manager', 'Manager Warehouse'),
+        ('both', 'Both Warehouses')
+    ]
+    warehouse_choice = forms.ChoiceField(
+        choices=WAREHOUSE_CHOICES,
+        widget=forms.Select(attrs={
+            'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
+            'required': True
+        })
+    )
 
     class Meta:
         model = InventoryItem
-        fields = ['brand', 'category', 'model', 'item_name', 'price', 'image', 'description']
+        fields = ['brand', 'category', 'model', 'item_name', 'price', 'stock', 'image']
         widgets = {
             'model': forms.TextInput(attrs={
                 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
@@ -37,31 +50,68 @@ class InventoryItemForm(forms.ModelForm):
                 'step': '0.01',
                 'placeholder': 'Enter price'
             }),
+            'stock': forms.NumberInput(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
+                'min': '0',
+                'step': '1',
+                'placeholder': 'Enter stock quantity'
+            }),
             'image': forms.FileInput(attrs={
                 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
                 'accept': 'image/*'
             }),
-            'description': forms.Textarea(attrs={
-                'rows': 4,
-                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-                'placeholder': 'Enter item description'
-            }),
         }
 
     def __init__(self, *args, **kwargs):
-        user = kwargs.pop('user', None)
+        instance = kwargs.get('instance')
+        self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        
-        # Make fields required
         self.fields['brand'].required = True
         self.fields['category'].required = True
         self.fields['model'].required = True
         self.fields['item_name'].required = True
         self.fields['price'].required = True
+        self.fields['stock'].required = True
+        
+        # Only show warehouse_choice field for new items
+        if instance:
+            if 'warehouse_choice' in self.fields:
+                del self.fields['warehouse_choice']
+        else:
+            self.fields['warehouse_choice'].required = True
         
         # Add help text
         self.fields['image'].help_text = 'Upload an image of the item (optional)'
-        self.fields['description'].help_text = 'Provide a detailed description of the item (optional)'
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        warehouse_choice = self.cleaned_data['warehouse_choice']
+        
+        # Convert warehouse_choice to location value
+        location_mapping = {
+            'attendant': 'attendant_warehouse',
+            'manager': 'manager_warehouse',
+            'both': 'attendant_warehouse',  # Default to attendant for 'both' option
+        }
+        instance.location = location_mapping.get(warehouse_choice)
+        
+        if commit:
+            instance.save()
+            
+            # If 'both' is selected, create another instance for manager warehouse
+            if warehouse_choice == 'both':
+                manager_instance = InventoryItem.objects.create(
+                    brand=instance.brand,
+                    category=instance.category,
+                    model=instance.model,
+                    item_name=instance.item_name,
+                    price=instance.price,
+                    stock=instance.stock,
+                    image=instance.image,
+                    location='manager_warehouse'
+                )
+        
+        return instance
 
 class GlobalSettingsForm(forms.ModelForm):
     class Meta:

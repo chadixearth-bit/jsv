@@ -23,7 +23,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from typing import Any, Dict, Optional, Type, Union
 
 from requisition.models import Requisition
-from inventory.models import InventoryItem, Brand
+from inventory.models import InventoryItem, Brand, Warehouse, Category
 from .models import PurchaseOrder, PurchaseOrderItem, Supplier, Delivery, DeliveryItem
 from .forms import PurchaseOrderForm, PurchaseOrderItemForm, SupplierForm, DeliveryReceiptForm
 from .utils import generate_purchase_order_pdf
@@ -61,13 +61,13 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
     model = PurchaseOrder
     form_class = PurchaseOrderForm
     template_name = 'purchasing/purchase_order_form.html'
-    success_url = reverse_lazy('purchasing:list')
-
+    
     def dispatch(self, request, *args, **kwargs) -> Any:
-        if not hasattr(request.user, 'customuser') or request.user.customuser.role != 'admin':
-            messages.error(request, "Only admin users can create purchase orders.")
-            return redirect('purchasing:list')
-        return super().dispatch(request, *args, **kwargs)
+        # Allow both superusers and admin users to create POs
+        if request.user.is_superuser or (hasattr(request.user, 'customuser') and request.user.customuser.role == 'admin'):
+            return super().dispatch(request, *args, **kwargs)
+        messages.error(request, "Only admin users can create purchase orders.")
+        return redirect('purchasing:list')
 
     def get_form_kwargs(self) -> Dict:
         kwargs = super().get_form_kwargs()
@@ -77,6 +77,10 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
     def get_context_data(self, **kwargs: Any) -> Dict:
         context = super().get_context_data(**kwargs)
         context['title'] = 'Create Purchase Order'
+        context['suppliers'] = Supplier.objects.all()
+        context['warehouses'] = Warehouse.objects.filter(
+            name__in=['Attendant Warehouse', 'Manager Warehouse']
+        )
         context['pending_requisitions'] = Requisition.objects.filter(
             request_type='item',
             status='approved_by_admin',
@@ -86,7 +90,7 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
             'brand', 
             'category'
         ).filter(
-            stock__lte=10
+            availability=True
         ).order_by('brand__name', 'model', 'item_name')
         return context
 
@@ -95,66 +99,61 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
             with transaction.atomic():
                 po = form.save(commit=False)
                 po.created_by = self.request.user
-                po.status = 'pending_supplier'  # Automatically set to pending_supplier instead of draft
+                po.status = 'pending_supplier'
                 po.save()
 
-                # Handle existing items
-                items = self.request.POST.getlist('items[]')
-                quantities = self.request.POST.getlist('quantities[]')
-                unit_prices = self.request.POST.getlist('unit_prices[]')
+                # Get items data from the form
+                items_data = self.request.POST.get('items_data', '[]')
+                items = json.loads(items_data)
 
-                for item_id, qty, price in zip(items, quantities, unit_prices):
-                    if item_id and qty and price:  # Skip empty selections
-                        item = InventoryItem.objects.get(id=item_id)
-                        PurchaseOrderItem.objects.create(
-                            purchase_order=po,
-                            item=item,
-                            quantity=int(qty),
-                            unit_price=Decimal(price)
-                        )
-
-                # Process new items
-                new_items_data = zip(
-                    self.request.POST.getlist('new_item_names[]'),
-                    self.request.POST.getlist('new_brands[]'),
-                    self.request.POST.getlist('new_models[]'),
-                    self.request.POST.getlist('new_quantities[]'),
-                    self.request.POST.getlist('new_unit_prices[]')
-                )
-
-                for name, brand_name, model_name, qty, price in new_items_data:
-                    if all([name, brand_name, model_name, qty, price]):  # Skip if any field is empty
-                        # Get or create brand
-                        brand, _ = Brand.objects.get_or_create(name=brand_name)
+                for item_data in items:
+                    # Handle both existing and new items
+                    if item_data.get('item_id'):
+                        # Existing item
+                        item = InventoryItem.objects.get(id=item_data['item_id'])
+                    else:
+                        # Create or get brand
+                        brand, _ = Brand.objects.get_or_create(name=item_data['brand'])
                         
-                        # Create new inventory item
-                        new_item = InventoryItem.objects.create(
-                            item_name=name,
+                        # Get or create a default category
+                        category, _ = Category.objects.get_or_create(name='General')
+                        
+                        # Create new item with the item name from the form
+                        item_name = item_data.get('itemName', f"{item_data['brand']} {item_data['model']}")
+                        
+                        # Create new item
+                        item = InventoryItem.objects.create(
                             brand=brand,
-                            model=model_name,
+                            category=category,
+                            model=item_data['model'],
+                            item_name=item_name,
+                            price=Decimal(str(item_data['unitPrice'])),
+                            stock=0,  # Initial stock is 0 until delivery
+                            warehouse=po.warehouse,  # Assign to PO's warehouse
+                            location='manager_warehouse' if po.warehouse.name == 'Manager Warehouse' else 'attendant_warehouse',
                             availability=True
                         )
 
-                        # Create purchase order item
-                        PurchaseOrderItem.objects.create(
-                            purchase_order=po,
-                            item=new_item,
-                            brand=brand_name,
-                            model_name=model_name,
-                            quantity=int(qty),
-                            unit_price=Decimal(price)
-                        )
+                    # Create purchase order item
+                    PurchaseOrderItem.objects.create(
+                        purchase_order=po,
+                        item=item,
+                        brand=item_data['brand'],
+                        model_name=item_data['model'],
+                        quantity=int(item_data['quantity']),
+                        unit_price=Decimal(str(item_data['unitPrice']))
+                    )
 
-                po.calculate_total()
-                messages.success(self.request, 'Purchase order created successfully.')
-                return redirect(self.success_url)
+                messages.success(self.request, "Purchase order created successfully!")
+                return redirect('purchasing:list')
+
         except Exception as e:
-            messages.error(self.request, f'Error creating purchase order: {str(e)}')
-            return self.form_invalid(form)
+            print(f"Error creating purchase order: {str(e)}")
+            messages.error(self.request, f"Error creating purchase order: {str(e)}")
+            return super().form_invalid(form)
 
-    def form_invalid(self, form: PurchaseOrderForm) -> Any:
-        messages.error(self.request, 'Error creating purchase order.')
-        return self.render_to_response(self.get_context_data(form=form))
+    def get_success_url(self):
+        return reverse_lazy('purchasing:view_purchase_order', kwargs={'pk': self.object.pk})
 
 class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
     model = PurchaseOrder
@@ -162,15 +161,12 @@ class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'purchasing/purchase_order_form.html'
     success_url = reverse_lazy('purchasing:list')
 
-    def dispatch(self, request, *args, **kwargs):
-        po = self.get_object()
-        if po.status != 'draft':
-            messages.error(request, "Only draft purchase orders can be edited.")
-            return redirect('purchasing:list')
-        if not hasattr(request.user, 'customuser') or request.user.customuser.role != 'admin':
-            messages.error(request, "Only admin users can edit purchase orders.")
-            return redirect('purchasing:list')
-        return super().dispatch(request, *args, **kwargs)
+    def dispatch(self, request, *args, **kwargs) -> Any:
+        # Allow both superusers and admin users to update POs
+        if request.user.is_superuser or (hasattr(request.user, 'customuser') and request.user.customuser.role == 'admin'):
+            return super().dispatch(request, *args, **kwargs)
+        messages.error(request, "Only admin users can update purchase orders.")
+        return redirect('purchasing:list')
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -243,7 +239,11 @@ class AddItemsView(LoginRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs: Any) -> Dict[str, Any]:
         context = super().get_context_data(**kwargs)
         context['po'] = self.object
-        context['items'] = self.object.items.all()
+        if self.object:
+            for item in self.object.items.all():
+                item.subtotal = item.quantity * item.unit_price
+            context['items'] = self.object.items.all()
+        context['available_items'] = InventoryItem.objects.all()
         return context
 
     def form_valid(self, form: PurchaseOrderItemForm) -> HttpResponseRedirect:
@@ -340,19 +340,17 @@ def update_po_status(request, pk: int) -> Any:
 
 @login_required
 def view_purchase_order(request, pk: int) -> Any:
-    po = get_object_or_404(PurchaseOrder.objects.select_related(
-        'supplier',
-        'warehouse',
-        'created_by',
-        'delivery_verified_by'
-    ).prefetch_related(
-        'items__item',
-        'deliveries'
-    ), pk=pk)
+    purchase_order = get_object_or_404(PurchaseOrder.objects.prefetch_related('items', 'items__item', 'deliveries'), pk=pk)
+    
+    # Debug: Print out the items associated with the purchase order
+    print("\n====== DEBUG: Purchase Order Items ======")
+    for item in purchase_order.items.all():
+        print(f"Item: {item.item.item_name}, Quantity: {item.quantity}, Unit Price: {item.unit_price}")
+    print("========================================\n")
     
     # Check user permissions
     if not hasattr(request.user, 'customuser'):
-        messages.error(request, "You don't have permission to view purchase orders.")
+        messages.error(request, "User profile not found.")
         return redirect('purchasing:list')
     
     user_role = request.user.customuser.role
@@ -361,7 +359,7 @@ def view_purchase_order(request, pk: int) -> Any:
     if user_role == 'admin':
         can_view = True
     elif user_role in ['manager', 'attendant']:
-        can_view = po.warehouse in request.user.warehouses.all()
+        can_view = purchase_order.warehouse in request.user.warehouses.all()
     
     if not can_view:
         messages.error(request, "You don't have permission to view this purchase order.")
@@ -370,17 +368,14 @@ def view_purchase_order(request, pk: int) -> Any:
     # Get available status changes for the user
     available_status_changes = []
     for status_choice in PurchaseOrder.STATUS_CHOICES:
-        if po.can_change_status(request.user, status_choice[0]):
+        if purchase_order.can_change_status(request.user, status_choice[0]):
             available_status_changes.append(status_choice)
     
     context = {
-        'po': po,
-        'items': po.items.all().select_related('item'),
-        'deliveries': po.deliveries.all(),
+        'purchase_order': purchase_order,
         'available_status_changes': available_status_changes,
-        'user_role': user_role
+        'user_role': user_role,
     }
-    
     return render(request, 'purchasing/view_po.html', context)
 
 @login_required
@@ -460,32 +455,44 @@ def confirm_delivery(request, pk: int) -> Any:
                     for delivery_item in delivery.items.all():
                         po_item = delivery_item.purchase_order_item
                         
-                        # Get or create inventory item in the receiving warehouse
-                        inventory_item, created = InventoryItem.objects.get_or_create(
-                            warehouse=delivery.warehouse,
+                        # Try to find existing item in manager's warehouse first
+                        inventory_item = InventoryItem.objects.filter(
+                            warehouse=delivery.purchase_order.warehouse,
                             brand=po_item.item.brand,
                             model=po_item.item.model,
                             item_name=po_item.item.item_name,
-                            defaults={
-                                'category': po_item.item.category,
-                                'stock': 0,
-                                'price': 0,  # Set initial price to 0 as requested
-                                'availability': True
-                            }
-                        )
+                            location='manager_warehouse'
+                        ).first()
                         
-                        # Update stock quantity
-                        inventory_item.stock += delivery_item.quantity_delivered
-                        inventory_item.save()
+                        if inventory_item:
+                            # Update existing item quantity
+                            inventory_item.stock += delivery_item.quantity_delivered
+                            inventory_item.save()
+                        else:
+                            # Create new inventory item in manager's warehouse
+                            inventory_item = InventoryItem.objects.create(
+                                warehouse=delivery.purchase_order.warehouse,
+                                brand=po_item.item.brand,
+                                category=po_item.item.category,
+                                model=po_item.item.model,
+                                item_name=po_item.item.item_name,
+                                stock=delivery_item.quantity_delivered,
+                                price=po_item.unit_price,
+                                availability=True,
+                                location='manager_warehouse'
+                            )
                     
+                    # Update delivery status
                     delivery.status = 'verified'
+                    delivery.confirmed_by = request.user
+                    delivery.confirmed_date = timezone.now()
                     delivery.save()
                     
                     # Update PO status to completed
                     po.status = 'completed'
                     po.save()
                     
-                    messages.success(request, 'Delivery confirmed successfully. Inventory quantities have been updated.')
+                    messages.success(request, 'Delivery confirmed successfully. Inventory quantities have been updated in the manager warehouse.')
             except Exception as e:
                 messages.error(request, f'Error confirming delivery: {str(e)}')
                 return redirect('purchasing:delivery_list')
@@ -508,12 +515,12 @@ def delivery_list(request) -> Any:
     all_deliveries = Delivery.objects.select_related(
         'purchase_order',
         'purchase_order__supplier',
-        'warehouse',
-        'received_by'
+        'purchase_order__warehouse',
+        'received_by',
+        'confirmed_by'
     ).prefetch_related(
-        'items',
-        'items__purchase_order_item',
-        'items__purchase_order_item__item',
+        'purchase_order__items',
+        'purchase_order__items__item',
         'purchase_order__requisitions'
     )
     
@@ -523,13 +530,28 @@ def delivery_list(request) -> Any:
         if user_role == 'admin':
             # Admin sees all deliveries
             deliveries = all_deliveries
-        elif user_role in ['manager', 'attendant']:
-            # Managers and attendants see deliveries to their warehouses
-            user_warehouses = request.user.customuser.warehouses.all()
+        elif user_role == 'manager':
+            # Get the warehouses this manager has access to
+            manager_warehouses = request.user.warehouses.all()
+            # Also get warehouses where they are assigned as manager via CustomUser
+            manager_warehouses_via_role = Warehouse.objects.filter(custom_users__user=request.user, custom_users__role='manager')
+            # Combine both sets of warehouses
+            all_manager_warehouses = manager_warehouses | manager_warehouses_via_role
+            # Managers see deliveries for their assigned warehouses
             deliveries = all_deliveries.filter(
-                Q(warehouse__in=user_warehouses) |  # Deliveries to their warehouse
-                Q(purchase_order__warehouse__in=user_warehouses)  # PO deliveries to their warehouse
-            )
+                purchase_order__warehouse__in=all_manager_warehouses
+            ).distinct()
+        elif user_role == 'attendant':
+            # Get the warehouses this attendant has access to
+            attendant_warehouses = request.user.warehouses.all()
+            # Also get warehouses where they are assigned as attendant via CustomUser
+            attendant_warehouses_via_role = Warehouse.objects.filter(custom_users__user=request.user, custom_users__role='attendant')
+            # Combine both sets of warehouses
+            all_attendant_warehouses = attendant_warehouses | attendant_warehouses_via_role
+            # Attendants see deliveries for their assigned warehouses
+            deliveries = all_deliveries.filter(
+                purchase_order__warehouse__in=all_attendant_warehouses
+            ).distinct()
         else:
             deliveries = Delivery.objects.none()
     else:
@@ -546,9 +568,8 @@ def delivery_list(request) -> Any:
     # Get all status choices for the filter
     status_choices = [
         ('pending_delivery', 'Pending Delivery'),
-        ('in_delivery', 'In Delivery'),
-        ('pending_admin_confirmation', 'Pending Admin Confirmation'),
-        ('verified', 'Verified'),
+        ('pending_confirmation', 'Pending Confirmation'),
+        ('confirmed', 'Confirmed'),
         ('cancelled', 'Cancelled')
     ]
     
@@ -557,6 +578,7 @@ def delivery_list(request) -> Any:
         'current_time': timezone.now(),
         'current_status': status_filter or 'all',
         'status_choices': status_choices,
+        'title': 'Deliveries'
     }
     return render(request, 'purchasing/delivery_list.html', context)
 
@@ -565,7 +587,6 @@ def view_delivery(request, pk: int) -> Any:
     delivery = get_object_or_404(Delivery.objects.select_related(
         'purchase_order',
         'purchase_order__supplier',
-        'warehouse',
         'received_by'
     ).prefetch_related(
         'items',
@@ -583,8 +604,7 @@ def view_delivery(request, pk: int) -> Any:
             pass
         elif user_role in ['manager', 'attendant']:
             # Check if delivery is to user's warehouse
-            if not (delivery.warehouse in user_warehouses or 
-                   (delivery.purchase_order and delivery.purchase_order.warehouse in user_warehouses)):
+            if not (delivery.purchase_order and delivery.purchase_order.warehouse in user_warehouses):
                 messages.error(request, "You don't have permission to view this delivery.")
                 return redirect('purchasing:delivery_list')
         else:
@@ -603,6 +623,7 @@ def view_delivery(request, pk: int) -> Any:
         form = DeliveryReceiptForm(request.POST, request.FILES, instance=delivery)
         if form.is_valid():
             delivery = form.save(commit=False)
+            delivery.delivery_date = timezone.now()  # Set the delivery date
             delivery.status = 'pending_admin_confirmation'
             delivery.save()
             messages.success(request, "Delivery receipt uploaded successfully. Awaiting admin confirmation.")
@@ -613,6 +634,7 @@ def view_delivery(request, pk: int) -> Any:
     context = {
         'delivery': delivery,
         'form': form,
+        'po': delivery.purchase_order
     }
     return render(request, 'purchasing/view_delivery.html', context)
 
@@ -699,11 +721,9 @@ def confirm_purchase_order(request, pk: int) -> Any:
         # Create a delivery record
         delivery = Delivery.objects.create(
             purchase_order=po,
-            warehouse=po.warehouse,  # Associate with the correct warehouse
-            status='in_delivery'  # Changed to in_delivery since we can't track supplier
+            status='pending_delivery'  # Changed to pending_delivery as initial status
         )
         print(f"Created delivery {delivery.pk}")
-        print(f"Delivery warehouse: {delivery.warehouse.name if delivery.warehouse else 'None'}")
         
         # Create delivery items for each PO item
         for po_item in po.items.all():
@@ -733,8 +753,8 @@ def upcoming_deliveries(request) -> Any:
     
     # Get deliveries that are pending or in transit
     upcoming_deliveries = Delivery.objects.filter(
-        Q(warehouse__in=user_warehouses) |
-        Q(warehouse__isnull=True, purchase_order__warehouse__in=user_warehouses),
+        Q(purchase_order__warehouse__in=user_warehouses) |
+        Q(purchase_order__warehouse__isnull=True, warehouse__in=user_warehouses),
         status__in=['pending_delivery', 'in_transit']
     ).select_related(
         'purchase_order',
@@ -755,85 +775,181 @@ def upcoming_deliveries(request) -> Any:
     return render(request, 'purchasing/upcoming_deliveries.html', context)
 
 @login_required
-def create_purchase_order(request):
-    # Get requisition_id from query params
-    requisition_id = request.GET.get('requisition_id')
+def create_purchase_order(request, requisition_id=None):
     requisition = None
-    
     if requisition_id:
-        requisition = get_object_or_404(Requisition, pk=requisition_id)
-        if requisition.status != 'approved_by_admin':
-            messages.error(request, "This requisition has not been approved by admin.")
-            return redirect('purchasing:list')
+        requisition = get_object_or_404(Requisition, id=requisition_id)
+
+    suppliers = Supplier.objects.all()
+    warehouses = Warehouse.objects.filter(
+        name__in=['Attendant Warehouse', 'Manager Warehouse']
+    )
+    available_items = InventoryItem.objects.all()
 
     if request.method == 'POST':
+        print("\n====== DEBUG: POST DATA ======")
+        print("Raw POST data:")
+        for key, value in request.POST.items():
+            print(f"{key}: {value}")
+        
+        # Deserialize items_data
+        items_data = json.loads(request.POST.get('items_data', '[]'))
+        print("Deserialized items data:", items_data)
+        
         form = PurchaseOrderForm(request.POST)
         if form.is_valid():
             try:
                 with transaction.atomic():
+                    print("\n====== Creating Purchase Order ======")
                     # Create the purchase order
                     po = form.save(commit=False)
                     po.created_by = request.user
-                    po.status = 'draft'
+                    po.status = 'pending_supplier'
                     po.save()
+                    print(f"Created PO: {po.po_number}")
 
                     if requisition:
                         # Add requisition to purchase order
                         po.requisitions.add(requisition)
-                        
-                        # Get unit prices from the form
-                        unit_prices = request.POST.getlist('unit_prices[]')
-                        
-                        # Create purchase order items from requisition items
-                        for index, req_item in enumerate(requisition.items.all()):
-                            try:
-                                unit_price = Decimal(unit_prices[index])
-                            except (IndexError, ValueError, TypeError):
-                                unit_price = Decimal('0')
-                                
+                        # Add requisition items to purchase order
+                        for req_item in requisition.items.all():
                             PurchaseOrderItem.objects.create(
                                 purchase_order=po,
                                 item=req_item.item,
                                 quantity=req_item.quantity,
-                                unit_price=unit_price,
-                                brand=req_item.item.brand.name if req_item.item.brand else '',
-                                model_name=req_item.item.model or ''
+                                unit_price=req_item.item.price,
+                                brand=req_item.item.brand.name,
+                                model_name=req_item.item.model
                             )
                     else:
-                        # Handle existing items
-                        items = request.POST.getlist('items[]')
-                        quantities = request.POST.getlist('quantities[]')
-                        unit_prices = request.POST.getlist('unit_prices[]')
-                        
-                        for item_id, qty, price in zip(items, quantities, unit_prices):
-                            if item_id and qty and price:  # Skip empty selections
-                                item = InventoryItem.objects.get(id=item_id)
-                                PurchaseOrderItem.objects.create(
+                        # Process deserialized items
+                        print("\n====== Processing Deserialized Items ======")
+                        for item_data in items_data:
+                            try:
+                                print(f"\nCreating new item:")
+                                print(f"Data: {item_data}")
+                                
+                                # Create or get brand
+                                brand, _ = Brand.objects.get_or_create(name=item_data['brand'])
+                                print(f"Using brand: {brand}")
+                                
+                                # Create new inventory item
+                                item = InventoryItem.objects.create(
+                                    item_name=item_data['itemName'],
+                                    brand=brand,
+                                    model=item_data['model'],
+                                    warehouse=po.warehouse,
+                                    category=Category.objects.get_or_create(name='General')[0],
+                                    stock=0,
+                                    price=Decimal(item_data['unitPrice']),
+                                    availability=True,
+                                    location='manager_warehouse'
+                                )
+                                print(f"Created inventory item: {item}")
+                                
+                                # Create purchase order item
+                                po_item = PurchaseOrderItem.objects.create(
                                     purchase_order=po,
                                     item=item,
-                                    quantity=int(qty),
-                                    unit_price=Decimal(price),
-                                    brand=item.brand.name if item.brand else '',
-                                    model_name=item.model or ''
+                                    quantity=int(item_data['quantity']),
+                                    unit_price=Decimal(item_data['unitPrice']),
+                                    brand=item_data['brand'],
+                                    model_name=item_data['model']
                                 )
+                                print(f"Created PO item: {po_item}")
+                                
+                                # Verify the item was created
+                                print(f"Verifying PO item exists: {PurchaseOrderItem.objects.filter(id=po_item.id).exists()}")
+                                print(f"PO item details: {vars(po_item)}")
+                            except Exception as e:
+                                print(f"Error creating item: {str(e)}")
+                                raise
+                        
+                    # Update total amount
+                    print("\n====== Updating Total Amount ======")
+                    po.total_amount = sum(item.unit_price * item.quantity for item in po.items.all())
+                    po.save()
+                    print(f"Updated total amount: {po.total_amount}")
 
-                    po.calculate_total()
                     messages.success(request, 'Purchase order created successfully.')
-                    return redirect('purchasing:view_po', pk=po.id)
+                    return redirect('purchasing:view', pk=po.id)
             except Exception as e:
-                messages.error(request, f'Error creating purchase order: {str(e)}')
-    else:
-        initial_data = {}
-        if requisition:
-            initial_data['warehouse'] = requisition.source_warehouse
-        form = PurchaseOrderForm(initial=initial_data)
+                print(f"Error creating purchase order: {str(e)}")
+                messages.error(request, 'An error occurred while creating the purchase order.')
 
-    # Get available items for selection
-    available_items = InventoryItem.objects.select_related('brand').all()
-
-    return render(request, 'purchasing/purchase_order_form.html', {
+    context = {
         'form': form,
-        'requisition': requisition,
+        'suppliers': suppliers,
+        'warehouses': warehouses,
         'available_items': available_items,
-        'title': 'Create Purchase Order'
-    })
+        'requisition': requisition
+    }
+    return render(request, 'purchasing/purchase_order_form.html', context)
+
+@login_required
+def upload_delivery_image(request, pk):
+    delivery = get_object_or_404(Delivery, pk=pk)
+    
+    # Check if user is attendant or manager
+    if request.user.customuser.role not in ['attendant', 'manager']:
+        messages.error(request, 'You do not have permission to upload delivery images.')
+        return redirect('purchasing:view_delivery', pk=pk)
+    
+    # Check if delivery is in pending_delivery status
+    if delivery.status != 'pending_delivery':
+        messages.error(request, 'Delivery image can only be uploaded for pending deliveries.')
+        return redirect('purchasing:view_delivery', pk=pk)
+    
+    if request.method == 'POST':
+        try:
+            # Handle image upload
+            delivery_image = request.FILES.get('delivery_image')
+            delivery_note = request.POST.get('delivery_note', '')
+            
+            if not delivery_image:
+                messages.error(request, 'Please select an image to upload.')
+                return redirect('purchasing:view_delivery', pk=pk)
+            
+            # Update delivery with image and note
+            delivery.delivery_image = delivery_image
+            delivery.delivery_note = delivery_note
+            delivery.received_by = request.user
+            delivery.received_date = timezone.now()
+            delivery.delivery_date = timezone.now()  # Set the delivery date
+            delivery.status = 'pending_confirmation'
+            delivery.save()
+            
+            messages.success(request, 'Delivery image uploaded successfully.')
+            return redirect('purchasing:view_delivery', pk=pk)
+            
+        except Exception as e:
+            messages.error(request, f'Error uploading delivery image: {str(e)}')
+            return redirect('purchasing:view_delivery', pk=pk)
+    
+    return redirect('purchasing:view_delivery', pk=pk)
+
+@login_required
+def confirm_delivery(request, pk):
+    delivery = get_object_or_404(Delivery, pk=pk)
+    
+    # Check if user is admin
+    if request.user.customuser.role != 'admin':
+        messages.error(request, 'Only admin can confirm deliveries.')
+        return redirect('purchasing:view_delivery', pk=pk)
+    
+    # Check if delivery is pending confirmation
+    if delivery.status != 'pending_confirmation':
+        messages.error(request, 'Only pending confirmation deliveries can be confirmed.')
+        return redirect('purchasing:view_delivery', pk=pk)
+    
+    try:
+        delivery.status = 'confirmed'
+        delivery.confirmed_by = request.user
+        delivery.confirmed_date = timezone.now()
+        delivery.save()
+        
+        messages.success(request, 'Delivery confirmed successfully.')
+    except Exception as e:
+        messages.error(request, f'Error confirming delivery: {str(e)}')
+    
+    return redirect('purchasing:view_delivery', pk=pk)

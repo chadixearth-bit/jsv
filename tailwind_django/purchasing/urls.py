@@ -5,7 +5,7 @@ app_name = 'purchasing'
 
 urlpatterns = [
     path('', views.PurchaseOrderListView.as_view(), name='list'),
-    path('create/', views.create_purchase_order, name='create_purchase_order'),
+    path('create/', views.PurchaseOrderCreateView.as_view(), name='create_purchase_order'),
     path('create/<int:requisition_id>/', views.create_purchase_order, name='create_purchase_order_with_requisition'),
     path('add-supplier/', views.SupplierCreateView.as_view(), name='add_supplier'),
     path('<int:pk>/add-items/', views.AddItemsView.as_view(), name='add_items'),
@@ -20,6 +20,7 @@ urlpatterns = [
     path('delivery/<int:pk>/confirm/', views.confirm_delivery, name='confirm_delivery'),
     path('delivery/<int:pk>/start/', views.start_delivery, name='start_delivery'),
     path('delivery/<int:pk>/receive/', views.receive_delivery, name='receive_delivery'),
+    path('delivery/<int:pk>/upload-image/', views.upload_delivery_image, name='upload_delivery_image'),
     path('delivery/clear-history/', views.clear_delivery_history, name='clear_delivery_history'),
     # Shortcuts for easier access
     path('dl/', views.delivery_list, name='delivery_list_shortcut'),  # Short for delivery list

@@ -37,13 +37,31 @@ class RequisitionForm(forms.ModelForm):
         
         if self.user and hasattr(self.user, 'customuser'):
             user_warehouse = self.user.customuser.warehouses.first()
+            print("\n=== DEBUG: RequisitionForm Init ===")
+            print(f"User: {self.user.username}")
+            print(f"Role: {self.user.customuser.role}")
+            print(f"User Warehouse: {user_warehouse.name if user_warehouse else None}")
             
-            # Show all items from attendant's warehouse
             if user_warehouse:
-                self.fields['items'].queryset = InventoryItem.objects.filter(
-                    warehouse=user_warehouse
-                ).select_related('brand', 'category', 'warehouse').order_by('item_name')
+                # Show items based on user's role
+                if self.user.customuser.role == 'attendant':
+                    # For attendants, show items from attendant warehouse
+                    queryset = InventoryItem.objects.filter(
+                        location='attendant_warehouse',
+                        stock__gt=0  # Only show items with stock > 0
+                    ).select_related('brand', 'category', 'warehouse').order_by('item_name')
+                else:
+                    # For managers, show items from manager warehouse
+                    queryset = InventoryItem.objects.filter(
+                        location='manager_warehouse',
+                        stock__gt=0  # Only show items with stock > 0
+                    ).select_related('brand', 'category', 'warehouse').order_by('item_name')
+                
+                print(f"Number of items in queryset: {queryset.count()}")
+                print("Items:", [f"{item.item_name} (Stock: {item.stock})" for item in queryset])
+                self.fields['items'].queryset = queryset
             else:
+                print("No warehouse found for user")
                 self.fields['items'].queryset = InventoryItem.objects.none()
         
         # Add help text and labels

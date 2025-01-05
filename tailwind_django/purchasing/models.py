@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from inventory.models import InventoryItem, Warehouse
 from decimal import Decimal
+from django.conf import settings
 
 class Supplier(models.Model):
     name = models.CharField(max_length=200)
@@ -47,9 +48,8 @@ class PurchaseOrder(models.Model):
 
     def calculate_total(self) -> None:
         from decimal import Decimal
-        total = sum((Decimal(item.subtotal) for item in self.items.all()), Decimal('0'))
+        total = sum((item.subtotal for item in self.items.all()), Decimal('0'))
         self.total_amount = total
-        self.save()
 
     def link_requisitions(self) -> None:
         """Link this purchase order with relevant requisitions"""
@@ -114,49 +114,47 @@ class PurchaseOrderItem(models.Model):
     model_name = models.CharField(max_length=100)
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
-    def save(self, *args, **kwargs) -> None:
-        # Ensure quantity is an integer and unit_price is Decimal
-        self.quantity = int(str(self.quantity or 0))
-        if isinstance(self.unit_price, (int, float, str, Decimal)):
-            self.unit_price = Decimal(str(self.unit_price))
-        # Calculate subtotal
-        self.subtotal = Decimal(str(self.quantity)) * Decimal(str(self.unit_price))
+    @property
+    def subtotal(self):
+        return self.quantity * self.unit_price
+
+    def save(self, *args, **kwargs):
+        if not self.brand:
+            self.brand = self.item.brand.name
+        if not self.model_name:
+            self.model_name = self.item.model
         super().save(*args, **kwargs)
-        # Update purchase order total
-        if self.purchase_order:
-            self.purchase_order.calculate_total()
 
-    def __str__(self) -> str:
+    def __str__(self):
         return f"{self.item.item_name} - {self.quantity} units"
 
 class Delivery(models.Model):
     STATUS_CHOICES = [
         ('pending_delivery', 'Pending Delivery'),
-        ('in_delivery', 'In Delivery'),
-        ('pending_admin_confirmation', 'Pending Admin Confirmation'),
-        ('verified', 'Verified'),
-        ('cancelled', 'Cancelled'),
+        ('pending_confirmation', 'Pending Confirmation'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled')
     ]
     
     purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='deliveries')
-    warehouse = models.ForeignKey('inventory.Warehouse', on_delete=models.CASCADE, related_name='deliveries')
-    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending_delivery')
     delivery_date = models.DateTimeField(null=True, blank=True)
-    received_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_deliveries')
-    receipt_photo = models.ImageField(upload_to='delivery_receipts/', null=True, blank=True)
-    delivery_confirmation_file = models.FileField(upload_to='delivery_confirmations/', null=True, blank=True)
-    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending_delivery')
+    received_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='received_deliveries')
+    received_date = models.DateTimeField(null=True, blank=True)
+    delivery_image = models.ImageField(upload_to='delivery_images/%Y/%m/%d/', null=True, blank=True)
+    delivery_note = models.TextField(null=True, blank=True)
+    confirmed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='confirmed_deliveries')
+    confirmed_date = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"Delivery #{self.id} for {self.purchase_order}"
 
     class Meta:
         ordering = ['-created_at']
         verbose_name_plural = 'Deliveries'
+
+    def __str__(self):
+        return f"Delivery for {self.purchase_order.po_number}"
 
     @property
     def estimated_delivery_date(self):
