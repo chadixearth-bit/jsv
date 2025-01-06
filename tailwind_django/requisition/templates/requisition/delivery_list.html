@@ -29,22 +29,22 @@
         </div>
 
         <!-- Filters -->
-        <div class="bg-[#121221] rounded-xl shadow-md border border-gray-100 mb-8 p-4">
+        <div class="bg-slate-900 rounded-xl shadow-md border border-gray-100 mb-8 p-4">
             <div class="flex flex-wrap gap-3">
                 <a href="{% url 'requisition:delivery_list' %}" 
-                   class="inline-flex items-center px-4 py-2 rounded-lg transition-all duration-150 bg-[#121221] text-white {% if not status_filter %}bg-[#121221] text-white ring-2 ring-slate-600 ring-offset-2{% else %}bg-[#121221] text-white hover:bg-white hover:text-black{% endif %}">
+                   class="inline-flex items-center px-4 py-2 rounded-lg transition-all duration-150 bg-slate-900 text-white {% if not status_filter %}bg-slate-900 text-white ring-2 ring-slate-600 ring-offset-2{% else %}bg-slate-900 text-white hover:bg-white hover:text-black{% endif %}">
                     <span class="relative">All</span>
                 </a>
                 <a href="{% url 'requisition:delivery_list' %}?status=pending_delivery" 
-                   class="inline-flex items-center px-4 py-2 rounded-lg transition-all duration-150 bg-[#121221] text-white {% if status_filter == 'pending_delivery' %}bg-[#121221] text-white ring-2 ring-slate-600 ring-offset-2{% else %}bg-[#121221] text-white hover:bg-white hover:text-black{% endif %}">
+                   class="inline-flex items-center px-4 py-2 rounded-lg transition-all duration-150 bg-slate-900 text-white {% if status_filter == 'pending_delivery' %}bg-slate-900 text-white ring-2 ring-slate-600 ring-offset-2{% else %}bg-slate-900 text-white hover:bg-white hover:text-black{% endif %}">
                     <span class="relative">Pending</span>
                 </a>
                 <a href="{% url 'requisition:delivery_list' %}?status=in_delivery" 
-                   class="inline-flex items-center px-4 py-2 rounded-lg transition-all duration-150 bg-[#121221] text-white {% if status_filter == 'in_delivery' %}bg-[#121221] text-white ring-2 ring-slate-600 ring-offset-2{% else %}bg-[#121221] text-white hover:bg-white hover:text-black{% endif %}">
+                   class="inline-flex items-center px-4 py-2 rounded-lg transition-all duration-150 bg-slate-900 text-white {% if status_filter == 'in_delivery' %}bg-slate-900 text-white ring-2 ring-slate-600 ring-offset-2{% else %}bg-slate-900 text-white hover:bg-white hover:text-black{% endif %}">
                     <span class="relative">In Transit</span>
                 </a>
                 <a href="{% url 'requisition:delivery_list' %}?status=delivered" 
-                   class="inline-flex items-center px-4 py-2 rounded-lg transition-all duration-150 bg-[#121221] text-white {% if status_filter == 'delivered' %}bg-[#121221] text-white ring-2 ring-slate-600 ring-offset-2{% else %}bg-[#121221] text-white hover:bg-white hover:text-black{% endif %}">
+                   class="inline-flex items-center px-4 py-2 rounded-lg transition-all duration-150 bg-slate-900 text-white {% if status_filter == 'delivered' %}bg-slate-900 text-white ring-2 ring-slate-600 ring-offset-2{% else %}bg-slate-900 text-white hover:bg-white hover:text-black{% endif %}">
                     <span class="relative">Delivered</span>
                 </a>
             </div>
