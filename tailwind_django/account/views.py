@@ -10,6 +10,7 @@ from .forms import UserRegistrationForm, UserLoginForm
 from requisition.models import Requisition
 from sales.models import Sale, ReturnItem, SaleItem
 from .models import CustomUser
+from django.db import transaction
 
 def index(request):
     if request.user.is_authenticated:
@@ -44,8 +45,14 @@ def login_view(request):
     return render(request, 'account/login.html', {'form': form})
 
 def logout_view(request):
-    logout(request)
-    return redirect('account:login')
+    try:
+        with transaction.atomic():
+            messages.success(request, 'You have been logged out successfully.')
+            logout(request)
+            return redirect('account:login')
+    except Exception as e:
+        messages.error(request, 'Error during logout. Please try again.')
+        return redirect('account:login')
 
 @login_required(login_url='account:login')
 def home(request):

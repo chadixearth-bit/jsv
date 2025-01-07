@@ -1,57 +1,62 @@
 from django.contrib import messages
 from django.shortcuts import render, redirect, get_object_or_404
-from django.core.paginator import Paginator
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q, Sum, Count
+from django.db import transaction
+from django.contrib.auth.decorators import login_required
 
 from .models import InventoryItem, Brand, Category, Warehouse, GlobalSettings
 from .forms import InventoryItemForm, BrandForm, CategoryForm, GlobalSettingsForm
 
+@login_required(login_url='account:login')
 def inventory_list(request):
-    # Get user role
+    # Get user's role
     user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
     
-    # Handle Global Settings form
+    # Get or create global settings
     global_settings = GlobalSettings.objects.first()
     if not global_settings:
         global_settings = GlobalSettings.objects.create()
     
-    if request.method == 'POST' and user_role == 'admin':
+    # Handle Global Settings form
+    if request.method == 'POST' and request.user.customuser.role == 'manager':
         global_settings_form = GlobalSettingsForm(request.POST, instance=global_settings)
         if global_settings_form.is_valid():
             global_settings_form.save()
-            messages.success(request, 'Global reorder level updated successfully.')
-            return redirect('inventory:list')
+            messages.success(request, 'Global settings updated successfully.')
     else:
         global_settings_form = GlobalSettingsForm(instance=global_settings)
     
-    # Base query with related fields
-    items = InventoryItem.objects.all().select_related('warehouse', 'brand', 'category')
+    # Base queryset
+    queryset = InventoryItem.objects.all().select_related('warehouse', 'brand', 'category')
     
-    # Filter based on user role and set warehouse type
-    is_main_warehouse = False
-    if user_role == 'admin':
-        # Admin sees all items
-        pass
-    elif user_role == 'manager':
-        # Manager sees items in manager warehouse
-        manager_warehouse = Warehouse.objects.get(name='Manager Warehouse')
-        items = items.filter(warehouse=manager_warehouse)
-        is_main_warehouse = True
-    elif user_role == 'attendant':
-        # Attendant sees items in attendant warehouse
-        attendant_warehouse = Warehouse.objects.get(name='Attendant Warehouse')
-        items = items.filter(warehouse=attendant_warehouse)
-        is_main_warehouse = False
+    # Filter by warehouse based on role, but show all items for admin
+    if not request.user.is_superuser:  # Only filter for non-admin users
+        if user_role == 'attendant':
+            queryset = queryset.filter(warehouse__name='Attendant Warehouse')
+        elif user_role == 'manager':
+            queryset = queryset.filter(warehouse__name='Manager Warehouse')
     
     # Search functionality
     query = request.GET.get('q')
     if query:
-        items = items.filter(
+        queryset = queryset.filter(
             Q(item_name__icontains=query) |
             Q(model__icontains=query) |
             Q(brand__name__icontains=query) |
             Q(category__name__icontains=query)
         )
+    
+    # Sorting
+    sort_by = request.GET.get('sort')
+    if sort_by == 'name':
+        queryset = queryset.order_by('item_name')
+    elif sort_by == 'brand':
+        queryset = queryset.order_by('brand__name')
+    elif sort_by == 'category':
+        queryset = queryset.order_by('category__name')
+    elif sort_by == 'stock':
+        queryset = queryset.order_by('stock')
     
     # Filter handling
     selected_warehouse = request.GET.get('warehouse')
@@ -60,38 +65,42 @@ def inventory_list(request):
     filter_type = request.GET.get('filter', 'all')
     
     if selected_warehouse:
-        items = items.filter(warehouse_id=selected_warehouse)
+        queryset = queryset.filter(warehouse_id=selected_warehouse)
     if selected_brand:
-        items = items.filter(brand_id=selected_brand)
+        queryset = queryset.filter(brand_id=selected_brand)
     if selected_category:
-        items = items.filter(category_id=selected_category)
+        queryset = queryset.filter(category_id=selected_category)
+    
+    # Apply quick filters
+    if filter_type == 'low_stock':
+        queryset = queryset.filter(stock__lte=global_settings.reorder_level)
+    elif filter_type == 'no_price':
+        queryset = queryset.filter(Q(price__isnull=True) | Q(price=0))
     
     # Get all brands and categories for filters
     brands = Brand.objects.all()
     categories = Category.objects.all()
     warehouses = Warehouse.objects.all()
     
-    # Apply quick filters
-    if filter_type == 'low_stock':
-        items = items.filter(stock__lte=global_settings.reorder_level)
-    elif filter_type == 'no_price':
-        items = items.filter(Q(price__isnull=True) | Q(price=0))
-    
     # Count total items and items needing reorder
-    total_items = items.count()
-    reorder_needed = items.filter(stock__lte=global_settings.reorder_level).count()
+    total_items = queryset.count()
+    reorder_needed = queryset.filter(stock__lte=global_settings.reorder_level).count()
     
     # Pagination
-    paginator = Paginator(items, 10)
+    paginator = Paginator(queryset, 10)
     page = request.GET.get('page')
-    items = paginator.get_page(page)
+    try:
+        items = paginator.page(page)
+    except PageNotAnInteger:
+        items = paginator.page(1)
+    except EmptyPage:
+        items = paginator.page(paginator.num_pages)
     
     context = {
         'items': items,
         'brands': brands,
         'categories': categories,
         'warehouses': warehouses,
-        'is_main_warehouse': is_main_warehouse,
         'global_settings_form': global_settings_form,
         'global_settings': global_settings,
         'selected_warehouse': selected_warehouse,
@@ -100,7 +109,9 @@ def inventory_list(request):
         'filter_type': filter_type,
         'total_items': total_items,
         'reorder_needed': reorder_needed,
-        'search_query': query
+        'query': query,
+        'sort_by': sort_by,
+        'user_role': user_role,
     }
     
     return render(request, 'inventory/inventory_list.html', context)
@@ -121,33 +132,62 @@ def inventory_detail(request, pk):
 
 def inventory_create(request):
     if request.method == 'POST':
-        form = InventoryItemForm(request.POST, request.FILES)
+        form = InventoryItemForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
-            item_name = form.cleaned_data['item_name']
-            model = form.cleaned_data['model']
-            warehouse = form.cleaned_data['warehouse']
+            try:
+                with transaction.atomic():
+                    # Get the form data
+                    create_in_both = form.cleaned_data.get('create_in_both', False)
+                    warehouse = form.cleaned_data['warehouse']
+                    
+                    # Create base item data
+                    item_data = {
+                        'brand': form.cleaned_data['brand'],
+                        'category': form.cleaned_data['category'],
+                        'model': form.cleaned_data['model'],
+                        'item_name': form.cleaned_data['item_name'],
+                        'price': form.cleaned_data['price'],
+                        'stock': form.cleaned_data['stock']
+                    }
+                    
+                    # Handle image if provided
+                    if form.cleaned_data.get('image'):
+                        item_data['image'] = form.cleaned_data['image']
 
-            if warehouse == 'both_warehouses':
-                # Fetch both warehouse instances
-                warehouses = Warehouse.objects.filter(name__in=['Attendant Warehouse', 'Manager Warehouse'])
-                for wh in warehouses:
-                    InventoryItem.objects.create(item_name=item_name, model=model, warehouse=wh)
-                messages.success(request, 'Item created successfully in both warehouses.')
-            else:
-                selected_warehouse = Warehouse.objects.get(pk=warehouse)
-                if InventoryItem.objects.filter(item_name=item_name, model=model, warehouse=selected_warehouse).exists():
-                    messages.error(request, 'Error: This item is already in the warehouse.')
-                else:
-                    InventoryItem.objects.create(item_name=item_name, model=model, warehouse=selected_warehouse)
-                    messages.success(request, 'Item created successfully.')
-
-            return redirect('inventory:list')
+                    if create_in_both:
+                        # Create in both warehouses
+                        attendant_warehouse = Warehouse.objects.get(name='Attendant Warehouse')
+                        manager_warehouse = Warehouse.objects.get(name='Manager Warehouse')
+                        
+                        # Create items in both warehouses
+                        InventoryItem.objects.create(
+                            warehouse=attendant_warehouse,
+                            **item_data
+                        )
+                        InventoryItem.objects.create(
+                            warehouse=manager_warehouse,
+                            **item_data
+                        )
+                        messages.success(request, 'Item created successfully in both warehouses.')
+                    else:
+                        # Create item in the selected warehouse
+                        InventoryItem.objects.create(
+                            warehouse=warehouse,
+                            **item_data
+                        )
+                        messages.success(request, f'Item created successfully in {warehouse.name}.')
+                    
+                    return redirect('inventory:list')
+            except Exception as e:
+                messages.error(request, f'Error creating item: {str(e)}')
         else:
-            messages.error(request, 'Error creating item. Please check the form.')
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'{field}: {error}')
     else:
-        form = InventoryItemForm()
+        form = InventoryItemForm(user=request.user)
     
-    return render(request, 'inventory/inventory_form.html', {'form': form, 'action': 'Create'})
+    return render(request, 'inventory/inventory_form.html', {'form': form})
 
 def inventory_update(request, pk):
     item = get_object_or_404(InventoryItem, pk=pk)
