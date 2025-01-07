@@ -79,22 +79,31 @@
                                         {% if user.customuser.role == 'manager' and requisition.status == 'pending' %}
                                         <div class="flex flex-col items-end justify-between">
                                             <div class="text-right">
-                                                {% if item_info.is_available %}
+                                                {% if item_info.is_new_item %}
+                                                    <div class="inline-flex flex-col items-end">
+                                                        <span class="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                                                            New Item Request
+                                                        </span>
+                                                        <span class="mt-1 text-sm text-gray-600">
+                                                            Requires Admin Review
+                                                        </span>
+                                                    </div>
+                                                {% elif item_info.is_available %}
                                                     <div class="inline-flex flex-col items-end">
                                                         <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                                                             Available
                                                         </span>
                                                         <span class="mt-1 text-sm text-gray-600">
-                                                            {{ item_info.stock }} in stock
+                                                            {{ item_info.available_stock }} in stock
                                                         </span>
                                                     </div>
                                                 {% elif item_info.is_partial %}
                                                     <div class="inline-flex flex-col items-end">
                                                         <span class="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                                                            Partial
+                                                            Partial Stock
                                                         </span>
                                                         <span class="mt-1 text-sm text-gray-600">
-                                                            {{ item_info.stock }} in stock
+                                                            {{ item_info.available_stock }} available (need {{ item_info.item.quantity }})
                                                         </span>
                                                     </div>
                                                 {% else %}
@@ -103,16 +112,11 @@
                                                             Not Available
                                                         </span>
                                                         <span class="mt-1 text-sm text-gray-500">
-                                                            Out of stock
+                                                            {{ item_info.available_stock }} in stock (need {{ item_info.item.quantity }})
                                                         </span>
                                                     </div>
                                                 {% endif %}
                                             </div>
-                                            {% if item_info.item.item.description %}
-                                            <p class="mt-2 text-sm text-gray-500 text-right">
-                                                {{ item_info.item.item.description|truncatechars:100 }}
-                                            </p>
-                                            {% endif %}
                                         </div>
                                         {% endif %}
                                     </div>

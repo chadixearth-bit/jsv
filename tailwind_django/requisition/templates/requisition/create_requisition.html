@@ -23,127 +23,137 @@
     </div>
 
     <!-- Form Container -->
-    <div class="w-full max-w-[1920px] mx-auto">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <form id="requisitionForm" method="post" class="space-y-8" action="{% url 'requisition:create_requisition' %}">
-                {% csrf_token %}
-                
-                <!-- Title Section -->
-                <div class="bg-white rounded-xl shadow-sm overflow-hidden p-6">
-                    <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Create Requisition</h1>
-                    <p class="mt-2 text-sm text-gray-500">Submit a new item requisition request</p>
-                </div>
+    <form id="requisitionForm" method="post" class="space-y-8" action="{% url 'requisition:create_requisition' %}">
+        {% csrf_token %}
 
-                <!-- Main Content -->
-                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div class="p-6">
-                        <div class="flex flex-col xl:flex-row space-y-6 xl:space-y-0 xl:space-x-6">
-                            <!-- Left Column: Available Items -->
-                            <div class="xl:w-3/4">
-                                <div class="flex items-center justify-between mb-4">
-                                    <label class="flex items-center text-base sm:text-lg font-semibold text-gray-700">
-                                        <i class="fas fa-boxes mr-2 text-indigo-500"></i>Available Items
-                                    </label>
-                                    <div class="flex items-center space-x-4">
-                                        <button type="button" 
-                                                onclick="openNewItemModal()"
-                                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                            <i class="fas fa-plus mr-2"></i>
-                                            Request New Item
-                                        </button>
-                                        <div class="text-sm text-gray-500">Click items to select</div>
-                                    </div>
+        <!-- Main Content -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="p-6">
+                <div class="flex flex-col xl:flex-row space-y-6 xl:space-y-0 xl:space-x-6">
+                    <!-- Left Column: Available Items -->
+                    <div class="xl:w-3/4">
+                        <div class="flex items-center justify-between mb-4">
+                            <label class="flex items-center text-base sm:text-lg font-semibold text-gray-700">
+                                <i class="fas fa-boxes mr-2 text-indigo-500"></i>Available Items
+                            </label>
+                            <div class="flex items-center space-x-4">
+                                <button type="button" 
+                                        onclick="openNewItemModal()"
+                                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    <i class="fas fa-plus mr-2"></i>
+                                    Request New Item
+                                </button>
+                                <div class="text-sm text-gray-500">Click items to select</div>
+                            </div>
+                        </div>
+                         
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                            {% for item in available_items %}
+                            <div class="item-card cursor-pointer group relative bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-all duration-300
+                                      {% if item.stock == 0 %}bg-red-50/50{% elif item.stock <= 5 %}bg-yellow-50/50{% endif %}
+                                      {% if item.stock == 0 %}opacity-75{% endif %}
+                                      hover:shadow-md transform hover:-translate-y-1"
+                                     data-id="{{ item.id }}"
+                                     data-name="{{ item.item_name|escapejs }}"
+                                     data-stock="{{ item.stock }}"
+                                     data-warehouse="{{ item.warehouse.name|default:'N/A' }}"
+                                     data-category="{{ item.category.name }}"
+                                     data-brand="{{ item.brand.name }}">
+                                
+                                <!-- Selection Indicator -->
+                                <div class="absolute inset-0 bg-indigo-100/50 opacity-0 transition-opacity duration-300 pointer-events-none selection-overlay rounded-lg"></div>
+                                
+                                <!-- Stock Status Badge -->
+                                {% if item.stock == 0 %}
+                                <div class="absolute top-2 right-2 z-10">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        Out of Stock
+                                    </span>
                                 </div>
-                                 
-                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
-                                    {% for item in available_items %}
-                                    <div class="item-card cursor-pointer group relative bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-all duration-300
-                                              {% if item.stock == 0 %}bg-red-50/50{% elif item.stock <= 5 %}bg-yellow-50/50{% endif %}"
-                                             data-id="{{ item.id }}"
-                                             data-name="{{ item.item_name|escapejs }}"
-                                             data-stock="{{ item.stock }}"
-                                             data-warehouse="{{ item.warehouse.name|default:'N/A' }}"
-                                             data-category="{{ item.category.name }}"
-                                             data-brand="{{ item.brand.name }}">
-                                        
-                                        <!-- Selection Indicator -->
-                                        <div class="absolute inset-0 bg-indigo-100/50 opacity-0 transition-opacity duration-300 pointer-events-none selection-overlay rounded-lg"></div>
-                                        
-                                        <!-- Checkmark Icon -->
-                                        <div class="absolute top-3 right-3 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center transform scale-0 transition-transform duration-300 checkmark-icon">
-                                            <i class="fas fa-check text-white text-xs"></i>
+                                {% elif item.stock <= 5 %}
+                                <div class="absolute top-2 right-2 z-10">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        Low Stock ({{ item.stock }})
+                                    </span>
+                                </div>
+                                {% else %}
+                                <div class="absolute top-2 right-2 z-10">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        In Stock
+                                        <!-- In Stock ({{ item.stock }}) -->
+                                    </span>
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Item Content -->
+                                <div class="p-4 space-y-3">
+                                    <!-- Image Container -->
+                                    <div class="aspect-w-16 aspect-h-12 rounded-md overflow-hidden bg-gray-100">
+                                        {% if item.image %}
+                                        <img src="{{ item.image.url }}" alt="{{ item.item_name }}" 
+                                             class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300">
+                                        {% else %}
+                                        <div class="w-full h-full flex items-center justify-center bg-gray-100">
+                                            <i class="fas fa-box text-gray-400 text-3xl"></i>
                                         </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- Item Details -->
+                                    <div class="space-y-2">
+                                        <h3 class="text-sm font-medium text-gray-900 line-clamp-2">{{ item.item_name }}</h3>
+                                        <div class="text-xs text-gray-500">{{ item.brand.name }} - {{ item.model }}</div>
                                         
-                                        <!-- Item Content -->
-                                        <div class="p-4 space-y-3">
-                                            <!-- Image Container -->
-                                            <div class="aspect-w-16 aspect-h-12 rounded-md overflow-hidden bg-gray-100">
-                                                {% if item.image %}
-                                                <img src="{{ item.image.url }}" alt="{{ item.item_name }}" 
-                                                     class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300">
-                                                {% else %}
-                                                <div class="w-full h-full flex items-center justify-center bg-gray-100">
-                                                    <i class="fas fa-box text-gray-400 text-3xl"></i>
-                                                </div>
-                                                {% endif %}
-                                            </div>
-                                            
-                                            <!-- Item Details -->
-                                            <div class="space-y-2">
-                                                <h3 class="text-sm font-medium text-gray-900 line-clamp-2">{{ item.item_name }}</h3>
-                                                <div class="text-xs text-gray-500">{{ item.brand.name }} - {{ item.model }}</div>
-                                                
-                                                <!-- Stock Status -->
-                                                <div class="flex items-center space-x-2">
-                                                    <span class="text-xs font-medium {% if item.stock == 0 %}text-red-600{% elif item.stock <= 5 %}text-yellow-600{% else %}text-green-600{% endif %}">
-                                                        Stock: {{ item.stock }}
-                                                    </span>
-                                                </div>
-                                            </div>
+                                        <!-- Stock Status -->
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-xs font-medium {% if item.stock == 0 %}text-red-600{% elif item.stock <= 5 %}text-yellow-600{% else %}text-green-600{% endif %}">
+                                                Stock: {{ item.stock }}
+                                            </span>
                                         </div>
                                     </div>
-                                    {% endfor %}
                                 </div>
                             </div>
+                            {% endfor %}
+                        </div>
+                    </div>
 
-                            <!-- Right Column: Selected Items -->
-                            <div class="xl:w-1/4">
-                                <div class="sticky top-4 bg-gray-50 rounded-xl p-4">
-                                    <div class="flex items-center justify-between mb-4">
-                                        <h3 class="text-lg font-semibold text-gray-700">Selected Items</h3>
-                                        <span id="selectedCount" class="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-sm font-medium">0 items</span>
-                                    </div>
-                                    <div id="selectedItems" class="space-y-3">
-                                        <!-- Selected items will be inserted here -->
-                                    </div>
-                                </div>
+                    <!-- Right Column: Selected Items -->
+                    <div class="xl:w-1/4">
+                        <div class="sticky top-4 bg-gray-50 rounded-xl p-4">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-700">Selected Items</h3>
+                                <span id="selectedCount" class="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-sm font-medium">0 items</span>
+                            </div>
+                            <div id="selectedItems" class="space-y-3">
+                                <!-- Selected items will be inserted here -->
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Reason for Request -->
-                    <div class="border-t border-gray-200 p-6">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Reason for Request</h3>
-                        {{ form.reason }}
-                        {{ form.reason.errors }}
-                    </div>
-                    
-                    <!-- Submit Button -->
-                    <div class="bg-gray-50 px-6 py-4 flex justify-end">
-                        <button type="submit" 
-                                class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                            Submit Requisition
-                        </button>
-                    </div>
                 </div>
-                
-                <!-- Hidden inputs -->
-                <div id="selectedItemsContainer"></div>
-                <input type="hidden" name="quantities" value="{}">
-                <input type="hidden" name="request_type" value="item">
-            </form>
+            </div>
+            
+            <!-- Reason for Request -->
+            <div class="border-t border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Reason for Request</h3>
+                {{ form.reason }}
+                {{ form.reason.errors }}
+            </div>
+            
+            <!-- Submit Button -->
+            <div class="bg-gray-50 px-6 py-4 flex justify-end">
+                <button type="submit" 
+                        class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Submit Requisition
+                </button>
+            </div>
         </div>
-    </div>
+        
+        <!-- Hidden inputs -->
+        <div id="selectedItemsContainer"></div>
+        <input type="hidden" name="quantities" value="{}">
+        <input type="hidden" name="new_items" id="newItemsInput" value="[]">
+        <input type="hidden" name="request_type" value="item">
+    </form>
 </div>
 
 <script>
@@ -324,6 +334,134 @@ function updateSelectedCount() {
     document.getElementById('selectedCount').textContent = `${totalCount} item${totalCount !== 1 ? 's' : ''}`;
 }
 
+// New Item Request Functions
+function openNewItemModal() {
+    const modal = document.createElement('div');
+    modal.id = 'newItemModal';
+    modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full';
+    modal.innerHTML = `
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg font-medium text-gray-900">Request New Item</h3>
+                <p class="text-sm text-gray-500 mt-2">Fill in the details of the new item you want to request.</p>
+                
+                <form id="newItemForm" class="mt-4 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Item Name *</label>
+                        <input type="text" id="newItemName" name="item_name" required
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Brand</label>
+                        <input type="text" id="newItemBrand" name="brand"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Model</label>
+                        <input type="text" id="newItemModel" name="model"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Quantity *</label>
+                        <input type="number" id="newItemQuantity" name="quantity" required min="1" value="1"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    
+                    <div class="mt-5 flex justify-end space-x-3">
+                        <button type="button" onclick="closeNewItemModal()"
+                                class="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                            Add Item
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Add event listener for form submission
+    document.getElementById('newItemForm').addEventListener('submit', handleNewItemSubmit);
+}
+
+function closeNewItemModal() {
+    const modal = document.getElementById('newItemModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function handleNewItemSubmit(e) {
+    e.preventDefault();
+    
+    const newItem = {
+        item_name: document.getElementById('newItemName').value,
+        brand: document.getElementById('newItemBrand').value,
+        model: document.getElementById('newItemModel').value,
+        quantity: parseInt(document.getElementById('newItemQuantity').value)
+    };
+    
+    // Get current new items
+    const newItemsInput = document.getElementById('newItemsInput');
+    const currentItems = JSON.parse(newItemsInput.value);
+    
+    // Add new item
+    currentItems.push(newItem);
+    newItemsInput.value = JSON.stringify(currentItems);
+    
+    // Add to selected items display
+    const selectedItemsDiv = document.getElementById('selectedItems');
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border border-gray-200';
+    itemDiv.innerHTML = `
+        <div class="flex-1">
+            <h4 class="text-sm font-medium text-gray-900">${newItem.item_name}</h4>
+            <p class="text-xs text-gray-500">${newItem.brand || 'No Brand'} - ${newItem.model || 'No Model'}</p>
+            <p class="text-xs text-indigo-600">New Item Request</p>
+        </div>
+        <div class="ml-4">
+            <span class="text-sm font-medium text-gray-900">Qty: ${newItem.quantity}</span>
+        </div>
+    `;
+    selectedItemsDiv.appendChild(itemDiv);
+    
+    // Update selected count
+    updateSelectedCount();
+    
+    // Close modal
+    closeNewItemModal();
+    
+    // Show success message
+    const successMessage = document.createElement('div');
+    successMessage.className = 'fixed bottom-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded';
+    successMessage.setAttribute('role', 'alert');
+    successMessage.innerHTML = `
+        <strong class="font-bold">Success!</strong>
+        <span class="block sm:inline"> New item added to requisition.</span>
+    `;
+    document.body.appendChild(successMessage);
+    setTimeout(() => successMessage.remove(), 3000);
+}
+
+// Update the selected count to include new items
+function updateSelectedCount() {
+    const selectedCount = document.getElementById('selectedCount');
+    const quantitiesInput = document.getElementById('quantitiesInput');
+    const newItemsInput = document.getElementById('newItemsInput');
+    
+    const quantities = JSON.parse(quantitiesInput.value || '{}');
+    const newItems = JSON.parse(newItemsInput.value || '[]');
+    
+    const totalItems = Object.keys(quantities).length + newItems.length;
+    selectedCount.textContent = `${totalItems} item${totalItems === 1 ? '' : 's'}`;
+}
+
 // Modal functions
 function openNewItemModal() {
     const modal = document.getElementById('newItemModal');
@@ -372,7 +510,7 @@ function submitNewItemForm() {
         <div class="flex items-center justify-between">
             <div>
                 <h4 class="font-medium text-yellow-800">${itemName}</h4>
-                <p class="text-sm text-yellow-600">Model: ${itemModel} | Brand: ${itemBrand}</p>
+                <p class="text-sm text-yellow-600">${itemBrand || 'No Brand'} - ${itemModel || 'No Model'}</p>
             </div>
             <span class="text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-1 rounded">New Item Request</span>
         </div>

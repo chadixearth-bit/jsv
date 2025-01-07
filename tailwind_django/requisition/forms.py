@@ -38,10 +38,9 @@ class RequisitionForm(forms.ModelForm):
         if self.user and hasattr(self.user, 'customuser'):
             user_warehouse = self.user.customuser.warehouses.first()
             if user_warehouse:
-                # Show items based on user's warehouse
+                # Show items based on user's warehouse, including those with 0 stock
                 queryset = InventoryItem.objects.filter(
-                    warehouse=user_warehouse,
-                    stock__gt=0  # Only show items with stock > 0
+                    warehouse=user_warehouse
                 ).select_related('brand', 'category', 'warehouse')
                 
                 self.fields['items'].queryset = queryset
@@ -64,13 +63,21 @@ class RequisitionForm(forms.ModelForm):
         
         # If we have existing items, validate their quantities
         if has_items:
-            quantities = json.loads(cleaned_data.get('quantities') or '{}')
-            for item in items:
-                quantity = int(quantities.get(str(item.id), 0))
-                if quantity <= 0:
-                    raise forms.ValidationError(f"Invalid quantity for {item.item_name}")
-                if quantity > item.stock:
-                    raise forms.ValidationError(f"Requested quantity ({quantity}) exceeds available stock ({item.stock}) for {item.item_name}")
+            quantities = self.data.get('quantities', '{}')
+
+            try:
+                quantities_dict = json.loads(quantities)
+            except json.JSONDecodeError:
+                raise forms.ValidationError("Invalid quantities format")
+
+            # Only validate stock levels if the user is not an attendant
+            if hasattr(self.user, 'customuser') and self.user.customuser.role != 'attendant':
+                for item in items:
+                    quantity = int(quantities_dict.get(str(item.id), 0))
+                    if quantity > item.stock:
+                        raise forms.ValidationError(
+                            f"Requested quantity ({quantity}) exceeds available stock ({item.stock}) for {item.item_name}."
+                        )
         
         return cleaned_data
 
