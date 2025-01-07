@@ -45,7 +45,7 @@
         </form>
     </div>
 
-    {% if messages %}
+    <!-- {% if messages %}
     <div class="mb-4">
         {% for message in messages %}
         <div class="p-4 mb-4 text-sm rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
@@ -53,7 +53,7 @@
         </div>
         {% endfor %}
     </div>
-    {% endif %}
+    {% endif %} -->
 
     <div class="bg-white rounded-xl shadow-md p-6">
         <table class="min-w-full divide-y divide-gray-200">
@@ -79,14 +79,14 @@
                                 <summary class="text-blue-600 hover:text-blue-800">{{ sale.items_count }} items</summary>
                                 <ul class="mt-2 space-y-1 text-sm">
                                     {% for sale_item in sale.items.all %}
-                                        <li>{{ sale_item.quantity }}x {{ sale_item.item.item_name }}</li>
+                                        <li>{{ sale_item.item.item_name }}</li>
                                     {% endfor %}
                                 </ul>
                             </details>
                         {% else %}
                             {% with first_item=sale.items.first %}
                                 {% if first_item %}
-                                    {{ first_item.quantity }}x {{ first_item.item.item_name }}
+                                    {{ first_item.item.item_name }}
                                 {% endif %}
                             {% endwith %}
                         {% endif %}

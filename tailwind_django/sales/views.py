@@ -41,13 +41,23 @@ def sale_list(request):
     })
 
 def create_sale(request):
+    # Check if user is an attendant and has an assigned warehouse
+    if not hasattr(request.user, 'customuser') or request.user.customuser.role != 'attendant':
+        messages.error(request, "Only attendants can create sales.")
+        return redirect('sales:sale_list')
+
+    user_warehouse = request.user.customuser.warehouses.first()
+    if not user_warehouse:
+        messages.error(request, "You must be assigned to a warehouse to create sales.")
+        return redirect('sales:sale_list')
+
     search_query = request.GET.get('search_query', '')
     brand_id = request.GET.get('brand')
     category_id = request.GET.get('category')
     selected_item_id = request.GET.get('selected_item')
 
-    # Start with all available items
-    items_queryset = InventoryItem.objects.all()
+    # Start with items from attendant's warehouse only
+    items_queryset = InventoryItem.objects.filter(warehouse=user_warehouse)
 
     # Apply filters
     if search_query:
@@ -69,7 +79,7 @@ def create_sale(request):
     selected_item = None
     if selected_item_id:
         try:
-            selected_item = InventoryItem.objects.get(id=selected_item_id)
+            selected_item = InventoryItem.objects.get(id=selected_item_id, warehouse=user_warehouse)
             recommendations = get_product_recommendations(selected_item_id)
         except InventoryItem.DoesNotExist:
             pass
@@ -80,6 +90,7 @@ def create_sale(request):
         'all_categories': Category.objects.all(),
         'recommendations': recommendations,
         'selected_item': selected_item,
+        'user_warehouse': user_warehouse,
     }
 
     if request.method == 'POST':
@@ -90,31 +101,45 @@ def create_sale(request):
             return render(request, 'sales/sale_form.html', context)
 
         try:
+            # Create sale with correct total price
             sale = Sale.objects.create(
                 sold_by=request.user,
-                total_amount=sum(item['total'] for item in selected_items.values())
+                total_price=sum(Decimal(str(item['total'])) for item in selected_items.values())
             )
 
-            # Create sale items
+            # Create sale items and update inventory
             for item_id, item_data in selected_items.items():
-                inventory_item = InventoryItem.objects.get(id=item_id)
+                inventory_item = InventoryItem.objects.get(id=item_id, warehouse=user_warehouse)
+                quantity = int(item_data['quantity'])
+                
+                # Check if there's enough stock
+                if inventory_item.stock < quantity:
+                    raise ValueError(f"Insufficient stock for {inventory_item.item_name}. Available: {inventory_item.stock}, Requested: {quantity}")
+                
+                # Create sale item
                 SaleItem.objects.create(
                     sale=sale,
                     item=inventory_item,
-                    quantity=item_data['quantity'],
-                    price=item_data['price']
+                    quantity=quantity,
+                    price_per_unit=Decimal(str(item_data['price']))
                 )
-                # Update stock
-                inventory_item.stock -= item_data['quantity']
+                
+                # Update inventory
+                inventory_item.stock -= quantity
                 inventory_item.save()
 
             messages.success(request, 'Sale created successfully')
             return redirect('sales:sale_list')
 
+        except ValueError as e:
+            messages.error(request, str(e))
+        except InventoryItem.DoesNotExist:
+            messages.error(request, "One or more items not found in your warehouse")
         except Exception as e:
-            messages.error(request, f'Error creating sale: {str(e)}')
-            return render(request, 'sales/sale_form.html', context)
-
+            messages.error(request, f"Error creating sale: {str(e)}")
+        
+        return render(request, 'sales/sale_form.html', context)
+    
     return render(request, 'sales/sale_form.html', context)
 
 def return_sale(request, sale_id):
