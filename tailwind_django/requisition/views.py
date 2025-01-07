@@ -152,8 +152,15 @@ def create_requisition(request):
         return redirect('requisition:requisition_list')
     
     # Fetch items for the user's warehouse
-    available_items = InventoryItem.objects.filter(warehouse=user_warehouse, stock__gt=0)
-    print(f"Available items: {[item.item_name for item in available_items]}")
+    available_items = InventoryItem.objects.filter(
+        warehouse=user_warehouse, 
+        stock__gt=0
+    ).select_related('brand', 'category', 'warehouse')
+    
+    print("\n=== DEBUG: Available Items ===")
+    print(f"Total items: {available_items.count()}")
+    for item in available_items:
+        print(f"- {item.item_name} (ID: {item.id}, Stock: {item.stock}, Warehouse: {item.warehouse.name})")
     
     # Check if user has permission to create requisition
     if not hasattr(request.user, 'customuser') or request.user.customuser.role not in ['attendant', 'manager']:
@@ -176,7 +183,10 @@ def create_requisition(request):
             for error in form.non_field_errors():
                 print(f"Non-field error: {error}")
                 messages.error(request, error)
-            return render(request, 'requisition/create_requisition.html', {'form': form, 'available_items': available_items})
+            return render(request, 'requisition/create_requisition.html', {
+                'form': form,
+                'available_items': available_items
+            })
             
         try:
             with transaction.atomic():
@@ -263,13 +273,19 @@ def create_requisition(request):
             print(f"Error details: {e}")
             messages.error(request, "An error occurred while creating the requisition. Please try again.")
         
-        return render(request, 'requisition/create_requisition.html', {'form': form, 'available_items': available_items})
+        return render(request, 'requisition/create_requisition.html', {
+            'form': form,
+            'available_items': available_items
+        })
     
     else:
         form = RequisitionForm(user=request.user)
         form.fields['items'].queryset = available_items
     
-    return render(request, 'requisition/create_requisition.html', {'form': form, 'available_items': available_items})
+    return render(request, 'requisition/create_requisition.html', {
+        'form': form,
+        'available_items': available_items
+    })
 
 def edit_requisition(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)

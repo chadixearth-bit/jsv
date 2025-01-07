@@ -24,165 +24,238 @@
 
     <!-- Form Container -->
     <div class="w-full max-w-[1920px] mx-auto">
-        <div class="bg-white rounded-xl shadow-md">
-            <form method="post" id="requisitionForm" class="p-4 sm:p-6" action="{% url 'requisition:create_requisition' %}">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <form id="requisitionForm" method="post" class="space-y-8" action="{% url 'requisition:create_requisition' %}">
                 {% csrf_token %}
-                {{ form.non_field_errors }}
+                
+                <!-- Title Section -->
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden p-6">
+                    <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Create Requisition</h1>
+                    <p class="mt-2 text-sm text-gray-500">Submit a new item requisition request</p>
+                </div>
+
+                <!-- Main Content -->
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div class="p-6">
+                        <div class="flex flex-col xl:flex-row space-y-6 xl:space-y-0 xl:space-x-6">
+                            <!-- Left Column: Available Items -->
+                            <div class="xl:w-3/4">
+                                <div class="flex items-center justify-between mb-4">
+                                    <label class="flex items-center text-base sm:text-lg font-semibold text-gray-700">
+                                        <i class="fas fa-boxes mr-2 text-indigo-500"></i>Available Items
+                                    </label>
+                                    <div class="text-sm text-gray-500">Click items to select</div>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                                    {% for item in available_items %}
+                                    <div class="item-card cursor-pointer group relative bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-all duration-300
+                                              {% if item.stock == 0 %}bg-red-50/50{% elif item.stock <= 5 %}bg-yellow-50/50{% endif %}
+                                              hover:shadow-md transform hover:-translate-y-1"
+                                             data-id="{{ item.id }}"
+                                             data-name="{{ item.item_name|escapejs }}"
+                                             data-stock="{{ item.stock }}"
+                                             data-warehouse="{{ item.warehouse.name|default:'N/A' }}"
+                                             data-category="{{ item.category.name }}"
+                                             data-brand="{{ item.brand.name }}">
+                                        
+                                        <!-- Selection Indicator -->
+                                        <div class="absolute inset-0 bg-indigo-100/50 opacity-0 transition-opacity duration-300 pointer-events-none selection-overlay rounded-lg"></div>
+                                        
+                                        <!-- Checkmark Icon -->
+                                        <div class="absolute top-3 right-3 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center transform scale-0 transition-transform duration-300 checkmark-icon">
+                                            <i class="fas fa-check text-white text-xs"></i>
+                                        </div>
+                                        
+                                        <!-- Item Content -->
+                                        <div class="p-4 space-y-3">
+                                            <!-- Image Container -->
+                                            <div class="aspect-w-16 aspect-h-12 rounded-md overflow-hidden bg-gray-100">
+                                                {% if item.image %}
+                                                <img src="{{ item.image.url }}" alt="{{ item.item_name }}" 
+                                                     class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300">
+                                                {% else %}
+                                                <div class="w-full h-full flex items-center justify-center bg-gray-100">
+                                                    <i class="fas fa-box text-gray-400 text-3xl"></i>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                            
+                                            <!-- Item Details -->
+                                            <div class="space-y-2">
+                                                <h3 class="text-sm font-medium text-gray-900 line-clamp-2">{{ item.item_name }}</h3>
+                                                <div class="text-xs text-gray-500">{{ item.brand.name }} - {{ item.model }}</div>
+                                                
+                                                <!-- Stock Status -->
+                                                <div class="flex items-center space-x-2">
+                                                    <span class="text-xs font-medium {% if item.stock == 0 %}text-red-600{% elif item.stock <= 5 %}text-yellow-600{% else %}text-green-600{% endif %}">
+                                                        Stock: {{ item.stock }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+
+                            <!-- Right Column: Selected Items -->
+                            <div class="xl:w-1/4">
+                                <div class="sticky top-4 bg-gray-50 rounded-xl p-4">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h3 class="text-lg font-semibold text-gray-700">Selected Items</h3>
+                                        <span id="selectedCount" class="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-sm font-medium">0 items</span>
+                                    </div>
+                                    <div id="selectedItems" class="space-y-3">
+                                        <!-- Selected items will be inserted here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Reason for Request -->
+                    <div class="border-t border-gray-200 p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Reason for Request</h3>
+                        {{ form.reason }}
+                        {{ form.reason.errors }}
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <div class="bg-gray-50 px-6 py-4 flex justify-end">
+                        <button type="submit" 
+                                class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                            Submit Requisition
+                        </button>
+                    </div>
+                </div>
                 
                 <!-- Hidden inputs -->
+                <div id="selectedItemsContainer"></div>
                 <input type="hidden" name="quantities" value="{}">
                 <input type="hidden" name="request_type" value="item">
-                <div id="selectedItemsContainer"></div>
-
-                <!-- Main Content Area with Two Columns -->
-                <div class="flex flex-col xl:flex-row gap-6">
-                    <!-- Left Column: Available Items -->
-                    <div class="xl:w-3/4">
-                        <div class="flex items-center justify-between mb-4">
-                            <label class="flex items-center text-base sm:text-lg font-semibold text-gray-700">
-                                <i class="fas fa-boxes mr-2 text-indigo-500"></i>Available Items
-                            </label>
-                            <div class="text-sm text-gray-500">Click items to select</div>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
-                            {% for item in form.items.field.queryset %}
-                            <div class="item-card cursor-pointer group relative bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-all duration-300
-                                      {% if item.stock == 0 %}bg-red-50/50{% elif item.stock <= 5 %}bg-yellow-50/50{% endif %}
-                                      hover:shadow-md transform hover:-translate-y-1"
-                                 onclick="toggleItemSelection(this, '{{ item.id }}', '{{ item.item_name|escapejs }}', event)"
-                                 data-stock="{{ item.stock }}"
-                                 data-warehouse="{{ item.warehouse.name|default:'N/A' }}"
-                                 data-category="{{ item.category.name }}"
-                                 data-brand="{{ item.brand.name }}"
-                                 data-name="{{ item.item_name|lower }}">
-                                
-                                <!-- Selection Indicator -->
-                                <div class="absolute inset-0 bg-indigo-100/50 opacity-0 transition-opacity duration-300 pointer-events-none selection-overlay rounded-lg"></div>
-                                
-                                <!-- Checkmark Icon -->
-                                <div class="absolute top-3 right-3 w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center transform scale-0 transition-transform duration-300 checkmark-icon">
-                                    <i class="fas fa-check text-white text-xs"></i>
-                                </div>
-                                
-                                <!-- Item Content -->
-                                <div class="p-4 space-y-3">
-                                    <!-- Image Container -->
-                                    <div class="aspect-w-16 aspect-h-12 rounded-md overflow-hidden bg-gray-100">
-                                        {% if item.image %}
-                                        <img src="{{ item.image.url }}" alt="{{ item.item_name }}" 
-                                             class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300">
-                                        {% else %}
-                                        <div class="w-full h-full flex items-center justify-center bg-gray-100">
-                                            <i class="fas fa-box text-gray-400 text-3xl"></i>
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                    
-                                    <div class="space-y-2">
-                                        <h3 class="font-medium text-gray-900 line-clamp-2">{{ item.item_name }}</h3>
-                                        <div class="space-y-1">
-                                            <div class="flex items-center text-sm text-gray-500">
-                                                <i class="fas fa-tag mr-1"></i>
-                                                <span>Brand: {{ item.brand.name }}</span>
-                                            </div>
-                                            <div class="flex items-center text-sm text-gray-500">
-                                                <i class="fas fa-cube mr-1"></i>
-                                                <span>Model: {{ item.model }}</span>
-                                            </div>
-                                            <div class="flex items-center text-sm text-gray-500">
-                                                <i class="fas fa-cubes mr-1"></i>
-                                                <span>Stock: {{ item.stock }}</span>
-                                            </div>
-                                            <div class="flex items-center text-sm text-gray-500">
-                                                <i class="fas fa-dollar-sign mr-1"></i>
-                                                <span>Price: {{ item.price }}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    <!-- Right Column: Selected Items -->
-                    <div class="xl:w-1/4">
-                        <div class="sticky top-4 bg-gray-50 rounded-xl p-4">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-lg font-semibold text-gray-700">Selected Items</h3>
-                                <span id="selectedCount" class="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-sm font-medium">0 items</span>
-                            </div>
-                            <div id="selectedItems" class="space-y-3">
-                                <!-- Selected items will be inserted here -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Reason Field -->
-                <div class="bg-gray-50 rounded-xl p-4 sm:p-6 mt-6">
-                    <label for="{{ form.reason.id_for_label }}" class="flex items-center text-base sm:text-lg font-semibold text-gray-700 mb-3">
-                        <i class="fas fa-comment-alt mr-2 text-indigo-500"></i>Reason for Request
-                    </label>
-                    {{ form.reason }}
-                    {{ form.reason.errors }}
-                </div>
-
-                <!-- Submit Button -->
-                <div class="mt-6 flex justify-end">
-                    <button type="submit" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-slate-900 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 h-12">
-                        Submit Requisition
-                    </button>
-                </div>
             </form>
         </div>
     </div>
 </div>
 
 <script>
+console.log('Requisition form script loaded');
+
 // Store selected items and their quantities
 let selectedItems = new Map();
 
-function toggleItemSelection(element, itemId, itemName, event) {
-    if (element.classList.contains('selected')) {
-        deselectItem(element, itemId);
-    } else {
-        selectItem(element, itemId, itemName);
-    }
-}
+// Initialize click handlers when the DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded');
+    
+    // Add click listeners to all item cards
+    document.querySelectorAll('.item-card').forEach(card => {
+        card.addEventListener('click', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const itemId = this.dataset.id;
+            const itemName = this.dataset.name;
+            console.log('Card clicked:', { itemId, itemName, dataset: this.dataset });
+            
+            if (!itemId || !itemName) {
+                console.error('Missing item data:', { itemId, itemName });
+                return;
+            }
+            
+            if (this.classList.contains('selected')) {
+                deselectItem(this, itemId);
+            } else {
+                selectItem(this, itemId, itemName);
+            }
+        });
+    });
+});
 
 function selectItem(element, itemId, itemName) {
-    element.classList.add('selected', 'border-indigo-500', 'bg-indigo-50');
+    console.log('Selecting item:', { itemId, itemName });
+    
+    // Add selected class and update visuals
+    element.classList.add('selected');
+    const overlay = element.querySelector('.selection-overlay');
+    const checkmark = element.querySelector('.checkmark-icon');
+    
+    if (overlay) {
+        overlay.style.opacity = '1';
+    } else {
+        console.error('Selection overlay not found');
+    }
+    
+    if (checkmark) {
+        checkmark.style.transform = 'scale(1)';
+    } else {
+        console.error('Checkmark icon not found');
+    }
+    
+    // Add to selected items
     selectedItems.set(itemId, { name: itemName, quantity: 1 });
+    console.log('Selected items after adding:', Array.from(selectedItems.entries()));
+    
+    // Update UI
     updateSelectedItemsList();
     updateItemsInput();
     updateQuantitiesInput();
 }
 
 function deselectItem(element, itemId) {
-    element.classList.remove('selected', 'border-indigo-500', 'bg-indigo-50');
+    console.log('Deselecting item:', itemId);
+    
+    // Remove selected class and update visuals
+    element.classList.remove('selected');
+    const overlay = element.querySelector('.selection-overlay');
+    const checkmark = element.querySelector('.checkmark-icon');
+    
+    if (overlay) {
+        overlay.style.opacity = '0';
+    }
+    if (checkmark) {
+        checkmark.style.transform = 'scale(0)';
+    }
+    
+    // Remove from selected items
     selectedItems.delete(itemId);
+    console.log('Selected items after removing:', Array.from(selectedItems.entries()));
+    
+    // Update UI
     updateSelectedItemsList();
     updateItemsInput();
     updateQuantitiesInput();
 }
 
 function updateSelectedItemsList() {
+    console.log('Updating selected items list');
     const container = document.getElementById('selectedItems');
+    if (!container) {
+        console.error('Selected items container not found!');
+        return;
+    }
+    
     container.innerHTML = '';
+    console.log('Current selected items:', Array.from(selectedItems.entries()));
+    
     selectedItems.forEach((item, id) => {
+        console.log('Creating quantity field for:', { id, item });
         const itemElement = createQuantityField(id, item.name);
         container.appendChild(itemElement);
     });
+    
     updateSelectedCount();
 }
 
 function createQuantityField(itemId, itemName) {
+    console.log('Creating quantity field:', { itemId, itemName });
     const div = document.createElement('div');
-    div.className = 'flex items-center justify-between p-3 bg-white rounded-lg shadow mb-2';
+    div.className = 'flex items-center justify-between p-3 bg-white rounded-lg shadow-sm';
     div.innerHTML = `
-        <span class="font-medium text-gray-700">${itemName}</span>
+        <div class="flex-1 min-w-0 mr-3">
+            <span class="block font-medium text-gray-700 truncate">${itemName}</span>
+        </div>
         <div class="flex items-center space-x-2">
             <button type="button" onclick="adjustQuantity('${itemId}', -1)" 
                     class="text-gray-500 hover:text-indigo-600 focus:outline-none">
@@ -203,8 +276,7 @@ function createQuantityField(itemId, itemName) {
 function adjustQuantity(itemId, delta) {
     const item = selectedItems.get(itemId);
     if (item) {
-        const newQuantity = Math.max(1, item.quantity + delta);
-        item.quantity = newQuantity;
+        item.quantity = Math.max(1, item.quantity + delta);
         updateSelectedItemsList();
         updateQuantitiesInput();
     }
@@ -227,9 +299,8 @@ function updateQuantitiesInput() {
 }
 
 function updateItemsInput() {
-    // Create hidden inputs for each selected item
     const itemsContainer = document.getElementById('selectedItemsContainer');
-    itemsContainer.innerHTML = ''; // Clear existing inputs
+    itemsContainer.innerHTML = '';
     selectedItems.forEach((item, id) => {
         const input = document.createElement('input');
         input.type = 'hidden';
@@ -241,7 +312,7 @@ function updateItemsInput() {
 
 function updateSelectedCount() {
     const count = selectedItems.size;
-    document.getElementById('selectedCount').textContent = `${count} items`;
+    document.getElementById('selectedCount').textContent = `${count} item${count !== 1 ? 's' : ''}`;
 }
 
 // Form submission handler
@@ -252,7 +323,7 @@ document.getElementById('requisitionForm').addEventListener('submit', function(e
         return;
     }
     
-    // Update form inputs before submission
+    // Update hidden inputs one last time before submitting
     updateItemsInput();
     updateQuantitiesInput();
 });
