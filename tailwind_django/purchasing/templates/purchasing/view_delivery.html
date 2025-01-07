@@ -70,7 +70,7 @@
                         <dt class="text-sm font-medium text-gray-500">Received By</dt>
                         <dd class="mt-1 text-sm text-gray-900">
                             {% if delivery.received_by %}
-                                {{ delivery.received_by.get_full_name|default:delivery.received_by.username }}
+                                {{ delivery.received_by.customuser.display_name|default:delivery.received_by.username }}
                             {% else %}
                                 None
                             {% endif %}
@@ -90,7 +90,7 @@
                         <dt class="text-sm font-medium text-gray-500">Confirmed By</dt>
                         <dd class="mt-1 text-sm text-gray-900">
                             {% if delivery.confirmed_by %}
-                                {{ delivery.confirmed_by.get_full_name|default:delivery.confirmed_by.username }}
+                                {{ delivery.confirmed_by.customuser.display_name|default:delivery.confirmed_by.username }}
                             {% else %}
                                 None
                             {% endif %}

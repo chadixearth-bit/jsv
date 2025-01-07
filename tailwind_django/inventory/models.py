@@ -31,15 +31,9 @@ class GlobalSettings(models.Model):
         verbose_name_plural = 'Global Settings'
 
 class InventoryItem(models.Model):
-    LOCATION_CHOICES = [
-        ('attendant_warehouse', 'Attendant Warehouse'),
-        ('manager_warehouse', 'Manager Warehouse'),
-    ]
-    
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, default=1)
-    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, null=True, blank=True)
-    location = models.CharField(max_length=50, choices=LOCATION_CHOICES, default='attendant_warehouse')
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE)
     model = models.CharField(max_length=100)
     item_name = models.CharField(max_length=200)
     price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])

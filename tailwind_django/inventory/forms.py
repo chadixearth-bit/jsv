@@ -18,14 +18,13 @@ class InventoryItemForm(forms.ModelForm):
             'required': True
         })
     )
-    WAREHOUSE_CHOICES = [
-        ('', 'Select a warehouse'),
-        ('attendant', 'Attendant Warehouse'),
-        ('manager', 'Manager Warehouse'),
-        ('both', 'Both Warehouses')
-    ]
-    warehouse_choice = forms.ChoiceField(
-        choices=WAREHOUSE_CHOICES,
+    warehouse = forms.ChoiceField(
+        choices=[
+            ('', 'Select a warehouse'),
+            ('attendant_warehouse', 'Attendant Warehouse'),
+            ('manager_warehouse', 'Manager Warehouse'),
+            ('both_warehouses', 'Both Warehouses')
+        ],
         widget=forms.Select(attrs={
             'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
             'required': True
@@ -34,7 +33,7 @@ class InventoryItemForm(forms.ModelForm):
 
     class Meta:
         model = InventoryItem
-        fields = ['brand', 'category', 'model', 'item_name', 'price', 'stock', 'image']
+        fields = ['brand', 'category', 'warehouse', 'model', 'item_name', 'price', 'stock', 'image']
         widgets = {
             'model': forms.TextInput(attrs={
                 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
@@ -72,45 +71,41 @@ class InventoryItemForm(forms.ModelForm):
         self.fields['item_name'].required = True
         self.fields['price'].required = True
         self.fields['stock'].required = True
-        
-        # Only show warehouse_choice field for new items
-        if instance:
-            if 'warehouse_choice' in self.fields:
-                del self.fields['warehouse_choice']
-        else:
-            self.fields['warehouse_choice'].required = True
+        self.fields['warehouse'].required = True
         
         # Add help text
         self.fields['image'].help_text = 'Upload an image of the item (optional)'
+        
+        # Filter warehouse choices based on user role
+        if self.user and hasattr(self.user, 'customuser'):
+            user_role = self.user.customuser.role
+            if user_role == 'attendant':
+                self.fields['warehouse'].choices = [
+                    ('', 'Select a warehouse'),
+                    ('attendant_warehouse', 'Attendant Warehouse'),
+                    ('both_warehouses', 'Both Warehouses')
+                ]
+            elif user_role == 'manager':
+                self.fields['warehouse'].choices = [
+                    ('', 'Select a warehouse'),
+                    ('manager_warehouse', 'Manager Warehouse'),
+                    ('both_warehouses', 'Both Warehouses')
+                ]
+
+    def clean_warehouse(self):
+        warehouse = self.cleaned_data.get('warehouse')
+        if warehouse == 'both_warehouses':
+            return warehouse
+        return Warehouse.objects.get(pk=warehouse)
 
     def save(self, commit=True):
         instance = super().save(commit=False)
-        warehouse_choice = self.cleaned_data['warehouse_choice']
-        
-        # Convert warehouse_choice to location value
-        location_mapping = {
-            'attendant': 'attendant_warehouse',
-            'manager': 'manager_warehouse',
-            'both': 'attendant_warehouse',  # Default to attendant for 'both' option
-        }
-        instance.location = location_mapping.get(warehouse_choice)
-        
+        # Skip saving the warehouse field if 'both_warehouses' is selected
+        if self.cleaned_data['warehouse'] == 'both_warehouses':
+            return instance
+        instance.warehouse = self.cleaned_data['warehouse']
         if commit:
             instance.save()
-            
-            # If 'both' is selected, create another instance for manager warehouse
-            if warehouse_choice == 'both':
-                manager_instance = InventoryItem.objects.create(
-                    brand=instance.brand,
-                    category=instance.category,
-                    model=instance.model,
-                    item_name=instance.item_name,
-                    price=instance.price,
-                    stock=instance.stock,
-                    image=instance.image,
-                    location='manager_warehouse'
-                )
-        
         return instance
 
 class GlobalSettingsForm(forms.ModelForm):

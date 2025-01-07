@@ -33,7 +33,7 @@
                     </div>
                     <div>
                         <p class="text-sm text-gray-600">Requested by:</p>
-                        <p class="font-semibold">{{ requisition.requester.get_full_name|default:requisition.requester.username }}</p>
+                        <p class="font-semibold">{{ requisition.requester.customuser.display_name|default:requisition.requester.get_full_name|default:requisition.requester.username }}</p>
                     </div>
                 </div>
 
@@ -56,11 +56,7 @@
                 </div>
 
                 <!-- Warehouse Information -->
-                <div class="grid grid-cols-2 gap-6 mb-8">
-                    <div>
-                        <p class="text-sm text-gray-600">Source Warehouse:</p>
-                        <p class="font-semibold">{{ requisition.source_warehouse.name }}</p>
-                    </div>
+                <div class="mb-8">
                     <div>
                         <p class="text-sm text-gray-600">Destination Warehouse:</p>
                         <p class="font-semibold">{{ requisition.destination_warehouse.name }}</p>

@@ -66,60 +66,61 @@
                         {% if delivery.status == 'pending_delivery' %}bg-yellow-100 text-yellow-800 border border-yellow-200
                         {% elif delivery.status == 'pending_confirmation' %}bg-blue-100 text-blue-800 border border-blue-200
                         {% elif delivery.status == 'confirmed' %}bg-green-100 text-green-800 border border-green-200
-                        {% else %}bg-red-100 text-red-800 border border-red-200{% endif %}">
+                        {% elif delivery.status == 'cancelled' %}bg-red-100 text-red-800 border border-red-200
+                        {% endif %}">
                         {{ delivery.get_status_display }}
                     </span>
                 </div>
-                
-                <!-- Delivery Content -->
-                <div class="p-5 space-y-4">
-                    <!-- Purchase Order Information -->
+
+                <!-- Delivery Details -->
+                <div class="px-5 py-4 space-y-4">
+                    <!-- Purchase Order -->
                     <div>
-                        <p class="text-sm text-gray-600">Purchase Order: <span class="font-medium text-gray-900">{{ delivery.purchase_order.po_number }}</span></p>
+                        <p class="text-sm font-medium text-gray-500">Purchase Order</p>
+                        <p class="text-base font-semibold text-gray-900">{{ delivery.purchase_order.po_number }}</p>
                     </div>
 
-                    <!-- Delivery Details -->
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <p class="text-xs text-gray-500">Received By</p>
-                            <p class="text-sm font-medium text-gray-900">{{ delivery.received_by.get_full_name|default:"Not received" }}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-gray-500">Received Date</p>
-                            <p class="text-sm font-medium text-gray-900">{{ delivery.received_date|date:"M d, Y"|default:"Not received" }}</p>
-                        </div>
+                    <!-- Received By -->
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Received By</p>
+                        <p class="text-base text-gray-900">
+                            {% if delivery.received_by %}
+                                {{ delivery.received_by.get_full_name }}
+                            {% else %}
+                                <span class="text-gray-500 italic">Not received</span>
+                            {% endif %}
+                        </p>
                     </div>
 
-                    <!-- Image and Note -->
-                    {% if delivery.delivery_image or delivery.delivery_note %}
+                    <!-- Received Date -->
+                    <div>
+                        <p class="text-sm font-medium text-gray-500">Received Date</p>
+                        <p class="text-base text-gray-900">
+                            {% if delivery.received_date %}
+                                {{ delivery.received_date|date:"M d, Y" }}
+                            {% else %}
+                                <span class="text-gray-500 italic">Not received</span>
+                            {% endif %}
+                        </p>
+                    </div>
+
+                    <!-- View Details Button -->
                     <div class="mt-4">
-                        {% if delivery.delivery_image %}
-                        <div class="mb-2">
-                            <img src="{{ delivery.delivery_image.url }}" alt="Delivery Image" class="w-full h-32 object-cover rounded-lg">
-                        </div>
-                        {% endif %}
-                        {% if delivery.delivery_note %}
-                        <p class="text-sm text-gray-600 mt-2">{{ delivery.delivery_note }}</p>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-
-                    <!-- View Button -->
-                    <div class="mt-4">
-                        <a href="{% url 'purchasing:view_delivery' delivery.id %}" 
-                           class="w-full inline-flex justify-center items-center px-4 py-2 border border-blue-300 shadow-sm text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <a href="{% url 'purchasing:view_delivery' delivery.id %}" class="inline-flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-150">
                             View Details
                         </a>
                     </div>
                 </div>
             </div>
             {% empty %}
-            <div class="col-span-full bg-white rounded-xl shadow-md border border-gray-100 p-8 text-center">
-                <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-                <h3 class="mt-4 text-lg font-medium text-gray-900">No deliveries found</h3>
-                <p class="mt-1 text-sm text-gray-500">There are no deliveries to display at this time.</p>
+            <div class="col-span-3 py-12">
+                <div class="text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">No deliveries found</h3>
+                    <p class="mt-1 text-sm text-gray-500">There are no deliveries matching your criteria.</p>
+                </div>
             </div>
             {% endfor %}
         </div>

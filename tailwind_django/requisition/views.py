@@ -147,6 +147,14 @@ def create_requisition(request):
     user_warehouse = request.user.customuser.warehouses.first() if hasattr(request.user, 'customuser') else None
     print(f"User Warehouse: {user_warehouse.name if user_warehouse else None}")
     
+    if not user_warehouse:
+        messages.error(request, "You must be assigned to a warehouse to create requisitions.")
+        return redirect('requisition:requisition_list')
+    
+    # Fetch items for the user's warehouse
+    available_items = InventoryItem.objects.filter(warehouse=user_warehouse, stock__gt=0)
+    print(f"Available items: {[item.item_name for item in available_items]}")
+    
     # Check if user has permission to create requisition
     if not hasattr(request.user, 'customuser') or request.user.customuser.role not in ['attendant', 'manager']:
         messages.error(request, "You don't have permission to create requisitions.")
@@ -157,16 +165,18 @@ def create_requisition(request):
         print(f"POST data: {request.POST}")
         
         form = RequisitionForm(request.POST, user=request.user)
+        form.fields['items'].queryset = available_items  # Set the queryset for items field
         print(f"Form is valid: {form.is_valid()}")
         
         if not form.is_valid():
             print(f"\n=== DEBUG: Form Errors ===")
             for field, errors in form.errors.items():
                 print(f"Field '{field}': {errors}")
+                messages.error(request, f"{field}: {', '.join(errors)}")
             for error in form.non_field_errors():
                 print(f"Non-field error: {error}")
-            messages.error(request, "Please correct the errors below.")
-            return render(request, 'requisition/create_requisition.html', {'form': form})
+                messages.error(request, error)
+            return render(request, 'requisition/create_requisition.html', {'form': form, 'available_items': available_items})
             
         try:
             with transaction.atomic():
@@ -179,7 +189,7 @@ def create_requisition(request):
                 if request.user.customuser.role == 'attendant':
                     print("\n=== DEBUG: Setting up attendant requisition ===")
                     requisition.status = 'pending'  # Pending manager approval
-                    requisition.source_warehouse = request.user.customuser.warehouses.first()  # Source is attendant's warehouse
+                    requisition.source_warehouse = user_warehouse
                     
                     # Find a manager's warehouse
                     manager_warehouse = Warehouse.objects.filter(
@@ -189,8 +199,7 @@ def create_requisition(request):
                     ).first()
                     
                     if not manager_warehouse:
-                        messages.error(request, "No manager warehouse found.")
-                        return redirect('requisition:create_requisition')
+                        raise ValueError("No manager warehouse found. Please contact an administrator.")
                     
                     requisition.destination_warehouse = manager_warehouse
                     print(f"Source warehouse: {requisition.source_warehouse.name}")
@@ -198,7 +207,7 @@ def create_requisition(request):
                 
                 elif request.user.customuser.role == 'manager':
                     requisition.status = 'pending_admin_approval'
-                    requisition.source_warehouse = request.user.customuser.warehouses.first()
+                    requisition.source_warehouse = user_warehouse
                 
                 print("\n=== DEBUG: Saving requisition ===")
                 print(f"Request type: {requisition.request_type}")
@@ -206,38 +215,34 @@ def create_requisition(request):
                 print(f"Source warehouse: {requisition.source_warehouse}")
                 print(f"Destination warehouse: {requisition.destination_warehouse}")
                 print(f"Requester: {requisition.requester}")
+                
+                # Validate quantities before saving
+                quantities_json = form.cleaned_data.get('quantities', '{}')
+                quantities = json.loads(quantities_json)
+                items = form.cleaned_data.get('items')
+                
+                # Validate each item's quantity against available stock
+                for item in items:
+                    quantity = int(quantities.get(str(item.id), 0))
+                    if quantity <= 0:
+                        raise ValueError(f"Invalid quantity for {item.item_name}")
+                    if quantity > item.stock:
+                        raise ValueError(f"Requested quantity ({quantity}) exceeds available stock ({item.stock}) for {item.item_name}")
+                
+                # Save requisition after validation
                 requisition.save()
                 print("Requisition saved successfully")
 
-                # Process selected items and quantities
-                items = form.cleaned_data.get('items')
-                quantities_json = form.cleaned_data.get('quantities', '{}')
-                print(f"\n=== DEBUG: Processing items ===")
-                print(f"Items: {items}")
-                print(f"Quantities JSON: {quantities_json}")
-                
-                try:
-                    quantities = json.loads(quantities_json)
-                    print(f"Parsed quantities: {quantities}")
-                    
-                    # Create RequisitionItem objects
-                    for item in items:
-                        quantity = int(quantities.get(str(item.id), 1))
-                        if quantity <= 0:
-                            raise ValueError(f"Invalid quantity ({quantity}) for item {item.item_name}")
-                        
-                        print(f"Creating requisition item: {item.item_name} (Quantity: {quantity})")
-                        requisition_item = RequisitionItem.objects.create(
-                            requisition=requisition,
-                            item=item,
-                            quantity=quantity
-                        )
-                        print(f"Created requisition item: {requisition_item}")
-
-                except json.JSONDecodeError:
-                    raise ValueError("Invalid quantities format")
-                except (TypeError, ValueError) as e:
-                    raise ValueError(f"Invalid quantity value: {str(e)}")
+                # Create RequisitionItem objects
+                for item in items:
+                    quantity = int(quantities.get(str(item.id), 1))
+                    print(f"Creating requisition item: {item.item_name} (Quantity: {quantity})")
+                    requisition_item = RequisitionItem.objects.create(
+                        requisition=requisition,
+                        item=item,
+                        quantity=quantity
+                    )
+                    print(f"Created requisition item: {requisition_item}")
 
                 # Create notification for the requisition
                 create_notification(requisition)
@@ -247,25 +252,24 @@ def create_requisition(request):
                 print("\n=== DEBUG: Redirecting to requisition list ===")
                 return redirect('requisition:requisition_list')
 
+        except json.JSONDecodeError:
+            messages.error(request, "Invalid quantities format. Please try again.")
+        except ValueError as e:
+            messages.error(request, str(e))
         except Exception as e:
             print(f"\n=== DEBUG: Error creating requisition ===")
             print(f"Error type: {type(e)}")
             print(f"Error message: {str(e)}")
             print(f"Error details: {e}")
-            messages.error(request, f"Error creating requisition: {str(e)}")
-            return render(request, 'requisition/create_requisition.html', {'form': form})
+            messages.error(request, "An error occurred while creating the requisition. Please try again.")
+        
+        return render(request, 'requisition/create_requisition.html', {'form': form, 'available_items': available_items})
+    
     else:
         form = RequisitionForm(user=request.user)
+        form.fields['items'].queryset = available_items
     
-    # Add debug information about available items
-    print("\n=== DEBUG: Rendering Create Requisition Template ===")
-    print(f"Number of items in form: {form.fields['items'].queryset.count()}")
-    print("Available items:", [f"{item.item_name} (Stock: {item.stock})" for item in form.fields['items'].queryset])
-    
-    context = {
-        'form': form,
-    }
-    return render(request, 'requisition/create_requisition.html', context)
+    return render(request, 'requisition/create_requisition.html', {'form': form, 'available_items': available_items})
 
 def edit_requisition(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
@@ -934,26 +938,34 @@ def confirm_delivery(request, pk):
                 # Update inventory quantities
                 for delivery_item in delivery.items.all():
                     # Deduct from source warehouse (manager's)
-                    source_item = InventoryItem.objects.get(
+                    source_item = InventoryItem.objects.filter(
                         warehouse=delivery.requisition.source_warehouse,
                         item_name=delivery_item.item.item_name,
                         brand=delivery_item.item.brand,
                         model=delivery_item.item.model
-                    )
+                    ).first()
+                    
+                    if not source_item:
+                        raise InventoryItem.DoesNotExist(f"Source item {delivery_item.item.item_name} not found in {delivery.requisition.source_warehouse.name}")
+                    
+                    if source_item.stock < delivery_item.quantity:
+                        raise Exception(f"Insufficient stock for {delivery_item.item.item_name} in {delivery.requisition.source_warehouse.name}")
+                    
                     source_item.stock -= delivery_item.quantity
                     source_item.save()
                     
                     # Add to destination warehouse (attendant's)
-                    try:
-                        dest_item = InventoryItem.objects.get(
-                            warehouse=delivery.requisition.destination_warehouse,
-                            item_name=delivery_item.item.item_name,
-                            brand=delivery_item.item.brand,
-                            model=delivery_item.item.model
-                        )
+                    dest_item = InventoryItem.objects.filter(
+                        warehouse=delivery.requisition.destination_warehouse,
+                        item_name=delivery_item.item.item_name,
+                        brand=delivery_item.item.brand,
+                        model=delivery_item.item.model
+                    ).first()
+                    
+                    if dest_item:
                         dest_item.stock += delivery_item.quantity
                         dest_item.save()
-                    except InventoryItem.DoesNotExist:
+                    else:
                         # Create new item in destination warehouse if it doesn't exist
                         InventoryItem.objects.create(
                             warehouse=delivery.requisition.destination_warehouse,
@@ -961,7 +973,11 @@ def confirm_delivery(request, pk):
                             brand=delivery_item.item.brand,
                             model=delivery_item.item.model,
                             stock=delivery_item.quantity,
-                            category=delivery_item.item.category
+                            category=delivery_item.item.category,
+                            description=delivery_item.item.description,
+                            unit=delivery_item.item.unit,
+                            reorder_level=delivery_item.item.reorder_level,
+                            unit_price=delivery_item.item.unit_price
                         )
                 
                 # Create notification for attendant
@@ -1004,7 +1020,7 @@ def get_delivery_details(request, pk):
                     'quantity': item.quantity
                 })
         except Exception as e:
-            print(f"Error getting delivery items: {str(e)}")
+            print(f"Error getting delivery items: {e}")
             items_data = []
 
         # Get personnel info
@@ -1301,6 +1317,7 @@ def get_requisition_details(request, pk):
 def get_warehouse_items(request, warehouse_id):
     """API endpoint to get items for a specific warehouse with stock > 0"""
     try:
+        logger.info(f"Fetching items for warehouse ID: {warehouse_id}")
         items = InventoryItem.objects.filter(
             warehouse_id=warehouse_id
         ).select_related(
@@ -1309,10 +1326,11 @@ def get_warehouse_items(request, warehouse_id):
             'id', 'item_name', 'stock', 'model',
             'warehouse__name', 'brand__name'
         )
-        
+        logger.info(f"Number of items fetched: {len(items)}")
         return JsonResponse(list(items), safe=False)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
+        logger.error(f"Error fetching items: {str(e)}")
+        return JsonResponse({'error': f"Error fetching items: {str(e)}"}, status=400)
 
 def search_items(request):
     """API endpoint to search for items"""

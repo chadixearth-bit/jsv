@@ -34,11 +34,13 @@ def inventory_list(request):
         pass
     elif user_role == 'manager':
         # Manager sees items in manager warehouse
-        items = items.filter(location='manager_warehouse')
+        manager_warehouse = Warehouse.objects.get(name='Manager Warehouse')
+        items = items.filter(warehouse=manager_warehouse)
         is_main_warehouse = True
     elif user_role == 'attendant':
         # Attendant sees items in attendant warehouse
-        items = items.filter(location='attendant_warehouse')
+        attendant_warehouse = Warehouse.objects.get(name='Attendant Warehouse')
+        items = items.filter(warehouse=attendant_warehouse)
         is_main_warehouse = False
     
     # Search functionality
@@ -121,30 +123,25 @@ def inventory_create(request):
     if request.method == 'POST':
         form = InventoryItemForm(request.POST, request.FILES)
         if form.is_valid():
-            # Check if item already exists in the warehouse
             item_name = form.cleaned_data['item_name']
             model = form.cleaned_data['model']
-            warehouse_choice = form.cleaned_data['warehouse_choice']
-            
-            # Convert warehouse_choice to location value
-            location_mapping = {
-                'attendant': 'attendant_warehouse',
-                'manager': 'manager_warehouse',
-            }
-            location = location_mapping.get(warehouse_choice)
-            
-            # Query to check if the item already exists
-            if InventoryItem.objects.filter(item_name=item_name, model=model, location=location).exists():
-                messages.error(request, 'Error: This item is already in the warehouse.')
+            warehouse = form.cleaned_data['warehouse']
+
+            if warehouse == 'both_warehouses':
+                # Fetch both warehouse instances
+                warehouses = Warehouse.objects.filter(name__in=['Attendant Warehouse', 'Manager Warehouse'])
+                for wh in warehouses:
+                    InventoryItem.objects.create(item_name=item_name, model=model, warehouse=wh)
+                messages.success(request, 'Item created successfully in both warehouses.')
             else:
-                result = form.save()
-                
-                if isinstance(result, list):
-                    messages.success(request, 'Item created successfully in both warehouses.')
+                selected_warehouse = Warehouse.objects.get(pk=warehouse)
+                if InventoryItem.objects.filter(item_name=item_name, model=model, warehouse=selected_warehouse).exists():
+                    messages.error(request, 'Error: This item is already in the warehouse.')
                 else:
+                    InventoryItem.objects.create(item_name=item_name, model=model, warehouse=selected_warehouse)
                     messages.success(request, 'Item created successfully.')
-                
-                return redirect('inventory:list')
+
+            return redirect('inventory:list')
         else:
             messages.error(request, 'Error creating item. Please check the form.')
     else:
@@ -296,9 +293,9 @@ def store_inventory(request):
 
 def warehouse_inventory(request):
     """View for warehouse inventory (manager view)"""
-    # Get all warehouses with manager role
-    manager_warehouses = Warehouse.objects.filter(custom_users__role='manager')
-    items = InventoryItem.objects.filter(warehouse__in=manager_warehouses).select_related('warehouse', 'brand', 'category')
+    # Get the manager warehouse
+    manager_warehouse = Warehouse.objects.get(name='Manager Warehouse')
+    items = InventoryItem.objects.filter(warehouse=manager_warehouse).select_related('warehouse', 'brand', 'category')
     
     # Search functionality
     query = request.GET.get('q')
@@ -322,8 +319,19 @@ def warehouse_inventory(request):
     return render(request, 'inventory/inventory_list.html', context)
 
 def dashboard(request):
-    # Get warehouse items
-    items = InventoryItem.objects.all()
+    # Get warehouse items based on user role
+    user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
+    
+    if user_role == 'admin':
+        items = InventoryItem.objects.all()
+    elif user_role == 'manager':
+        manager_warehouse = Warehouse.objects.get(name='Manager Warehouse')
+        items = InventoryItem.objects.filter(warehouse=manager_warehouse)
+    elif user_role == 'attendant':
+        attendant_warehouse = Warehouse.objects.get(name='Attendant Warehouse')
+        items = InventoryItem.objects.filter(warehouse=attendant_warehouse)
+    else:
+        items = InventoryItem.objects.none()
     
     # Calculate statistics
     total_items = items.count()

@@ -147,7 +147,10 @@
                 <select id="itemSelect" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                     <option value="">Select Item</option>
                     {% for item in available_items %}
-                    <option value="{{ item.id }}" data-search="{{ item.item_name|lower }} {{ item.brand.name|lower }} {{ item.model|default:'N/A'|lower }}">
+                    <option value="{{ item.id }}" 
+                            data-search="{{ item.item_name|lower }} {{ item.brand.name|lower }} {{ item.model|default:'N/A'|lower }}" 
+                            data-warehouse="{{ item.warehouse.id }}"
+                            data-price="{{ item.price }}">
                         {{ item.item_name }} ({{ item.brand.name }} - {{ item.model|default:'N/A' }})
                     </option>
                     {% endfor %}
@@ -155,12 +158,12 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Quantity</label>
-                <input type="number" id="itemQuantity" min="1" required
+                <input type="number" id="existingItemQuantity" min="1" required
                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700">Unit Price</label>
-                <input type="number" id="itemPrice" min="0" step="0.01" required
+                <input type="number" id="existingItemPrice" min="0" step="0.01" required
                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
             </div>
         </div>
@@ -169,7 +172,7 @@
                     class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                 Cancel
             </button>
-            <button type="button" onclick="confirmAddExistingItem()" 
+            <button type="button" onclick="addExistingItem()" 
                     class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
                 Add Item
             </button>
@@ -180,43 +183,31 @@
 <!-- Existing Item Row Template -->
 <template id="existingItemRowTemplate">
     <tr class="item-row">
-        <td class="px-6 py-4">
-            <div class="relative">
-                <input type="text" placeholder="Search items..." class="item-search mb-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                <select name="items[]" required class="item-select block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                    <option value="">Select Item</option>
-                    {% for item in available_items %}
-                    <option value="{{ item.id }}" data-search="{{ item.item_name|lower }} {{ item.brand.name|lower }} {{ item.model|default:'N/A'|lower }}">{{ item.item_name }} ({{ item.brand.name }} - {{ item.model|default:'N/A' }})</option>
-                    {% endfor %}
-                </select>
-            </div>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <span class="item-brand"></span>
         </td>
-        <td class="px-6 py-4">
-            <input type="text" name="brands[]" readonly
-                   class="block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <span class="item-name"></span>
         </td>
-        <td class="px-6 py-4">
-            <input type="text" name="models[]" readonly
-                   class="block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <span class="item-model"></span>
         </td>
-        <td class="px-6 py-4">
-            <input type="number" name="quantities[]" placeholder="Quantity" required min="1"
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <input type="number" name="quantities[]" min="1" required
+                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                    onchange="updateCalculations()">
         </td>
-        <td class="px-6 py-4">
-            <input type="number" name="unit_prices[]" placeholder="Price" required min="0" step="0.01"
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <input type="number" name="prices[]" min="0" step="0.01" required
+                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                    onchange="updateCalculations()">
         </td>
-        <td class="px-6 py-4 text-right">
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
             <span class="subtotal">₱0.00</span>
         </td>
-        <td class="px-6 py-4 text-right">
-            <button type="button" onclick="removeItem(this)" 
-                    class="text-red-600 hover:text-red-900">
-                <i class="fas fa-trash"></i>
-            </button>
+        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+            <button type="button" onclick="removeItem(this)"
+                    class="text-red-600 hover:text-red-900">Remove</button>
         </td>
     </tr>
 </template>
@@ -312,7 +303,7 @@ function updateCalculations() {
             unitPrice = parseFloat(row.querySelector(`input[name="new_items[${index}][unit_price]"]`).value) || 0;
         } else {
             quantity = parseFloat(row.querySelector('input[name="quantities[]"]').value) || 0;
-            unitPrice = parseFloat(row.querySelector('input[name="unit_prices[]"]').value) || 0;
+            unitPrice = parseFloat(row.querySelector('input[name="prices[]"]').value) || 0;
         }
         
         const subtotal = quantity * unitPrice;
@@ -363,53 +354,56 @@ function setupItemSearch(row) {
 }
 
 function addExistingItem() {
-    const itemSelect = document.querySelector('select[name="items[]"]');
-    const quantityInput = document.querySelector('input[name="quantities[]"]');
-    
-    if (!itemSelect) {
-        console.error('Item select element not found');
-        return;
-    }
-    if (!quantityInput) {
-        console.error('Quantity input element not found');
-        return;
-    }
-    
-    if (!itemSelect.value) {
-        alert('Please select an item');
-        return;
-    }
-    if (!quantityInput.value || quantityInput.value <= 0) {
-        alert('Please enter a valid quantity');
-        return;
-    }
+    const itemSelect = document.getElementById('itemSelect');
+    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+    const quantityInput = document.getElementById('existingItemQuantity');
+    const priceInput = document.getElementById('existingItemPrice');
 
-    console.log('Adding existing item:', itemSelect.value, 'Quantity:', quantityInput.value);
+    if (!itemSelect.value || !quantityInput.value || !priceInput.value) {
+        alert('Please fill in all fields');
+        return;
+    }
 
     const template = document.getElementById('existingItemRowTemplate');
     const clone = template.content.cloneNode(true);
     const row = clone.querySelector('tr');
-    
-    // Set values from selected item
-    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
-    const [itemName, brandAndModel] = selectedOption.text.split(' (');
-    const [brand, model] = brandAndModel.slice(0, -1).split(' - ');
-    
-    row.querySelector('select[name="items[]"]').value = itemSelect.value;
-    row.querySelector('input[name="quantities[]"]').value = quantityInput.value;
-    row.querySelector('input[name="brands[]"]').value = brand;
-    row.querySelector('input[name="models[]"]').value = model;
-    
-    document.getElementById('itemsContainer').appendChild(row);
-    addRowListeners(row);
-    
-    // Clear inputs
-    itemSelect.selectedIndex = 0;
-    quantityInput.value = '';
-    
-    console.log('Existing item added:', row);
 
+    // Set data attributes for the row
+    row.classList.add('item-row');
+    row.dataset.itemId = itemSelect.value;
+    
+    const [itemName, brandModelText] = selectedOption.text.split(' (');
+    const [brand, model] = brandModelText.slice(0, -1).split(' - ');
+
+    // Set the content for each cell
+    row.querySelector('.item-brand').textContent = brand;
+    row.querySelector('.item-name').textContent = itemName;
+    row.querySelector('.item-model').textContent = model;
+    row.querySelector('input[name="quantities[]"]').value = quantityInput.value;
+    
+    // Set price from the selected item's data attribute
+    const price = selectedOption.getAttribute('data-price');
+    const priceField = row.querySelector('input[name="prices[]"]');
+    priceField.value = price;
+    priceField.readOnly = true;  // Make price readonly for existing items
+
+    // Calculate and set subtotal
+    const quantity = parseFloat(quantityInput.value);
+    const subtotal = quantity * parseFloat(price);
+    row.querySelector('.subtotal').textContent = `₱${subtotal.toFixed(2)}`;
+
+    document.getElementById('itemsContainer').appendChild(row);
     updateCalculations();
+    closeExistingItemModal();
+
+    console.log('Added existing item:', {
+        itemId: itemSelect.value,
+        brand,
+        itemName,
+        model,
+        quantity,
+        price
+    });
 }
 
 function addNewItem() {
@@ -445,7 +439,34 @@ function addNewItem() {
 }
 
 function serializeItems() {
-    return JSON.stringify(items);
+    const allItems = [];
+    
+    // Get all item rows
+    const rows = document.querySelectorAll('.item-row');
+    rows.forEach(row => {
+        if (row.dataset.itemId) {
+            // Existing item
+            allItems.push({
+                item_id: row.dataset.itemId,
+                brand: row.querySelector('.item-brand').textContent,
+                model: row.querySelector('.item-model').textContent,
+                quantity: parseInt(row.querySelector('input[name="quantities[]"]').value),
+                unitPrice: parseFloat(row.querySelector('input[name="prices[]"]').value)
+            });
+        } else {
+            // New item
+            allItems.push({
+                brand: row.querySelector('input[name^="new_items"][name$="[brand]"]').value,
+                itemName: row.querySelector('input[name^="new_items"][name$="[name]"]').value,
+                model: row.querySelector('input[name^="new_items"][name$="[model_name]"]').value,
+                quantity: parseInt(row.querySelector('input[name^="new_items"][name$="[quantity]"]').value),
+                unitPrice: parseFloat(row.querySelector('input[name^="new_items"][name$="[unit_price]"]').value)
+            });
+        }
+    });
+    
+    console.log('Serialized items:', allItems);
+    return JSON.stringify(allItems);
 }
 
 document.querySelector('form').addEventListener('submit', function(event) {
@@ -456,7 +477,7 @@ document.querySelector('form').addEventListener('submit', function(event) {
     hiddenInput.value = serializedItems;
     this.appendChild(hiddenInput);
 
-    console.log('Serialized items:', serializedItems);
+    console.log('Form submission - items data:', serializedItems);
 });
 
 function removeItem(button) {
@@ -500,8 +521,8 @@ function closeExistingItemModal() {
     // Clear inputs
     document.getElementById('itemSearchInput').value = '';
     document.getElementById('itemSelect').selectedIndex = 0;
-    document.getElementById('itemQuantity').value = '';
-    document.getElementById('itemPrice').value = '';
+    document.getElementById('existingItemQuantity').value = '';
+    document.getElementById('existingItemPrice').value = '';
 }
 
 function setupModalItemSearch() {
@@ -529,8 +550,8 @@ function setupModalItemSearch() {
 
 function confirmAddExistingItem() {
     const itemSelect = document.getElementById('itemSelect');
-    const quantityInput = document.getElementById('itemQuantity');
-    const priceInput = document.getElementById('itemPrice');
+    const quantityInput = document.getElementById('existingItemQuantity');
+    const priceInput = document.getElementById('existingItemPrice');
 
     if (!itemSelect.value) {
         alert('Please select an item');
@@ -558,7 +579,7 @@ function confirmAddExistingItem() {
     
     row.querySelector('select[name="items[]"]').value = itemSelect.value;
     row.querySelector('input[name="quantities[]"]').value = quantityInput.value;
-    row.querySelector('input[name="unit_prices[]"]').value = priceInput.value;
+    row.querySelector('input[name="prices[]"]').value = priceInput.value;
     row.querySelector('input[name="brands[]"]').value = brand;
     row.querySelector('input[name="models[]"]').value = model;
     
@@ -569,5 +590,37 @@ function confirmAddExistingItem() {
 
     updateCalculations();
 }
+
+// Add warehouse change event listener to filter items
+document.querySelector('select[name="warehouse"]').addEventListener('change', function() {
+    const warehouseId = this.value;
+    const itemSelect = document.getElementById('itemSelect');
+    const options = itemSelect.querySelectorAll('option');
+    
+    options.forEach(option => {
+        if (option.value === '') return; // Skip the placeholder option
+        const itemWarehouseId = option.getAttribute('data-warehouse');
+        option.style.display = !warehouseId || itemWarehouseId === warehouseId ? '' : 'none';
+    });
+});
+
+// Add this function to handle item selection
+function handleItemSelection() {
+    const itemSelect = document.getElementById('itemSelect');
+    const priceInput = document.getElementById('existingItemPrice');
+    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
+    
+    if (selectedOption && selectedOption.value) {
+        const price = selectedOption.getAttribute('data-price');
+        priceInput.value = price;
+        priceInput.readOnly = true;  // Make price readonly for existing items
+    } else {
+        priceInput.value = '';
+        priceInput.readOnly = false;
+    }
+}
+
+// Add event listener for item selection
+document.getElementById('itemSelect').addEventListener('change', handleItemSelection);
 </script>
 {% endblock %}

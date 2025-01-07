@@ -43,22 +43,15 @@ class RequisitionForm(forms.ModelForm):
             print(f"User Warehouse: {user_warehouse.name if user_warehouse else None}")
             
             if user_warehouse:
-                # Show items based on user's role
-                if self.user.customuser.role == 'attendant':
-                    # For attendants, show items from attendant warehouse
-                    queryset = InventoryItem.objects.filter(
-                        location='attendant_warehouse',
-                        stock__gt=0  # Only show items with stock > 0
-                    ).select_related('brand', 'category', 'warehouse').order_by('item_name')
-                else:
-                    # For managers, show items from manager warehouse
-                    queryset = InventoryItem.objects.filter(
-                        location='manager_warehouse',
-                        stock__gt=0  # Only show items with stock > 0
-                    ).select_related('brand', 'category', 'warehouse').order_by('item_name')
+                # Show items based on user's warehouse
+                queryset = InventoryItem.objects.filter(
+                    warehouse=user_warehouse,
+                    stock__gt=0  # Only show items with stock > 0
+                ).select_related('brand', 'category', 'warehouse')
                 
                 print(f"Number of items in queryset: {queryset.count()}")
-                print("Items:", [f"{item.item_name} (Stock: {item.stock})" for item in queryset])
+                for item in queryset:
+                    print(f"Item: {item.item_name}, Brand: {item.brand.name}, Stock: {item.stock}, Warehouse: {item.warehouse.name}")
                 self.fields['items'].queryset = queryset
             else:
                 print("No warehouse found for user")

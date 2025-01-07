@@ -53,8 +53,8 @@
                                  onclick="toggleItemSelection(this, '{{ item.id }}', '{{ item.item_name|escapejs }}', event)"
                                  data-stock="{{ item.stock }}"
                                  data-warehouse="{{ item.warehouse.name|default:'N/A' }}"
-                                 data-category="{{ item.category.id }}"
-                                 data-brand="{{ item.brand }}"
+                                 data-category="{{ item.category.name }}"
+                                 data-brand="{{ item.brand.name }}"
                                  data-name="{{ item.item_name|lower }}">
                                 
                                 <!-- Selection Indicator -->
@@ -81,9 +81,23 @@
                                     
                                     <div class="space-y-2">
                                         <h3 class="font-medium text-gray-900 line-clamp-2">{{ item.item_name }}</h3>
-                                        <div class="flex items-center text-sm text-gray-500">
-                                            <i class="fas fa-cubes mr-1"></i>
-                                            <span>Stock: {{ item.stock }}</span>
+                                        <div class="space-y-1">
+                                            <div class="flex items-center text-sm text-gray-500">
+                                                <i class="fas fa-tag mr-1"></i>
+                                                <span>Brand: {{ item.brand.name }}</span>
+                                            </div>
+                                            <div class="flex items-center text-sm text-gray-500">
+                                                <i class="fas fa-cube mr-1"></i>
+                                                <span>Model: {{ item.model }}</span>
+                                            </div>
+                                            <div class="flex items-center text-sm text-gray-500">
+                                                <i class="fas fa-cubes mr-1"></i>
+                                                <span>Stock: {{ item.stock }}</span>
+                                            </div>
+                                            <div class="flex items-center text-sm text-gray-500">
+                                                <i class="fas fa-dollar-sign mr-1"></i>
+                                                <span>Price: {{ item.price }}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
