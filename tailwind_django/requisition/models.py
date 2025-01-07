@@ -14,6 +14,7 @@ class RequisitionItem(models.Model):
     selected_source_item = models.ForeignKey('inventory.InventoryItem', on_delete=models.SET_NULL, null=True, blank=True, related_name='source_requisition_items')
     quantity = models.PositiveIntegerField(default=1)
     delivered_quantity = models.PositiveIntegerField(null=True, blank=True)
+    is_new_item = models.BooleanField(default=False, help_text="Indicates if this is a request for a new item not in inventory")
 
     def __str__(self):
         return f"{self.item.item_name} - {self.quantity} units"

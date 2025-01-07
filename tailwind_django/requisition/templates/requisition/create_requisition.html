@@ -44,14 +44,21 @@
                                     <label class="flex items-center text-base sm:text-lg font-semibold text-gray-700">
                                         <i class="fas fa-boxes mr-2 text-indigo-500"></i>Available Items
                                     </label>
-                                    <div class="text-sm text-gray-500">Click items to select</div>
+                                    <div class="flex items-center space-x-4">
+                                        <button type="button" 
+                                                onclick="openNewItemModal()"
+                                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                            <i class="fas fa-plus mr-2"></i>
+                                            Request New Item
+                                        </button>
+                                        <div class="text-sm text-gray-500">Click items to select</div>
+                                    </div>
                                 </div>
-                                
+                                 
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
                                     {% for item in available_items %}
                                     <div class="item-card cursor-pointer group relative bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-all duration-300
-                                              {% if item.stock == 0 %}bg-red-50/50{% elif item.stock <= 5 %}bg-yellow-50/50{% endif %}
-                                              hover:shadow-md transform hover:-translate-y-1"
+                                              {% if item.stock == 0 %}bg-red-50/50{% elif item.stock <= 5 %}bg-yellow-50/50{% endif %}"
                                              data-id="{{ item.id }}"
                                              data-name="{{ item.item_name|escapejs }}"
                                              data-stock="{{ item.stock }}"
@@ -311,15 +318,93 @@ function updateItemsInput() {
 }
 
 function updateSelectedCount() {
-    const count = selectedItems.size;
-    document.getElementById('selectedCount').textContent = `${count} item${count !== 1 ? 's' : ''}`;
+    const selectedCount = selectedItems.size;
+    const newItemsCount = document.querySelectorAll('.bg-yellow-50').length;
+    const totalCount = selectedCount + newItemsCount;
+    document.getElementById('selectedCount').textContent = `${totalCount} item${totalCount !== 1 ? 's' : ''}`;
 }
+
+// Modal functions
+function openNewItemModal() {
+    const modal = document.getElementById('newItemModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+    } else {
+        console.error('Modal element not found');
+    }
+}
+
+function closeNewItemModal() {
+    const modal = document.getElementById('newItemModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.getElementById('newItemForm').reset();
+    }
+}
+
+function submitNewItemForm() {
+    const form = document.getElementById('newItemForm');
+    const itemName = document.getElementById('newItemName').value;
+    const itemModel = document.getElementById('newItemModel').value;
+    const itemBrand = document.getElementById('newItemBrand').value;
+    
+    if (!itemName || !itemModel || !itemBrand) {
+        alert('Please fill in all fields');
+        return;
+    }
+    
+    // Add to hidden input for form submission
+    const newItemsContainer = document.getElementById('selectedItemsContainer');
+    const newItemInput = document.createElement('input');
+    newItemInput.type = 'hidden';
+    newItemInput.name = 'new_items';
+    newItemInput.value = JSON.stringify({
+        item_name: itemName,
+        model: itemModel,
+        brand: itemBrand
+    });
+    newItemsContainer.appendChild(newItemInput);
+    
+    // Create a visual representation of the new item request
+    const itemCard = document.createElement('div');
+    itemCard.className = 'p-4 mb-2 bg-yellow-50 rounded-lg border border-yellow-200';
+    itemCard.innerHTML = `
+        <div class="flex items-center justify-between">
+            <div>
+                <h4 class="font-medium text-yellow-800">${itemName}</h4>
+                <p class="text-sm text-yellow-600">Model: ${itemModel} | Brand: ${itemBrand}</p>
+            </div>
+            <span class="text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-1 rounded">New Item Request</span>
+        </div>
+    `;
+    
+    // Add to selected items section
+    const selectedItemsList = document.getElementById('selectedItems');
+    if (selectedItemsList) {
+        selectedItemsList.appendChild(itemCard);
+    }
+    
+    // Update selected count
+    updateSelectedCount();
+    
+    // Close modal and reset form
+    closeNewItemModal();
+}
+
+// Add event listener for the new item form
+document.getElementById('newItemForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+    submitNewItemForm();
+});
 
 // Form submission handler
 document.getElementById('requisitionForm').addEventListener('submit', function(event) {
-    if (selectedItems.size === 0) {
+    const hasSelectedItems = selectedItems.size > 0;
+    const hasNewItems = document.querySelector('input[name="new_items"]') !== null;
+    
+    if (!hasSelectedItems && !hasNewItems) {
         event.preventDefault();
-        alert('Please select at least one item.');
+        alert('Please select at least one item or request a new item.');
         return;
     }
     
@@ -338,4 +423,7 @@ document.getElementById('requisitionForm').addEventListener('submit', function(e
         transform: scale(1);
     }
 </style>
+
+{% include 'requisition/new_item_modal.html' %}
+
 {% endblock %}

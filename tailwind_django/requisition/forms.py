@@ -7,11 +7,11 @@ import json
 class RequisitionForm(forms.ModelForm):
     items = forms.ModelMultipleChoiceField(
         queryset=InventoryItem.objects.all(),
-        required=True,
+        required=False,  # Make items optional
         widget=forms.SelectMultiple(attrs={'class': 'hidden'})
     )
     quantities = forms.CharField(
-        required=True,
+        required=False,  # Make quantities optional
         widget=forms.HiddenInput(),
         help_text="JSON string of quantities for each item"
     )
@@ -37,11 +37,6 @@ class RequisitionForm(forms.ModelForm):
         
         if self.user and hasattr(self.user, 'customuser'):
             user_warehouse = self.user.customuser.warehouses.first()
-            print("\n=== DEBUG: RequisitionForm Init ===")
-            print(f"User: {self.user.username}")
-            print(f"Role: {self.user.customuser.role}")
-            print(f"User Warehouse: {user_warehouse.name if user_warehouse else None}")
-            
             if user_warehouse:
                 # Show items based on user's warehouse
                 queryset = InventoryItem.objects.filter(
@@ -49,42 +44,34 @@ class RequisitionForm(forms.ModelForm):
                     stock__gt=0  # Only show items with stock > 0
                 ).select_related('brand', 'category', 'warehouse')
                 
-                print(f"Number of items in queryset: {queryset.count()}")
-                for item in queryset:
-                    print(f"Item: {item.item_name}, Brand: {item.brand.name}, Stock: {item.stock}, Warehouse: {item.warehouse.name}")
                 self.fields['items'].queryset = queryset
-            else:
-                print("No warehouse found for user")
-                self.fields['items'].queryset = InventoryItem.objects.none()
-        
-        # Add help text and labels
-        self.fields['items'].help_text = "Select items from inventory"
-        self.fields['reason'].help_text = "Provide a reason for this request"
-        self.fields['reason'].label = "Reason"
 
     def clean(self):
         cleaned_data = super().clean()
-        items = cleaned_data.get('items')
-        quantities_json = cleaned_data.get('quantities')
+        items = cleaned_data.get('items', [])
+        new_items_json = self.data.get('new_items')
         reason = cleaned_data.get('reason')
-
-        if not items:
-            raise forms.ValidationError("You must select at least one item.")
-            
+        
         if not reason:
             raise forms.ValidationError("Please provide a reason for this requisition.")
-
-        try:
-            quantities = json.loads(quantities_json or '{}')
+        
+        # Check if we have either items or new items
+        has_items = bool(items)
+        has_new_items = bool(new_items_json)
+        
+        if not has_items and not has_new_items:
+            raise forms.ValidationError("You must select at least one item or request a new item.")
+        
+        # If we have existing items, validate their quantities
+        if has_items:
+            quantities = json.loads(cleaned_data.get('quantities') or '{}')
             for item in items:
                 quantity = int(quantities.get(str(item.id), 0))
                 if quantity <= 0:
-                    raise forms.ValidationError(f"Invalid quantity for item {item.item_name}")
-        except json.JSONDecodeError:
-            raise forms.ValidationError("Invalid quantities format")
-        except (TypeError, ValueError):
-            raise forms.ValidationError("Invalid quantity value")
-
+                    raise forms.ValidationError(f"Invalid quantity for {item.item_name}")
+                if quantity > item.stock:
+                    raise forms.ValidationError(f"Requested quantity ({quantity}) exceeds available stock ({item.stock}) for {item.item_name}")
+        
         return cleaned_data
 
 class RequisitionApprovalForm(forms.Form):

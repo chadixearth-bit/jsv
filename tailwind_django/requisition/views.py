@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from io import BytesIO
 from .models import Requisition, Notification, RequisitionItem, Delivery, DeliveryItem, RequisitionStatusHistory
 from .forms import RequisitionForm, RequisitionApprovalForm, DeliveryManagementForm, DeliveryConfirmationForm
-from inventory.models import InventoryItem, Warehouse
+from inventory.models import InventoryItem, Warehouse, Brand, Category
 import json
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -171,6 +171,26 @@ def create_requisition(request):
         print("\n=== DEBUG: Processing POST request ===")
         print(f"POST data: {request.POST}")
         
+        # Get form data
+        quantities = json.loads(request.POST.get('quantities', '{}'))
+        reason = request.POST.get('reason', '')
+        
+        # Handle new item requests
+        new_items_json = request.POST.get('new_items')
+        new_items = []
+        if new_items_json:
+            try:
+                new_items = json.loads(new_items_json)
+                if not isinstance(new_items, list):
+                    new_items = [new_items]  # Convert single object to list
+            except json.JSONDecodeError:
+                messages.error(request, "Invalid new items data format")
+                return redirect('requisition:create_requisition')
+
+        if not quantities and not new_items:
+            messages.error(request, "Please select at least one item or request a new item")
+            return redirect('requisition:create_requisition')
+
         form = RequisitionForm(request.POST, user=request.user)
         form.fields['items'].queryset = available_items  # Set the queryset for items field
         print(f"Form is valid: {form.is_valid()}")
@@ -226,34 +246,62 @@ def create_requisition(request):
                 print(f"Destination warehouse: {requisition.destination_warehouse}")
                 print(f"Requester: {requisition.requester}")
                 
-                # Validate quantities before saving
-                quantities_json = form.cleaned_data.get('quantities', '{}')
-                quantities = json.loads(quantities_json)
-                items = form.cleaned_data.get('items')
+                requisition.save()
                 
-                # Validate each item's quantity against available stock
+                # Handle existing items
+                items = form.cleaned_data.get('items', [])
+                quantities = json.loads(request.POST.get('quantities', '{}'))
                 for item in items:
                     quantity = int(quantities.get(str(item.id), 0))
-                    if quantity <= 0:
-                        raise ValueError(f"Invalid quantity for {item.item_name}")
-                    if quantity > item.stock:
-                        raise ValueError(f"Requested quantity ({quantity}) exceeds available stock ({item.stock}) for {item.item_name}")
+                    if quantity > 0:
+                        RequisitionItem.objects.create(
+                            requisition=requisition,
+                            item=item,
+                            quantity=quantity
+                        )
                 
-                # Save requisition after validation
-                requisition.save()
-                print("Requisition saved successfully")
-
-                # Create RequisitionItem objects
-                for item in items:
-                    quantity = int(quantities.get(str(item.id), 1))
-                    print(f"Creating requisition item: {item.item_name} (Quantity: {quantity})")
-                    requisition_item = RequisitionItem.objects.create(
-                        requisition=requisition,
-                        item=item,
-                        quantity=quantity
-                    )
-                    print(f"Created requisition item: {requisition_item}")
-
+                # Handle new item requests
+                new_items_json = request.POST.get('new_items')
+                if new_items_json:
+                    try:
+                        new_items = json.loads(new_items_json)
+                        if not isinstance(new_items, list):
+                            new_items = [new_items]  # Convert single object to list
+                            
+                        for new_item in new_items:
+                            # Get or create the brand
+                            brand_name = new_item.get('brand', '').strip()
+                            if not brand_name:
+                                brand_name = "Unknown Brand"
+                            
+                            brand, _ = Brand.objects.get_or_create(name=brand_name)
+                            
+                            # Get or create a default category if needed
+                            category, _ = Category.objects.get_or_create(name="Uncategorized")
+                            
+                            # Create a placeholder inventory item for tracking
+                            item = InventoryItem.objects.create(
+                                item_name=new_item['item_name'],
+                                model=new_item['model'],
+                                brand=brand,
+                                category=category,
+                                warehouse=user_warehouse,
+                                stock=0,  # New items start with 0 stock
+                                price=0.00,  # Set a default price
+                                availability=False  # Not available until approved
+                            )
+                            
+                            # Create requisition item
+                            RequisitionItem.objects.create(
+                                requisition=requisition,
+                                item=item,
+                                quantity=1,  # Default to 1 for new items
+                                is_new_item=True  # Add this field to your model
+                            )
+                    except json.JSONDecodeError:
+                        messages.error(request, "Invalid new items data format")
+                        return redirect('requisition:create_requisition')
+                
                 # Create notification for the requisition
                 create_notification(requisition)
                 print("\n=== DEBUG: Notification created ===")
