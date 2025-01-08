@@ -70,8 +70,8 @@ class RequisitionForm(forms.ModelForm):
             except json.JSONDecodeError:
                 raise forms.ValidationError("Invalid quantities format")
 
-            # Only validate stock levels if the user is not an attendant
-            if hasattr(self.user, 'customuser') and self.user.customuser.role != 'attendant':
+            # Only validate stock levels if the user is an admin
+            if hasattr(self.user, 'customuser') and self.user.customuser.role == 'admin':
                 for item in items:
                     quantity = int(quantities_dict.get(str(item.id), 0))
                     if quantity > item.stock:
@@ -85,6 +85,7 @@ class RequisitionApprovalForm(forms.Form):
     DECISION_CHOICES = [
         ('approve', 'Approve'),
         ('reject', 'Reject'),
+        ('send_to_admin', 'Send to Admin for Approval')
     ]
     decision = forms.ChoiceField(
         choices=DECISION_CHOICES,

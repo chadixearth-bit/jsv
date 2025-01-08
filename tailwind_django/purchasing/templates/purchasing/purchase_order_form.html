@@ -82,19 +82,21 @@
                             <i class="fas fa-boxes mr-2 text-indigo-500"></i>
                             Order Items
                         </h3>
-                        <div class="flex space-x-3">
-                            <button type="button" onclick="addNewItem()" 
-                                    class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <div class="space-x-2">
+                            <button type="button" onclick="addNewItem()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                                 <i class="fas fa-plus mr-2"></i>
                                 Add New Item
                             </button>
-                            <button type="button" onclick="openExistingItemModal()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <button type="button" onclick="openExistingItemModal()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                <i class="fas fa-search mr-2"></i>
                                 Add Existing Item
                             </button>
                         </div>
                     </div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
+
+                    <!-- Items Table -->
+                    <div class="mt-4 overflow-x-auto">
+                        <table id="itemsTable" class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
@@ -103,18 +105,12 @@
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
-                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="itemsContainer" class="bg-white divide-y divide-gray-200">
+                            <tbody class="bg-white divide-y divide-gray-200" id="itemsContainer">
                                 <!-- Items will be added here dynamically -->
                             </tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="5" class="px-6 py-4 text-right font-medium">Total Amount:</td>
-                                    <td colspan="2" class="px-6 py-4 text-left total-amount">₱0.00</td>
-                                </tr>
-                            </tfoot>
                         </table>
                     </div>
                 </div>
@@ -180,75 +176,6 @@
     </div>
 </div>
 
-<!-- Existing Item Row Template -->
-<template id="existingItemRowTemplate">
-    <tr class="item-row">
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-            <span class="item-brand"></span>
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-            <span class="item-name"></span>
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-            <span class="item-model"></span>
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-            <input type="number" name="quantities[]" min="1" required
-                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                   onchange="updateCalculations()">
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-            <input type="number" name="prices[]" min="0" step="0.01" required
-                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                   onchange="updateCalculations()">
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-            <span class="subtotal">₱0.00</span>
-        </td>
-        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-            <button type="button" onclick="removeItem(this)"
-                    class="text-red-600 hover:text-red-900">Remove</button>
-        </td>
-    </tr>
-</template>
-
-<!-- New Item Row Template -->
-<template id="newItemRowTemplate">
-    <tr class="item-row new-item">
-        <td class="px-6 py-4">
-            <input type="text" name="new_items[0][brand]" placeholder="Brand" required
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-        </td>
-        <td class="px-6 py-4">
-            <input type="text" name="new_items[0][name]" placeholder="Item Name" required
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-        </td>
-        <td class="px-6 py-4">
-            <input type="text" name="new_items[0][model_name]" placeholder="Model" required
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-        </td>
-        <td class="px-6 py-4">
-            <input type="number" name="new_items[0][quantity]" placeholder="Quantity" required min="1"
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                   onchange="updateCalculations()">
-        </td>
-        <td class="px-6 py-4">
-            <input type="number" name="new_items[0][unit_price]" placeholder="Price" required min="0"
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                   onchange="updateCalculations()">
-        </td>
-        <td class="px-6 py-4 text-right">
-            <span class="subtotal">₱0.00</span>
-        </td>
-        <td class="px-6 py-4 text-right">
-            <button type="button" onclick="removeItem(this)"
-                    class="text-red-600 hover:text-red-900 focus:outline-none focus:underline">
-                Remove
-            </button>
-        </td>
-    </tr>
-</template>
-
 <script>
 let items = [];
 let newItemIndex = 0;
@@ -267,12 +194,12 @@ function validateForm() {
             // For new items
             const index = row.dataset.index;
             const brand = row.querySelector(`input[name="new_items[${index}][brand]"]`).value;
-            const name = row.querySelector(`input[name="new_items[${index}][name]"]`).value;
-            const model = row.querySelector(`input[name="new_items[${index}][model_name]"]`).value;
+            const itemName = row.querySelector(`input[name="new_items[${index}][itemName]"]`).value;
+            const model = row.querySelector(`input[name="new_items[${index}][model]"]`).value;
             const quantity = row.querySelector(`input[name="new_items[${index}][quantity]"]`).value;
-            const price = row.querySelector(`input[name="new_items[${index}][unit_price]"]`).value;
+            const unitPrice = row.querySelector(`input[name="new_items[${index}][unitPrice]"]`).value;
 
-            if (!brand || !name || !model || !quantity || !price) {
+            if (!brand || !itemName || !model || !quantity || !unitPrice) {
                 alert('Please fill in all fields for new items.');
                 return false;
             }
@@ -280,7 +207,7 @@ function validateForm() {
             // For existing items
             const item = row.querySelector('select[name="items[]"]').value;
             const quantity = row.querySelector('input[name="quantities[]"]').value;
-            const price = row.querySelector('input[name="unit_prices[]"]').value;
+            const price = row.querySelector('input[name="prices[]"]').value;
 
             if (!item || !quantity || !price) {
                 alert('Please fill in all fields for existing items.');
@@ -300,7 +227,7 @@ function updateCalculations() {
         if (row.classList.contains('new-item')) {
             const index = row.dataset.index;
             quantity = parseFloat(row.querySelector(`input[name="new_items[${index}][quantity]"]`).value) || 0;
-            unitPrice = parseFloat(row.querySelector(`input[name="new_items[${index}][unit_price]"]`).value) || 0;
+            unitPrice = parseFloat(row.querySelector(`input[name="new_items[${index}][unitPrice]"]`).value) || 0;
         } else {
             quantity = parseFloat(row.querySelector('input[name="quantities[]"]').value) || 0;
             unitPrice = parseFloat(row.querySelector('input[name="prices[]"]').value) || 0;
@@ -409,28 +336,51 @@ function addExistingItem() {
 function addNewItem() {
     console.log('Adding new item with index:', newItemIndex);
 
-    const template = document.getElementById('newItemRowTemplate');
-    const clone = template.content.cloneNode(true);
-    const row = clone.querySelector('tr');
+    const tr = document.createElement('tr');
+    tr.className = 'item-row new-item';
+    tr.dataset.index = newItemIndex;
     
-    // Set the index for this row
-    row.dataset.index = newItemIndex;
+    tr.innerHTML = `
+        <td class="px-6 py-4">
+            <input type="text" name="new_items[${newItemIndex}][brand]" required
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        </td>
+        <td class="px-6 py-4">
+            <input type="text" name="new_items[${newItemIndex}][itemName]" required
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        </td>
+        <td class="px-6 py-4">
+            <input type="text" name="new_items[${newItemIndex}][model]" required
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+        </td>
+        <td class="px-6 py-4">
+            <input type="number" name="new_items[${newItemIndex}][quantity]" required min="1"
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                   onchange="updateCalculations()">
+        </td>
+        <td class="px-6 py-4">
+            <input type="number" name="new_items[${newItemIndex}][unitPrice]" required min="0" step="0.01"
+                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                   onchange="updateCalculations()">
+        </td>
+        <td class="px-6 py-4">
+            <span class="subtotal">₱0.00</span>
+        </td>
+        <td class="px-6 py-4">
+            <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-900">Remove</button>
+        </td>
+    `;
     
-    // Update input names with current index
-    row.querySelectorAll('input').forEach(input => {
-        input.name = input.name.replace('[0]', `[${newItemIndex}]`);
-    });
-    
-    document.getElementById('itemsContainer').appendChild(row);
-    addRowListeners(row);
+    document.getElementById('itemsContainer').appendChild(tr);
+    addRowListeners(tr);
 
     // Add item to the items array
     const item = {
-        brand: row.querySelector('input[name="new_items[' + newItemIndex + '][brand]"]').value,
-        itemName: row.querySelector('input[name="new_items[' + newItemIndex + '][name]"]').value,
-        model: row.querySelector('input[name="new_items[' + newItemIndex + '][model_name]"]').value,
-        quantity: parseFloat(row.querySelector('input[name="new_items[' + newItemIndex + '][quantity]"]').value) || 0,
-        unitPrice: parseFloat(row.querySelector('input[name="new_items[' + newItemIndex + '][unit_price]"]').value) || 0
+        brand: tr.querySelector(`input[name="new_items[${newItemIndex}][brand]"]`).value,
+        itemName: tr.querySelector(`input[name="new_items[${newItemIndex}][itemName]"]`).value,
+        model: tr.querySelector(`input[name="new_items[${newItemIndex}][model]"]`).value,
+        quantity: parseFloat(tr.querySelector(`input[name="new_items[${newItemIndex}][quantity]"]`).value) || 0,
+        unitPrice: parseFloat(tr.querySelector(`input[name="new_items[${newItemIndex}][unitPrice]"]`).value) || 0
     };
     items.push(item);
 
@@ -457,10 +407,10 @@ function serializeItems() {
             // New item
             allItems.push({
                 brand: row.querySelector('input[name^="new_items"][name$="[brand]"]').value,
-                itemName: row.querySelector('input[name^="new_items"][name$="[name]"]').value,
-                model: row.querySelector('input[name^="new_items"][name$="[model_name]"]').value,
+                itemName: row.querySelector('input[name^="new_items"][name$="[itemName]"]').value,
+                model: row.querySelector('input[name^="new_items"][name$="[model]"]').value,
                 quantity: parseInt(row.querySelector('input[name^="new_items"][name$="[quantity]"]').value),
-                unitPrice: parseFloat(row.querySelector('input[name^="new_items"][name$="[unit_price]"]').value)
+                unitPrice: parseFloat(row.querySelector('input[name^="new_items"][name$="[unitPrice]"]').value)
             });
         }
     });
@@ -623,4 +573,85 @@ function handleItemSelection() {
 // Add event listener for item selection
 document.getElementById('itemSelect').addEventListener('change', handleItemSelection);
 </script>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Content Loaded');
+    
+    // Get initial items from Django template context
+    const initialItems = {{ initial_items|safe }};
+    console.log('Initial items:', initialItems);
+
+    // Add initial items if they exist
+    if (initialItems && initialItems.length > 0) {
+        console.log(`Adding ${initialItems.length} initial items to table`);
+        
+        const tbody = document.querySelector('#itemsTable tbody');
+        if (!tbody) {
+            console.error('Table body not found!');
+            return;
+        }
+
+        initialItems.forEach((item, index) => {
+            console.log(`Processing item ${index + 1}:`, item);
+            
+            const tr = document.createElement('tr');
+            tr.className = 'item-row new-item';
+            tr.dataset.index = index;
+            
+            const brandValue = item.brand.replace(/"/g, '&quot;');
+            const itemNameValue = item.itemName.replace(/"/g, '&quot;');
+            const modelValue = item.model.replace(/"/g, '&quot;');
+            
+            tr.innerHTML = [
+                '<td class="px-6 py-4">',
+                `<input type="text" name="new_items[${index}][brand]" value="${brandValue}" required`,
+                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">',
+                '</td>',
+                '<td class="px-6 py-4">',
+                `<input type="text" name="new_items[${index}][itemName]" value="${itemNameValue}" required`,
+                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">',
+                '</td>',
+                '<td class="px-6 py-4">',
+                `<input type="text" name="new_items[${index}][model]" value="${modelValue}" required`,
+                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">',
+                '</td>',
+                '<td class="px-6 py-4">',
+                `<input type="number" name="new_items[${index}][quantity]" value="${item.quantity}" required min="1"`,
+                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"',
+                'onchange="updateCalculations()">',
+                '</td>',
+                '<td class="px-6 py-4">',
+                `<input type="number" name="new_items[${index}][unitPrice]" value="${item.unitPrice}" required min="0" step="0.01"`,
+                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"',
+                'onchange="updateCalculations()">',
+                '</td>',
+                '<td class="px-6 py-4">',
+                `<span class="subtotal">₱${(item.quantity * item.unitPrice).toFixed(2)}</span>`,
+                '</td>',
+                '<td class="px-6 py-4">',
+                '<button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-900">Remove</button>',
+                '</td>'
+            ].join('');
+            
+            tbody.appendChild(tr);
+            console.log(`Added row ${index + 1} to table`);
+            
+            // Setup listeners for the new row
+            addRowListeners(tr);
+        });
+        
+        // Update calculations after all items are added
+        updateCalculations();
+        
+        // Update the next item index
+        window.newItemIndex = initialItems.length;
+    } else {
+        console.log('No initial items to add');
+        window.newItemIndex = 0;
+    }
+});
+</script>
+{% endblock %}
 {% endblock %}

@@ -102,26 +102,81 @@
                     {% if approved_requisitions %}
                     <div class="bg-white rounded-xl shadow-md overflow-hidden">
                         <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-500 to-green-600">
-                            <h3 class="text-lg font-semibold text-white">Approved Requisitions</h3>
+                            <h3 class="text-lg font-semibold text-white">Pending PO Items</h3>
                         </div>
                         <div class="divide-y divide-gray-200">
-                            {% for req in approved_requisitions %}
-                            <div class="p-4 hover:bg-gray-50 transition-colors duration-200">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex-1">
-                                        <p class="text-sm font-medium text-gray-900">Requisition #{{ req.id }}</p>
-                                        <p class="text-sm text-gray-500 mt-1">{{ req.requester.username }}</p>
-                                        <div class="flex items-center mt-2 text-sm text-gray-500">
-                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
-                                            </svg>
-                                            {{ req.items.count }} items
+                            {% regroup approved_requisitions|dictsort:"item.brand" by item.brand as brand_list %}
+                            {% for brand in brand_list %}
+                            <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
+                                <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
+                                    <h3 class="text-lg font-semibold text-white">{{ brand.grouper }} Items</h3>
+                                </div>
+                                <div class="divide-y divide-gray-200">
+                                    <!-- Items List -->
+                                    <div class="p-4">
+                                        <div class="space-y-4">
+                                            {% for req_item in brand.list %}
+                                            <div class="flex items-center justify-between text-sm text-gray-600" data-item-id="{{ req_item.id }}">
+                                                <div class="flex-1">
+                                                    <p class="font-medium">{{ req_item.item.item_name }}</p>
+                                                    <p class="text-xs text-gray-500">
+                                                        Model: {{ req_item.item.model }} | From Req #{{ req_item.requisition.id }} ({{ req_item.requisition.requester.username }})
+                                                    </p>
+                                                </div>
+                                                <div class="flex items-center space-x-2">
+                                                    <input type="number" 
+                                                           name="qty_{{ req_item.id }}" 
+                                                           value="{{ req_item.quantity }}"
+                                                           min="1"
+                                                           class="w-20 px-2 py-1 text-sm border rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                                                    <button onclick="removeItem({{ req_item.id }})" 
+                                                            class="text-red-600 hover:text-red-800">
+                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
                                         </div>
                                     </div>
-                                    <a href="{% url 'purchasing:create_purchase_order_with_requisition' requisition_id=req.id %}" 
-                                       class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200">
-                                        Create PO
-                                    </a>
+                                    <!-- Create PO Actions -->
+                                    <div class="p-4 bg-gray-50">
+                                        <div class="space-y-4">
+                                            <div class="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label for="supplier_{{ brand.grouper }}" class="block text-sm font-medium text-gray-700">Supplier</label>
+                                                    <select id="supplier_{{ brand.grouper }}" name="supplier" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                                        {% for supplier in suppliers %}
+                                                        <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label for="warehouse_{{ brand.grouper }}" class="block text-sm font-medium text-gray-700">Warehouse</label>
+                                                    <select id="warehouse_{{ brand.grouper }}" name="warehouse" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                                        {% for warehouse in warehouses %}
+                                                        <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label for="notes_{{ brand.grouper }}" class="block text-sm font-medium text-gray-700">Notes</label>
+                                                <textarea id="notes_{{ brand.grouper }}" name="notes" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
+                                            </div>
+                                            <div class="flex justify-end space-x-3">
+                                                <button onclick="clearBrandItems('{{ brand.grouper }}')" 
+                                                        class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                                    Clear {{ brand.grouper }} Items
+                                                </button>
+                                                <button onclick="createPurchaseOrder('{{ brand.grouper }}')" 
+                                                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                                    Create {{ brand.grouper }} PO
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             {% endfor %}
@@ -132,4 +187,86 @@
             </div>
         </div>
     </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function removeItem(itemId) {
+        fetch(`/purchasing/pending-items/${itemId}/remove/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Remove the item from the UI
+                const itemElement = document.querySelector(`[data-item-id="${itemId}"]`);
+                if (itemElement) {
+                    itemElement.remove();
+                }
+            } else {
+                alert('Error removing item');
+            }
+        });
+    }
+
+    function clearBrandItems(brand) {
+        if (!confirm(`Are you sure you want to clear all ${brand} items?`)) {
+            return;
+        }
+
+        fetch('/purchasing/pending-items/clear/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({
+                brand: brand,
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Refresh the page
+                window.location.reload();
+            } else {
+                alert('Error clearing items');
+            }
+        });
+    }
+
+    function createPurchaseOrder(brand) {
+        // Gather all quantities
+        const items = {};
+        document.querySelectorAll('input[name^="qty_"]').forEach(input => {
+            const itemId = input.name.replace('qty_', '');
+            items[itemId] = input.value;
+        });
+
+        fetch('/purchasing/create-po/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+            body: JSON.stringify({
+                supplier_id: document.getElementById(`supplier_${brand}`).value,
+                warehouse_id: document.getElementById(`warehouse_${brand}`).value,
+                notes: document.getElementById(`notes_${brand}`).value,
+                items: items,
+                brand: brand,
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = data.redirect_url;
+            } else {
+                alert(data.error || 'Error creating purchase order');
+            }
+        });
+    }
+</script>
 {% endblock %}

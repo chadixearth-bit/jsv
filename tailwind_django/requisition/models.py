@@ -44,6 +44,7 @@ class Requisition(models.Model):
     status = models.CharField(max_length=25, choices=STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_deleted = models.BooleanField(default=False)
     source_warehouse = models.ForeignKey('inventory.Warehouse', on_delete=models.CASCADE, related_name='source_requisitions', null=True, blank=True)
     destination_warehouse = models.ForeignKey('inventory.Warehouse', on_delete=models.CASCADE, related_name='destination_requisitions', null=True, blank=True)
     manager_comment = models.TextField(null=True, blank=True)

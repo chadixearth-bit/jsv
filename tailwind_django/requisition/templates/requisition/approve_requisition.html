@@ -141,25 +141,18 @@
         <!-- Admin Approval Form -->
         <div class="bg-white shadow rounded-lg p-6">
             <h2 class="text-lg font-semibold text-gray-900 mb-4">Admin Approval</h2>
-            <form method="post" class="space-y-6">
+            <form method="post" action="{% url 'purchasing:create_po_from_requisition' requisition.id %}" class="space-y-6">
                 {% csrf_token %}
                 
                 <!-- Comment Field -->
                 <div>
                     <label for="comment" class="block text-sm font-medium text-gray-700">Comment (Optional)</label>
                     <div class="mt-1">
-                        {{ form.comment }}
+                        <textarea id="comment" name="comment" rows="3" 
+                                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                placeholder="Add any comments about this requisition..."></textarea>
                     </div>
-                    {% if form.comment.errors %}
-                    <p class="mt-2 text-sm text-red-600">{{ form.comment.errors }}</p>
-                    {% endif %}
                 </div>
-
-                <!-- Hidden Decision Field -->
-                {{ form.decision }}
-                {% if form.decision.errors %}
-                <p class="mt-2 text-sm text-red-600">{{ form.decision.errors }}</p>
-                {% endif %}
 
                 <!-- Action Buttons -->
                 <div class="flex justify-end space-x-3">
@@ -167,13 +160,9 @@
                         class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Cancel
                     </a>
-                    <button type="submit" name="decision" value="reject"
-                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                        Reject
-                    </button>
-                    <button type="submit" name="decision" value="approve"
-                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                        Approve & Create PO
+                    <button type="submit"
+                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Add to Pending PO
                     </button>
                 </div>
             </form>
@@ -189,31 +178,24 @@
                 <div>
                     <label for="comment" class="block text-sm font-medium text-gray-700">Comment (Optional)</label>
                     <div class="mt-1">
-                        {{ form.comment }}
+                        <textarea id="comment" name="comment" rows="3" 
+                                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                placeholder="Add any comments about this requisition..."></textarea>
                     </div>
-                    {% if form.comment.errors %}
-                    <p class="mt-2 text-sm text-red-600">{{ form.comment.errors }}</p>
-                    {% endif %}
                 </div>
-
-                <!-- Hidden Decision Field -->
-                {{ form.decision }}
-                {% if form.decision.errors %}
-                <p class="mt-2 text-sm text-red-600">{{ form.decision.errors }}</p>
-                {% endif %}
 
                 <!-- Action Buttons -->
                 <div class="flex justify-end space-x-3">
-                    <a href="{% url 'requisition:requisition_list' %}"
-                        class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <a href="{% url 'requisition:requisition_list' %}" 
+                       class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Cancel
                     </a>
-                    <button type="submit" name="decision" value="reject"
-                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-yellow-500 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                        Send to Admin for Approval
+                    <button type="submit" name="action" value="reject"
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        Reject
                     </button>
-                    <button type="submit" name="decision" value="approve"
-                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                    <button type="submit" name="action" value="approve"
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Approve and Deliver
                     </button>
                 </div>

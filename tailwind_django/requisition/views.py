@@ -23,6 +23,8 @@ import logging
 import os
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.core.files.storage import FileSystemStorage
+from django.core.mail import send_mail
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -92,15 +94,12 @@ def requisition_list(request):
     
     user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
     
-    # Build the base queryset
-    requisitions = Requisition.objects.select_related(
-        'requester',
-        'source_warehouse',
-        'destination_warehouse'
-    ).prefetch_related(
-        'items',
-        'items__item'
-    )
+    # Get query parameters
+    query = request.GET.get('q', '')
+    status = request.GET.get('status', '')
+    
+    # Start with all requisitions that are not deleted
+    requisitions = Requisition.objects.filter(is_deleted=False)
     
     # Filter based on user role
     if user_role == 'attendant':
@@ -108,20 +107,39 @@ def requisition_list(request):
         requisitions = requisitions.filter(requester=request.user)
     elif user_role == 'manager':
         # Managers can see:
-        # 1. Requisitions they created
-        # 2. Requisitions from attendants where they are the destination warehouse
-        user_warehouse = request.user.customuser.warehouses.first()
+        # 1. All requisitions from attendants (any status)
+        # 2. Their own requisitions (any status)
         requisitions = requisitions.filter(
-            Q(requester=request.user) |  # Their own requisitions
-            Q(destination_warehouse=user_warehouse, requester__customuser__role='attendant')  # Attendant requisitions to their warehouse
+            Q(requester__customuser__role='attendant') |  # All attendant requisitions
+            Q(requester=request.user)  # Their own requisitions
         )
     elif user_role == 'admin':
-        # Admins can only see requisitions from managers
-        requisitions = requisitions.filter(requester__customuser__role='manager')
+        # Admins can see:
+        # 1. All requisitions with status 'pending_admin_approval' (from managers)
+        # 2. Their own requisitions
+        requisitions = requisitions.filter(
+            Q(status='pending_admin_approval') |  # All requisitions needing admin approval
+            Q(requester=request.user)  # Their own requisitions
+        )
     else:
-        # If role not recognized, show no requisitions
-        requisitions = requisitions.none()
+        # For other roles, only show their own requisitions
+        requisitions = requisitions.filter(requester=request.user)
     
+    # Apply search filter if provided
+    if query:
+        requisitions = requisitions.filter(
+            Q(id__icontains=query) |
+            Q(requester__username__icontains=query) |
+            Q(requester__first_name__icontains=query) |
+            Q(requester__last_name__icontains=query) |
+            Q(source_warehouse__name__icontains=query) |
+            Q(destination_warehouse__name__icontains=query)
+        )
+
+    # Apply status filter if provided
+    if status:
+        requisitions = requisitions.filter(status=status)
+
     # Order by most recent first
     requisitions = requisitions.order_by('-created_at')
     
@@ -129,6 +147,12 @@ def requisition_list(request):
     print(f"Total requisitions: {requisitions.count()}")
     for req in requisitions:
         print(f"ID: {req.id}, Requester: {req.requester.username}, Role: {req.requester.customuser.role}")
+    
+    print("\n=== DEBUG: Requisition Warehouse Information ===")
+    for req in requisitions:
+        source_warehouse_name = req.source_warehouse.name if req.source_warehouse else 'None'
+        destination_warehouse_name = req.destination_warehouse.name if req.destination_warehouse else 'None'
+        print(f"Requisition ID: {req.id}, Source Warehouse: {source_warehouse_name}, Destination Warehouse: {destination_warehouse_name}")
     
     context = {
         'requisitions': requisitions,
@@ -162,6 +186,9 @@ def create_requisition(request):
         available_items = InventoryItem.objects.filter(
             warehouse=user_warehouse
         ).select_related('brand', 'category', 'warehouse')
+    elif request.user.customuser.role == 'admin':
+        # Admins can see all items from all warehouses
+        available_items = InventoryItem.objects.all().select_related('brand', 'category', 'warehouse')
     else:
         available_items = InventoryItem.objects.none()
     
@@ -171,7 +198,7 @@ def create_requisition(request):
         print(f"- {item.item_name} (ID: {item.id}, Stock: {item.stock}, Warehouse: {item.warehouse.name})")
     
     # Check if user has permission to create requisition
-    if not hasattr(request.user, 'customuser') or request.user.customuser.role not in ['attendant', 'manager']:
+    if not hasattr(request.user, 'customuser') or request.user.customuser.role not in ['attendant', 'manager', 'admin']:
         messages.error(request, "You don't have permission to create requisitions.")
         return redirect('requisition:requisition_list')
     
@@ -244,14 +271,14 @@ def create_requisition(request):
                     print(f"Destination warehouse: {requisition.destination_warehouse.name}")
                 
                 elif request.user.customuser.role == 'manager':
-                    requisition.status = 'pending_admin_approval'
+                    requisition.status = 'pending'  # Changed from 'pending_admin_approval' to 'pending'
                     requisition.source_warehouse = user_warehouse
                 
                 print("\n=== DEBUG: Saving requisition ===")
                 print(f"Request type: {requisition.request_type}")
                 print(f"Status: {requisition.status}")
-                print(f"Source warehouse: {requisition.source_warehouse}")
-                print(f"Destination warehouse: {requisition.destination_warehouse}")
+                print(f"Source warehouse: {requisition.source_warehouse.name if requisition.source_warehouse else 'None'}")
+                print(f"Destination warehouse: {requisition.destination_warehouse.name if requisition.destination_warehouse else 'None'}")
                 print(f"Requester: {requisition.requester}")
                 
                 requisition.save()
@@ -380,10 +407,34 @@ def reject_requisition(request, pk):
         comment = request.POST.get('comment', '')
         try:
             with transaction.atomic():
+                # Mark the original requisition as rejected
                 requisition.status = 'rejected'
                 requisition.approval_comment = comment
                 requisition.save()
-                messages.success(request, 'Requisition rejected successfully.')
+
+                # Create a new requisition to admin for PO
+                admin_requisition = Requisition.objects.create(
+                    requester=request.user,  # Manager becomes the requester
+                    status='pending_admin_approval',  # Directly goes to admin
+                    reason=f"Auto-generated from rejected requisition #{requisition.id}. Original requester: {requisition.requester.username}. Reason: {requisition.reason}",
+                )
+
+                # Copy all items to the new requisition
+                for req_item in requisition.items.all():
+                    RequisitionItem.objects.create(
+                        requisition=admin_requisition,
+                        item=req_item.item,
+                        quantity=req_item.quantity
+                    )
+
+                # Create notification for the original requester
+                Notification.objects.create(
+                    user=requisition.requester,
+                    requisition=requisition,
+                    message=f'Your requisition has been rejected by {request.user.username}. A new requisition has been created for admin review.'
+                )
+
+                messages.success(request, 'Requisition rejected and forwarded to admin for review.')
                 return redirect('requisition:requisition_list')
         except Exception as e:
             messages.error(request, f"Error rejecting requisition: {str(e)}")
@@ -395,132 +446,213 @@ def approve_requisition(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
     user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
     
-    # Only managers can approve requisitions
-    if user_role != 'manager':
-        messages.error(request, "Only managers can approve requisitions.")
-        return redirect('requisition:requisition_list')
+    # Check who can approve based on the requisition flow
+    if requisition.requester.customuser.role == 'attendant':
+        # For attendant requisitions, only managers can approve
+        if user_role != 'manager':
+            messages.error(request, "Only managers can approve attendant requisitions.")
+            return redirect('requisition:requisition_list')
+    elif requisition.requester.customuser.role == 'manager':
+        # For manager requisitions, only admins can approve
+        if user_role != 'admin':
+            messages.error(request, "Only admins can approve manager requisitions.")
+            return redirect('requisition:requisition_list')
     
     # Cannot approve if already processed
-    if requisition.status != 'pending':
+    if requisition.status != 'pending' and requisition.status != 'pending_admin_approval':
         messages.error(request, "This requisition cannot be approved.")
         return redirect('requisition:requisition_list')
-    
-    form = RequisitionApprovalForm()
     
     # Get manager's warehouse
     manager_warehouse = request.user.customuser.warehouses.first()
     
     # Prepare items with availability info
     items_with_availability = []
+    available_items = []  # Track items that are available
+    unavailable_items = []  # Track items that need to be ordered
+    
+    # Ensure correct manager warehouse is used
+    manager_warehouse = request.user.customuser.warehouses.first()
+    print(f"DEBUG: Manager's warehouse: {manager_warehouse}")
+    
     for req_item in requisition.items.all():
-        # Check if this is a new item request
-        is_new_item = req_item.item.is_new_item if hasattr(req_item.item, 'is_new_item') else False
+        # Check availability in manager's warehouse
+        manager_item = InventoryItem.objects.filter(
+            warehouse=manager_warehouse,
+            item_name=req_item.item.item_name,  # Use exact match
+            brand=req_item.item.brand,  # Match brand as well
+            model=req_item.item.model  # Match model as well
+        ).first()
         
-        if is_new_item:
-            # For new items, we don't check stock availability
-            items_with_availability.append({
-                'item': req_item,
-                'is_new_item': True,
-                'available_stock': 0,
-                'stock': 0,
-                'is_available': False,
-                'is_partial': False,
-                'has_sufficient_stock': False,
-                'manager_warehouse': manager_warehouse.name
-            })
+        available_stock = manager_item.stock if manager_item else 0
+        requested_quantity = req_item.quantity
+        print(f"DEBUG: Item: {req_item.item.item_name}, Brand: {req_item.item.brand}, Model: {req_item.item.model}")
+        print(f"DEBUG: Available stock in manager's warehouse: {available_stock}, Requested: {requested_quantity}")
+        
+        is_available = available_stock >= requested_quantity
+        
+        item_info = {
+            'item': req_item,
+            'requested_quantity': requested_quantity,
+            'available_stock': available_stock,
+            'is_available': is_available,
+            'destination_warehouse': requisition.requester.customuser.warehouses.first()
+        }
+        
+        items_with_availability.append(item_info)
+        if is_available:
+            available_items.append(item_info)
+            print(f"DEBUG: Item {req_item.item.item_name} is available")
         else:
-            # Check availability in manager's warehouse for existing items
-            manager_item = InventoryItem.objects.filter(
-                warehouse=manager_warehouse,
-                item_name__iexact=req_item.item.item_name
-            ).first()
-            
-            available_stock = manager_item.stock if manager_item else 0
-            requested_quantity = req_item.quantity
-            
-            items_with_availability.append({
-                'item': req_item,
-                'is_new_item': False,
-                'available_stock': available_stock,
-                'stock': available_stock,
-                'is_available': available_stock >= requested_quantity,
-                'is_partial': 0 < available_stock < requested_quantity,
-                'has_sufficient_stock': available_stock >= requested_quantity,
-                'manager_warehouse': manager_warehouse.name
-            })
+            unavailable_items.append(item_info)
+            print(f"DEBUG: Item {req_item.item.item_name} is not available")
     
     if request.method == 'POST':
-        form = RequisitionApprovalForm(request.POST)
-        if form.is_valid():
-            try:
-                with transaction.atomic():
-                    # For new items, we don't need to check stock
-                    has_new_items = any(item['is_new_item'] for item in items_with_availability)
-                    
-                    if has_new_items:
-                        # Set status to pending_admin for new item requests
-                        requisition.status = 'pending_admin'
+        action = request.POST.get('action')
+        comment = request.POST.get('comment', '')
+        
+        try:
+            with transaction.atomic():
+                if action == 'reject':
+                    # Create a new requisition to admin for PO
+                    admin_requisition = Requisition.objects.create(
+                        requester=request.user,  # Manager becomes the requester
+                        status='pending_admin_approval',  # Directly goes to admin
+                        reason=f"Auto-generated from rejected requisition #{requisition.id}. Original requester: {requisition.requester.username}. Reason: {requisition.reason}",
+                    )
+
+                    # Copy all items to the new requisition
+                    for req_item in requisition.items.all():
+                        RequisitionItem.objects.create(
+                            requisition=admin_requisition,
+                            item=req_item.item,
+                            quantity=req_item.quantity
+                        )
+
+                    # Update original requisition
+                    requisition.status = 'rejected'
+                    requisition.approval_comment = comment
+                    requisition.save()
+
+                    # Create notification
+                    Notification.objects.create(
+                        user=requisition.requester,
+                        requisition=requisition,
+                        message=f'Your requisition has been rejected by {request.user.username}. A new requisition has been created for admin review.'
+                    )
+
+                    messages.success(request, 'Requisition rejected and forwarded to admin for review.')
+                    return redirect('requisition:requisition_list')
+                
+                elif action == 'approve':
+                    # If no items are available, create admin requisition for all items
+                    if not available_items:
+                        admin_requisition = Requisition.objects.create(
+                            requester=request.user,  # Manager becomes the requester
+                            status='pending_admin_approval',  # Directly goes to admin
+                            reason=f"Auto-generated from approved requisition #{requisition.id} - no items available. Original requester: {requisition.requester.username}",
+                        )
+
+                        # Copy all items to the admin requisition
+                        for req_item in requisition.items.all():
+                            RequisitionItem.objects.create(
+                                requisition=admin_requisition,
+                                item=req_item.item,
+                                quantity=req_item.quantity
+                            )
+
+                        # Update original requisition status
+                        requisition.status = 'approved'
+                        requisition.approved_by = request.user
+                        requisition.approved_at = timezone.now()
+                        requisition.approval_comment = comment
+                        requisition.source_warehouse = manager_warehouse
                         requisition.save()
-                        messages.success(request, 'New item requisition forwarded to admin for review.')
+
+                        # Notify original requester
+                        Notification.objects.create(
+                            user=requisition.requester,
+                            requisition=requisition,
+                            message=f'Your requisition has been approved but no items are currently available. A requisition has been sent to admin for processing.'
+                        )
+
+                        messages.success(request, 'Requisition approved and forwarded to admin for processing.')
                         return redirect('requisition:requisition_list')
                     
-                    # For existing items, check stock availability
-                    for req_item in requisition.items.all():
-                        manager_item = InventoryItem.objects.filter(
-                            warehouse=manager_warehouse,
-                            item_name__iexact=req_item.item.item_name
-                        ).first()
-                        
-                        if not manager_item:
-                            raise ValueError(f"Item {req_item.item.item_name} not found in manager's warehouse")
-                        
-                        if manager_item.stock < req_item.quantity:
-                            raise ValueError(f"Insufficient stock for {req_item.item.item_name}. Available: {manager_item.stock}, Requested: {req_item.quantity}")
+                    # Process available items and create admin requisition for unavailable items
+                    # Create delivery for available items
+                    requester_warehouse = requisition.requester.customuser.warehouses.first()
+                    print(f"DEBUG: Creating delivery for requisition {requisition.id}")
+                    print(f"DEBUG: Requester: {requisition.requester.username}")
+                    print(f"DEBUG: Source warehouse: {manager_warehouse}")
+                    print(f"DEBUG: Destination warehouse: {requester_warehouse}")
                     
-                    # All stock checks passed, proceed with approval
-                    requisition.status = 'approved'
-                    requisition.approved_by = request.user
-                    requisition.approved_at = timezone.now()
-                    requisition.save()
-                    
-                    # Create delivery record
                     delivery = Delivery.objects.create(
                         requisition=requisition,
                         status='pending_delivery'
                     )
                     
-                    # Create delivery items
-                    for req_item in requisition.items.all():
-                        manager_item = InventoryItem.objects.get(
-                            warehouse=manager_warehouse,
-                            item_name__iexact=req_item.item.item_name
-                        )
-                        
-                        DeliveryItem.objects.create(
-                            delivery=delivery,
-                            item=manager_item,
-                            quantity=req_item.quantity
-                        )
-                    
-                    # Update requisition with warehouse information
+                    # Update requisition warehouses
                     requisition.source_warehouse = manager_warehouse
-                    requisition.destination_warehouse = req_item.item.warehouse
+                    requisition.destination_warehouse = requester_warehouse
                     requisition.save()
                     
-                    # Create notification
-                    create_notification(requisition)
+                    # Add available items to delivery
+                    for item_info in available_items:
+                        DeliveryItem.objects.create(
+                            delivery=delivery,
+                            item=item_info['item'].item,
+                            quantity=item_info['requested_quantity']
+                        )
                     
-                    messages.success(request, 'Requisition approved successfully.')
+                    # Update requisition status
+                    if requisition.requester.customuser.role == 'manager':
+                        requisition.status = 'pending_admin_approval'  # Manager's requisition goes to admin for approval
+                    else:
+                        requisition.status = 'approved'  # Attendant's requisition is fully approved
+                    requisition.approved_by = request.user
+                    requisition.approved_at = timezone.now()
+                    requisition.approval_comment = comment
+                    requisition.save()
+                    
+                    # Create new requisition for unavailable items
+                    if unavailable_items:
+                        admin_requisition = Requisition.objects.create(
+                            requester=request.user,  # Manager becomes the requester
+                            status='pending_admin_approval',  # Directly goes to admin
+                            reason=f"Auto-generated for unavailable items from requisition #{requisition.id}. Original requester: {requisition.requester.username}",
+                        )
+                        
+                        # Add unavailable items to admin requisition
+                        for item_info in unavailable_items:
+                            RequisitionItem.objects.create(
+                                requisition=admin_requisition,
+                                item=item_info['item'].item,
+                                quantity=item_info['requested_quantity']
+                            )
+                        
+                        # Notify original requester
+                        Notification.objects.create(
+                            user=requisition.requester,
+                            requisition=requisition,
+                            message=f'Your requisition has been partially approved. Available items will be delivered, and unavailable items have been forwarded to admin.'
+                        )
+                    else:
+                        # Notify original requester of full approval
+                        Notification.objects.create(
+                            user=requisition.requester,
+                            requisition=requisition,
+                            message=f'Your requisition has been fully approved and will be delivered soon.'
+                        )
+                    
+                    messages.success(request, 'Requisition processed successfully.')
                     return redirect('requisition:requisition_list')
-                    
-            except ValueError as e:
-                messages.error(request, str(e))
-            except Exception as e:
-                messages.error(request, f"Error approving requisition: {str(e)}")
+                        
+        except Exception as e:
+            messages.error(request, f"Error processing requisition: {str(e)}")
     
     return render(request, 'requisition/approve_requisition.html', {
         'requisition': requisition,
-        'form': form,
         'items_with_availability': items_with_availability,
         'manager_warehouse': manager_warehouse
     })
@@ -546,7 +678,7 @@ def complete_requisition(request, pk):
     return redirect('requisition:requisition_list')
 
 def delete_requisition(request, pk):
-    """Permanently delete a requisition and all its related data."""
+    """Soft delete a requisition by marking it as deleted."""
     requisition = get_object_or_404(Requisition, pk=pk)
     
     # Check if user has permission to delete
@@ -555,100 +687,110 @@ def delete_requisition(request, pk):
         return redirect('requisition:requisition_list')
     
     try:
-        # Delete all related objects
-        requisition.delete()
-        messages.success(request, 'Requisition permanently deleted.')
+        # Soft delete by setting is_deleted flag
+        requisition.is_deleted = True
+        requisition.save()
+        messages.success(request, 'Requisition successfully deleted.')
     except Exception as e:
         messages.error(request, f'Error deleting requisition: {str(e)}')
     
     return redirect('requisition:requisition_list')
 
 def delete_all_requisitions(request):
-    """Permanently delete all requisitions for a user."""
+    """Soft delete all requisitions for a user."""
     if not request.user.is_superuser:
-        messages.error(request, "Only superusers can delete all requisition history.")
-        return redirect('requisition:requisition_history')
-    
-    if request.method != 'POST':
-        return redirect('requisition:requisition_history')
+        messages.error(request, "You don't have permission to perform this action.")
+        return redirect('requisition:requisition_list')
     
     try:
-        # Delete all requisitions
-        Requisition.objects.all().delete()
-        messages.success(request, 'All requisition history has been permanently deleted.')
+        # Soft delete all requisitions
+        Requisition.objects.update(is_deleted=True)
+        messages.success(request, 'All requisitions have been deleted.')
     except Exception as e:
         messages.error(request, f'Error deleting requisitions: {str(e)}')
     
-    return redirect('requisition:requisition_history')
+    return redirect('requisition:requisition_list')
 
 @login_required(login_url='account:login')
 def requisition_history(request):
-    user = request.user
-    user_role = user.customuser.role if hasattr(user, 'customuser') else None
-
-    if not user_role:
-        raise PermissionDenied("You don't have permission to view requisition history.")
-
-    # Get filter parameters
+    # Get query parameters
     query = request.GET.get('q', '')
-    status = request.GET.get('status', '')
-    warehouse_id = request.GET.get('warehouse', '')
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-
-    # Base queryset
-    requisitions = Requisition.objects.all().order_by('-created_at')
-
-    # Apply filters
+    current_status = request.GET.get('status', '')
+    
+    # Start with all requisitions that are not deleted
+    requisitions = Requisition.objects.filter(is_deleted=False)
+    
+    # Filter based on user role
+    user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
+    if user_role == 'attendant':
+        # Attendants can only see their own requisitions
+        requisitions = requisitions.filter(requester=request.user)
+    elif user_role == 'manager':
+        # Managers can see:
+        # 1. All requisitions from attendants (any status)
+        # 2. Their own requisitions (any status)
+        requisitions = requisitions.filter(
+            Q(requester__customuser__role='attendant') |  # All attendant requisitions
+            Q(requester=request.user)  # Their own requisitions
+        )
+    elif user_role == 'admin':
+        # Admins can see:
+        # 1. All requisitions with status 'pending_admin_approval' (from managers)
+        # 2. Their own requisitions
+        requisitions = requisitions.filter(
+            Q(status='pending_admin_approval') |  # All requisitions needing admin approval
+            Q(requester=request.user)  # Their own requisitions
+        )
+    else:
+        # For other roles, only show their own requisitions
+        requisitions = requisitions.filter(requester=request.user)
+    
+    # Apply search filter if provided
     if query:
         requisitions = requisitions.filter(
             Q(id__icontains=query) |
             Q(requester__username__icontains=query) |
-            Q(items__item__name__icontains=query) |
-            Q(warehouse__name__icontains=query)
-        ).distinct()
-
-    if status:
-        requisitions = requisitions.filter(status=status)
-
-    if warehouse_id:
-        requisitions = requisitions.filter(
-            Q(source_warehouse_id=warehouse_id) | 
-            Q(destination_warehouse_id=warehouse_id)
+            Q(requester__first_name__icontains=query) |
+            Q(requester__last_name__icontains=query) |
+            Q(source_warehouse__name__icontains=query) |
+            Q(destination_warehouse__name__icontains=query)
         )
 
-    if date_from:
-        try:
-            date_from = datetime.strptime(date_from, '%Y-%m-%d')
-            requisitions = requisitions.filter(created_at__gte=date_from)
-        except ValueError:
-            messages.error(request, 'Invalid from date format')
+    # Apply status filter if provided
+    if current_status:
+        requisitions = requisitions.filter(status=current_status)
 
-    if date_to:
-        try:
-            date_to = datetime.strptime(date_to, '%Y-%m-%d')
-            # Add one day to include the entire end date
-            date_to = date_to + timedelta(days=1)
-            requisitions = requisitions.filter(created_at__lt=date_to)
-        except ValueError:
-            messages.error(request, 'Invalid to date format')
-
+    # Filter by status
+    requisitions = requisitions.filter(
+        Q(status__in=['rejected_by_manager', 'rejected_by_admin', 'completed', 'approved_by_admin'])
+    )
+    
+    # Order by most recent first
+    requisitions = requisitions.order_by('-created_at')
+    
     # Pagination
-    paginator = Paginator(requisitions, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    page = request.GET.get('page', 1)
+    paginator = Paginator(requisitions, 10)  # Show 10 requisitions per page
+    try:
+        requisitions = paginator.page(page)
+    except PageNotAnInteger:
+        requisitions = paginator.page(1)
+    except EmptyPage:
+        requisitions = paginator.page(paginator.num_pages)
 
-    # Get all warehouses for the filter dropdown
-    warehouses = Warehouse.objects.all()
+    # Get all possible statuses for filtering
+    status_choices = [
+        ('approved_by_admin', 'Approved'),
+        ('rejected_by_manager', 'Rejected by Manager'),
+        ('rejected_by_admin', 'Rejected by Admin'),
+        ('completed', 'Completed')
+    ]
 
     context = {
-        'requisitions': page_obj,
+        'requisitions': requisitions,
+        'current_status': current_status,
+        'status_choices': status_choices,
         'query': query,
-        'status': status,
-        'warehouses': warehouses,
-        'selected_warehouse': warehouse_id,
-        'date_from': date_from,
-        'date_to': date_to,
     }
     
     return render(request, 'requisition/requisition_history.html', context)
@@ -676,12 +818,15 @@ def delivery_list(request):
         ).prefetch_related('items__item__brand')
         print(f"Found deliveries: {[d.id for d in deliveries]}")
     elif user_role == 'attendant':
+        attendant_warehouses = request.user.customuser.warehouses.all()
         deliveries = Delivery.objects.filter(
-            Q(status='in_delivery') |
+            (Q(status='in_delivery') |
             Q(status='pending_delivery') |
             Q(status='delivered') |
             Q(status='pending_manager') |
-            Q(status='received', delivery_date__gte=timezone.now() - timedelta(days=7))
+            Q(status='received', delivery_date__gte=timezone.now() - timedelta(days=7))) &
+            (Q(requisition__destination_warehouse__in=attendant_warehouses) |
+            Q(requisition__source_warehouse__in=attendant_warehouses))
         ).order_by(
             Case(
                 When(status='in_delivery', then=0),
@@ -746,7 +891,7 @@ def manage_delivery(request, pk):
     print(f"Delivery ID: {delivery.id}")
     print(f"User: {request.user.username}")
     print(f"User Role: {user_role}")
-    print(f"Source Warehouse: {requisition.source_warehouse}")
+    print(f"Source Warehouse: {requisition.source_warehouse.name if requisition.source_warehouse else 'None'}")
     print(f"User's Warehouses: {[w.name for w in request.user.customuser.warehouses.all()]}")
     
     if user_role != 'manager':
@@ -901,104 +1046,109 @@ def start_delivery(request, pk):
     
     return redirect('requisition:delivery_list')
 
+@login_required
 def confirm_delivery(request, pk):
-    delivery = get_object_or_404(Delivery, pk=pk)
-    user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
-    
-    if user_role == 'attendant':
-        if 'delivery_image' not in request.FILES:
-            messages.error(request, 'Please upload a delivery image.')
-            return redirect('requisition:delivery_list')
+    try:
+        delivery = get_object_or_404(Delivery, pk=pk)
+        user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
         
-        try:
-            with transaction.atomic():
-                # Save delivery image
-                delivery.delivery_image = request.FILES['delivery_image']
-                delivery.status = 'pending_manager'  
-                delivery.delivery_date = timezone.now()
-                delivery.save()
-                
-                # Create notification for manager
-                Notification.objects.create(
-                    user=delivery.delivered_by,
-                    requisition=delivery.requisition,
-                    message=f'Delivery has been confirmed by attendant {request.user.username}. Please verify the delivery image.'
-                )
-                
-                messages.success(request, 'Delivery confirmation submitted. Awaiting manager verification.')
-        except Exception as e:
-            messages.error(request, f"Error confirming delivery: {str(e)}")
-    
-    elif user_role == 'manager':
-        try:
-            with transaction.atomic():
-                # Manager verifying the delivery
-                delivery.status = 'delivered'
-                delivery.save()
-                
-                # Update requisition status to delivered
-                requisition = delivery.requisition
-                requisition.status = 'delivered'
-                requisition.manager_comment = f'Delivery confirmed and verified by manager {request.user.username}'
-                requisition.save()
-                
-                # Update inventory quantities
-                for delivery_item in delivery.items.all():
-                    # Deduct from source warehouse (manager's)
-                    source_item = InventoryItem.objects.filter(
-                        warehouse=delivery.requisition.source_warehouse,
-                        item_name__iexact=delivery_item.item.item_name,
-                        brand=delivery_item.item.brand,
-                        model=delivery_item.item.model
-                    ).first()
+        if user_role == 'attendant':
+            if 'delivery_image' not in request.FILES:
+                messages.error(request, 'Please upload a delivery image.')
+                return redirect('requisition:delivery_list')
+            
+            try:
+                with transaction.atomic():
+                    # Save delivery image
+                    delivery.delivery_image = request.FILES['delivery_image']
                     
-                    if not source_item:
-                        raise InventoryItem.DoesNotExist(f"Source item {delivery_item.item.item_name} not found in {delivery.requisition.source_warehouse.name}")
+                    delivery.status = 'pending_manager'  
+                    delivery.delivery_date = timezone.now()
+                    delivery.save()
                     
-                    if source_item.stock < delivery_item.quantity:
-                        raise Exception(f"Insufficient stock for {delivery_item.item.item_name} in {delivery.requisition.source_warehouse.name}")
+                    # Create notification for manager
+                    Notification.objects.create(
+                        user=delivery.delivered_by,
+                        requisition=delivery.requisition,
+                        message=f'Delivery has been confirmed by attendant {request.user.username}. Please verify the delivery image.'
+                    )
                     
-                    source_item.stock -= delivery_item.quantity
-                    source_item.save()
+                    messages.success(request, 'Delivery confirmation submitted. Awaiting manager verification.')
+            except Exception as e:
+                messages.error(request, f"Error confirming delivery: {str(e)}")
+        
+        elif user_role == 'manager':
+            try:
+                with transaction.atomic():
+                    # Manager verifying the delivery
+                    delivery.status = 'delivered'
+                    delivery.save()
                     
-                    # Add to destination warehouse (attendant's)
-                    dest_item = InventoryItem.objects.filter(
-                        warehouse=delivery.requisition.destination_warehouse,
-                        item_name__iexact=delivery_item.item.item_name,
-                        brand=delivery_item.item.brand,
-                        model=delivery_item.item.model
-                    ).first()
+                    # Update requisition status to delivered
+                    requisition = delivery.requisition
+                    requisition.status = 'delivered'
+                    requisition.manager_comment = f'Delivery confirmed and verified by manager {request.user.username}'
+                    requisition.save()
                     
-                    if dest_item:
-                        dest_item.stock += delivery_item.quantity
-                        dest_item.save()
-                    else:
-                        # Create new item in destination warehouse if it doesn't exist
-                        InventoryItem.objects.create(
-                            warehouse=delivery.requisition.destination_warehouse,
-                            item_name=delivery_item.item.item_name,
+                    # Update inventory quantities
+                    for delivery_item in delivery.items.all():
+                        # Deduct from source warehouse (manager's)
+                        source_item = InventoryItem.objects.filter(
+                            warehouse=delivery.requisition.source_warehouse,
+                            item_name__iexact=delivery_item.item.item_name,
                             brand=delivery_item.item.brand,
-                            model=delivery_item.item.model,
-                            stock=delivery_item.quantity,
-                            category=delivery_item.item.category,
-                            description=delivery_item.item.description,
-                            unit=delivery_item.item.unit,
-                            reorder_level=delivery_item.item.reorder_level,
-                            unit_price=delivery_item.item.unit_price
-                        )
-                
-                # Create notification for attendant
-                Notification.objects.create(
-                    user=delivery.requisition.requester,
-                    requisition=delivery.requisition,
-                    message=f'Your delivery has been verified by manager {request.user.username}. Items have been added to your inventory.'
-                )
-                
-                messages.success(request, 'Delivery has been verified and inventory has been updated.')
-        except InventoryItem.DoesNotExist:
-            messages.error(request, f'Error: Source item not found in inventory.')
-        except Exception as e:
-            messages.error(request, f'Error verifying delivery: {str(e)}')
+                            model=delivery_item.item.model
+                        ).first()
+                        
+                        if not source_item:
+                            raise InventoryItem.DoesNotExist(f"Source item {delivery_item.item.item_name} not found in {delivery.requisition.source_warehouse.name}")
+                        
+                        if source_item.stock < delivery_item.quantity:
+                            raise Exception(f"Insufficient stock for {delivery_item.item.item_name} in {delivery.requisition.source_warehouse.name}")
+                        
+                        source_item.stock -= delivery_item.quantity
+                        source_item.save()
+                        
+                        # Add to destination warehouse (attendant's)
+                        dest_item = InventoryItem.objects.filter(
+                            warehouse=delivery.requisition.destination_warehouse,
+                            item_name__iexact=delivery_item.item.item_name,
+                            brand=delivery_item.item.brand,
+                            model=delivery_item.item.model
+                        ).first()
+                        
+                        if dest_item:
+                            dest_item.stock += delivery_item.quantity
+                            dest_item.save()
+                        else:
+                            # Create new item in destination warehouse if it doesn't exist
+                            InventoryItem.objects.create(
+                                warehouse=delivery.requisition.destination_warehouse,
+                                item_name=delivery_item.item.item_name,
+                                brand=delivery_item.item.brand,
+                                model=delivery_item.item.model,
+                                stock=delivery_item.quantity,
+                                category=delivery_item.item.category,
+                                description=delivery_item.item.description,
+                                unit=delivery_item.item.unit,
+                                reorder_level=delivery_item.item.reorder_level,
+                                unit_price=delivery_item.item.unit_price
+                            )
+                    
+                    # Create notification for attendant
+                    Notification.objects.create(
+                        user=delivery.requisition.requester,
+                        requisition=delivery.requisition,
+                        message=f'Your delivery has been verified by manager {request.user.username}. Items have been added to your inventory.'
+                    )
+                    
+                    messages.success(request, 'Delivery has been verified and inventory has been updated.')
+            except InventoryItem.DoesNotExist as e:
+                messages.error(request, f'Error: {str(e)}')
+            except Exception as e:
+                messages.error(request, f'Error verifying delivery: {str(e)}')
+    except Exception as e:
+        messages.error(request, f'Error processing delivery: {str(e)}')
     
     return redirect('requisition:delivery_list')
 
@@ -1014,312 +1164,45 @@ def get_delivery_details(request, pk):
         
         # Prepare delivery data
         items_data = []
-        try:
-            delivery_items = delivery.items.select_related(
-                'item', 'item__brand', 'item__category'
-            ).all()
-            
-            for item in delivery_items:
-                items_data.append({
-                    'item_name': item.item.item_name,
-                    'brand': item.item.brand.name if item.item.brand else 'N/A',
-                    'category': item.item.category.name if item.item.category else 'N/A',
-                    'quantity': item.quantity
-                })
-        except Exception as e:
-            print(f"Error getting delivery items: {e}")
-            items_data = []
+        delivery_items = delivery.items.select_related(
+            'item', 'item__brand', 'item__category'
+        ).all()
+        
+        for item in delivery_items:
+            items_data.append({
+                'item_name': item.item.item_name,
+                'brand': item.item.brand.name if item.item.brand else 'N/A',
+                'category': item.item.category.name if item.item.category else 'N/A',
+                'quantity': item.quantity
+            })
 
         # Get personnel info
         personnel_name = delivery.delivery_personnel_name or (
-            delivery.delivered_by.get_full_name() or delivery.delivered_by.username
+            delivery.delivered_by.get_full_name() if delivery.delivered_by else 'None'
         )
         contact_number = delivery.delivery_personnel_phone or 'N/A'
 
         # Get requester info
         requester = delivery.requisition.requester
         requester_name = requester.get_full_name() or requester.username
-        
+
         data = {
-            'id': f'DEL-{delivery.id:04d}',  # Format: DEL-0001
+            'id': f'DEL-{delivery.id:04d}',
+            'status': delivery.get_status_display(),
+            'created_at': delivery.created_at.strftime('%B %d, %Y %H:%M'),
+            'estimated_delivery': delivery.estimated_delivery_date.strftime('%B %d, %Y') if delivery.estimated_delivery_date else 'Not set',
+            'personnel_name': personnel_name,
+            'contact_number': contact_number,
             'source_warehouse': delivery.requisition.source_warehouse.name,
             'destination_warehouse': delivery.requisition.destination_warehouse.name,
-            'status': delivery.get_status_display(),
-            'created_at': delivery.created_at.strftime('%B %d, %Y %H:%M') if delivery.created_at else None,
-            'estimated_delivery_date': delivery.estimated_delivery_date.strftime('%B %d, %Y') if delivery.estimated_delivery_date else None,
-            'delivery_personnel': personnel_name,
-            'contact_number': contact_number,
-            'requester': requester_name,  
-            'items': items_data,
-            'notes': delivery.notes or ''
+            'requester': requester_name,
+            'items': items_data
         }
         
         return JsonResponse(data)
-    except Delivery.DoesNotExist:
-        return JsonResponse({'error': 'Delivery not found'}, status=404)
     except Exception as e:
-        import traceback
         print(f"Error in get_delivery_details: {str(e)}")
-        print(traceback.format_exc())
         return JsonResponse({'error': str(e)}, status=500)
-
-def view_delivery_pdf(request, pk):
-    try:
-        delivery = get_object_or_404(Delivery.objects.select_related(
-            'requisition',
-            'requisition__requester',
-            'requisition__source_warehouse',
-            'requisition__destination_warehouse',
-            'delivered_by'
-        ).prefetch_related('items__item__brand', 'items__item__category'), pk=pk)
-
-        # Create the PDF document
-        response = HttpResponse(content_type='application/pdf')
-        response['Content-Disposition'] = f'inline; filename="delivery_{delivery.id}.pdf"'
-
-        # Create the PDF object using ReportLab
-        doc = SimpleDocTemplate(
-            response,
-            pagesize=letter,
-            rightMargin=inch/2,
-            leftMargin=inch/2,
-            topMargin=inch/2,
-            bottomMargin=inch/2
-        )
-
-        # Container for the 'Flowable' objects
-        elements = []
-
-        # Styles
-        styles = getSampleStyleSheet()
-        
-        # Custom styles
-        header_style = ParagraphStyle(
-            'CustomHeader',
-            parent=styles['Heading1'],
-            fontSize=16,
-            textColor=colors.HexColor('#1a56db'),
-            spaceAfter=30,
-            alignment=TA_CENTER
-        )
-        
-        subheader_style = ParagraphStyle(
-            'SubHeader',
-            parent=styles['Heading2'],
-            fontSize=14,
-            textColor=colors.HexColor('#4a5568'),
-            spaceBefore=20,
-            spaceAfter=20,
-            alignment=TA_CENTER
-        )
-        
-        detail_label_style = ParagraphStyle(
-            'DetailLabel',
-            parent=styles['Normal'],
-            fontSize=10,
-            textColor=colors.HexColor('#4a5568'),
-            fontName='Helvetica-Bold'
-        )
-        
-        detail_value_style = ParagraphStyle(
-            'DetailValue',
-            parent=styles['Normal'],
-            fontSize=10,
-            textColor=colors.HexColor('#1a202c'),
-            leftIndent=20
-        )
-        
-        story = []
-        
-        # Add company header
-        story.append(Paragraph("COMPANY NAME", header_style))
-        story.append(Paragraph("Requisition Form", subheader_style))
-        story.append(Spacer(1, 20))
-        
-        # Add horizontal line
-        story.append(HRFlowable(
-            width="100%",
-            thickness=1,
-            color=colors.HexColor('#e2e8f0'),
-            spaceBefore=10,
-            spaceAfter=20
-        ))
-        
-        # Create two-column layout for requisition details
-        data = [
-            [Paragraph("<b>Requisition ID:</b>", detail_label_style),
-             Paragraph(f"#{requisition.id}", detail_value_style),
-             Paragraph("<b>Status:</b>", detail_label_style),
-             Paragraph(requisition.get_status_display(), detail_value_style)],
-            [Paragraph("<b>Requestor:</b>", detail_label_style),
-             Paragraph(requisition.requester.get_full_name() or requisition.requester.username, detail_value_style),
-             Paragraph("<b>Request Date:</b>", detail_label_style),
-             Paragraph(requisition.created_at.strftime('%Y-%m-%d %H:%M') if requisition.created_at else None, detail_value_style)],
-            [Paragraph("<b>Request Type:</b>", detail_label_style),
-             Paragraph(requisition.get_request_type_display(), detail_value_style),
-             Paragraph("<b>Created By:</b>", detail_label_style),
-             Paragraph(requisition.requester.username, detail_value_style)]
-        ]
-        
-        if requisition.source_warehouse:
-            data.append([
-                Paragraph("<b>Source Warehouse:</b>", detail_label_style),
-                Paragraph(requisition.source_warehouse.name, detail_value_style),
-                Paragraph("<b>Destination Warehouse:</b>", detail_label_style),
-                Paragraph(requisition.destination_warehouse.name if requisition.destination_warehouse else "-", detail_value_style)
-            ])
-        
-        # Create the details table
-        details_table = Table(data, colWidths=[1.5*inch, 2*inch, 1.5*inch, 2*inch])
-        details_table.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e2e8f0')),
-            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#ffffff')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1a202c')),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('TOPPADDING', (0, 0), (-1, 0), 12),
-        ]))
-        story.append(details_table)
-        story.append(Spacer(1, 20))
-        
-        # Add reason section
-        story.append(Paragraph("Reason for Request", styles['Heading3']))
-        story.append(Paragraph(requisition.reason, detail_value_style))
-        story.append(Spacer(1, 20))
-        
-        # Create items table
-        story.append(Paragraph("Requested Items", styles['Heading3']))
-        story.append(Spacer(1, 15))
-        if requisition.items.exists():
-            # Only show delivered quantity if delivery has started
-            has_delivery = Delivery.objects.filter(requisition=requisition).exists() and requisition.status in ['in_delivery', 'received']
-            headers = ['Item Name', 'Brand', 'Model', 'Quantity']
-            if has_delivery:
-                headers.insert(3, 'Delivered Quantity')
-            
-            items_data = [headers]
-            
-            for req_item in requisition.items.all():
-                row = [
-                    req_item.item.item_name,
-                    req_item.item.brand.name if req_item.item.brand else 'N/A',
-                    req_item.item.model if hasattr(req_item.item, 'model') else 'N/A',
-                    str(req_item.quantity)
-                ]
-                if has_delivery:
-                    row.insert(3, str(req_item.delivered_quantity or 0))
-                items_data.append(row)
-                
-            # Calculate column widths based on content type
-            if has_delivery:
-                col_widths = [3.5*inch, 1.5*inch, 1.5*inch, 1.2*inch, 1.2*inch]  # Adjusted for 5 columns
-            else:
-                col_widths = [4*inch, 1.8*inch, 1.8*inch, 1.4*inch]  # Adjusted for 4 columns
-            
-            # Create and style the table with the new column widths
-            table = Table(items_data, colWidths=col_widths)
-            table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a56db')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('TOPPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ffffff')),
-                ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor('#1a202c')),
-                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 10),
-                ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e2e8f0')),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('LEFTPADDING', (0, 0), (-1, -1), 6),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ]))
-            story.append(table)
-            story.append(Spacer(1, 15))
-        
-        # Add manager comment if exists
-        if requisition.manager_comment:
-            story.append(Spacer(1, 20))
-            story.append(Paragraph("Manager's Comment", styles['Heading3']))
-            story.append(Paragraph(requisition.manager_comment, detail_value_style))
-        
-        # Add footer
-        story.append(Spacer(1, 40))
-        footer_text = f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')} | Requisition #{requisition.id}"
-        footer_style = ParagraphStyle(
-            'Footer',
-            parent=styles['Normal'],
-            fontSize=8,
-            textColor=colors.HexColor('#718096'),
-            alignment=TA_CENTER
-        )
-        story.append(Paragraph(footer_text, footer_style))
-        
-        # Build PDF
-        doc.build(story)
-        
-        # Return PDF response
-        if os.path.exists(filepath):
-            with open(filepath, 'rb') as pdf_file:
-                response = HttpResponse(pdf_file.read(), content_type='application/pdf')
-                response['Content-Disposition'] = f'inline; filename="delivery_{delivery.id}.pdf"'
-                return response
-            
-    except Exception as e:
-        messages.error(request, f"Error generating PDF: {str(e)}")
-        return redirect('requisition:requisition_list')
-    finally:
-        # Clean up the temporary PDF file
-        if 'filepath' in locals() and os.path.exists(filepath):
-            try:
-                os.remove(filepath)
-            except:
-                pass
-
-def get_requisition_details(request, pk):
-    requisition = get_object_or_404(Requisition, pk=pk)
-    
-    # Prepare items data
-    items_data = []
-    for item in requisition.items.all():
-        image_url = None
-        if item.item.image:
-            try:
-                image_url = request.build_absolute_uri(item.item.image.url)
-            except Exception as e:
-                print(f"Error getting image URL: {e}")
-        
-        items_data.append({
-            'name': item.item.item_name,
-            'brand': item.item.brand.name if item.item.brand else 'N/A',
-            'quantity': item.quantity,
-            'delivered_quantity': item.delivered_quantity if item.delivered_quantity else None,
-            'image_url': image_url
-        })
-    
-    data = {
-        'id': requisition.id,
-        'status': requisition.get_status_display(),
-        'created_at': requisition.created_at.strftime('%Y-%m-%d %H:%M') if requisition.created_at else None,
-        'requester': requisition.requester.get_full_name() or requisition.requester.username,
-        'items': items_data,
-        'reason': requisition.reason,
-        'manager_comment': requisition.manager_comment,
-        'request_type': requisition.get_request_type_display(),
-        'source_warehouse': requisition.source_warehouse.name if requisition.source_warehouse else None,
-        'destination_warehouse': requisition.destination_warehouse.name if requisition.destination_warehouse else None,
-    }
-    
-    return JsonResponse(data)
 
 def get_warehouse_items(request, warehouse_id):
     """API endpoint to get items for a specific warehouse with stock > 0"""
@@ -1442,7 +1325,7 @@ def view_requisition_pdf(request, pk):
         story = []
         
         # Add company header
-        story.append(Paragraph("COMPANY NAME", header_style))
+        story.append(Paragraph("JSV", header_style))
         story.append(Paragraph("Requisition Form", subheader_style))
         story.append(Spacer(1, 20))
         
@@ -1476,7 +1359,7 @@ def view_requisition_pdf(request, pk):
                 Paragraph("<b>Source Warehouse:</b>", detail_label_style),
                 Paragraph(requisition.source_warehouse.name, detail_value_style),
                 Paragraph("<b>Destination Warehouse:</b>", detail_label_style),
-                Paragraph(requisition.destination_warehouse.name if requisition.destination_warehouse else "-", detail_value_style)
+                Paragraph(requisition.destination_warehouse.name if requisition.destination_warehouse else 'None', detail_value_style)
             ])
         
         # Create the details table
@@ -1504,6 +1387,7 @@ def view_requisition_pdf(request, pk):
         # Create items table
         story.append(Paragraph("Requested Items", styles['Heading3']))
         story.append(Spacer(1, 15))
+        
         if requisition.items.exists():
             # Only show delivered quantity if delivery has started
             has_delivery = Delivery.objects.filter(requisition=requisition).exists() and requisition.status in ['in_delivery', 'received']
@@ -1539,13 +1423,12 @@ def view_requisition_pdf(request, pk):
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
                 ('FONTSIZE', (0, 0), (-1, 0), 12),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('TOPPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ffffff')),
                 ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor('#1a202c')),
                 ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 1), (-1, -1), 10),
                 ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e2e8f0')),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('LEFTPADDING', (0, 0), (-1, -1), 6),
@@ -1581,12 +1464,201 @@ def view_requisition_pdf(request, pk):
         if os.path.exists(filepath):
             with open(filepath, 'rb') as pdf_file:
                 response = HttpResponse(pdf_file.read(), content_type='application/pdf')
-                response['Content-Disposition'] = 'inline; filename="{}"'.format(filename)
+                response['Content-Disposition'] = f'inline; filename="delivery_{delivery.id}.pdf"'
                 return response
             
     except Exception as e:
         messages.error(request, f"Error generating PDF: {str(e)}")
         return redirect('requisition:requisition_list')
+    finally:
+        # Clean up the temporary PDF file
+        if 'filepath' in locals() and os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except:
+                pass
+
+def view_delivery_pdf(request, pk):
+    try:
+        delivery = get_object_or_404(Delivery.objects.select_related(
+            'requisition',
+            'requisition__requester',
+            'requisition__source_warehouse',
+            'requisition__destination_warehouse',
+            'delivered_by'
+        ).prefetch_related('items__item__brand', 'items__item__category'), pk=pk)
+        
+        # Create the PDF document
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="delivery_{delivery.id}.pdf"'
+        
+        # Create a temporary file
+        filepath = f'delivery_{delivery.id}.pdf'
+        
+        # Create the PDF object using ReportLab
+        doc = SimpleDocTemplate(
+            filepath,
+            pagesize=letter,
+            rightMargin=inch/2,
+            leftMargin=inch/2,
+            topMargin=inch/2,
+            bottomMargin=inch/2
+        )
+        
+        # Container for the 'Flowable' objects
+        story = []
+        
+        # Styles
+        styles = getSampleStyleSheet()
+        
+        # Custom styles
+        header_style = ParagraphStyle(
+            'CustomHeader',
+            parent=styles['Heading1'],
+            fontSize=16,
+            textColor=colors.HexColor('#1a56db'),
+            spaceAfter=30,
+            alignment=TA_CENTER
+        )
+        
+        subheader_style = ParagraphStyle(
+            'SubHeader',
+            parent=styles['Heading2'],
+            fontSize=14,
+            textColor=colors.HexColor('#4a5568'),
+            spaceBefore=20,
+            spaceAfter=20,
+            alignment=TA_CENTER
+        )
+        
+        detail_label_style = ParagraphStyle(
+            'DetailLabel',
+            parent=styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#4a5568'),
+            fontName='Helvetica-Bold'
+        )
+        
+        detail_value_style = ParagraphStyle(
+            'DetailValue',
+            parent=styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#1a202c'),
+            leftIndent=20
+        )
+        
+        # Add company header
+        story.append(Paragraph("JSV", header_style))
+        story.append(Paragraph("Delivery Note", subheader_style))
+        story.append(Spacer(1, 20))
+        
+        # Add horizontal line
+        story.append(HRFlowable(
+            width="100%",
+            thickness=1,
+            color=colors.HexColor('#e2e8f0'),
+            spaceBefore=10,
+            spaceAfter=20
+        ))
+        
+        # Create two-column layout for delivery details
+        data = [
+            [Paragraph("<b>Delivery ID:</b>", detail_label_style),
+             Paragraph(f"#{delivery.id}", detail_value_style),
+             Paragraph("<b>Status:</b>", detail_label_style),
+             Paragraph(delivery.get_status_display(), detail_value_style)],
+            [Paragraph("<b>Delivered By:</b>", detail_label_style),
+             Paragraph(delivery.delivered_by.get_full_name() if delivery.delivered_by else "Not assigned", detail_value_style),
+             Paragraph("<b>Delivery Date:</b>", detail_label_style),
+             Paragraph(delivery.created_at.strftime('%Y-%m-%d %H:%M'), detail_value_style)],
+            [Paragraph("<b>Source Warehouse:</b>", detail_label_style),
+             Paragraph(delivery.requisition.source_warehouse.name if delivery.requisition.source_warehouse else 'None', detail_value_style),
+             Paragraph("<b>Destination Warehouse:</b>", detail_label_style),
+             Paragraph(delivery.requisition.destination_warehouse.name if delivery.requisition.destination_warehouse else 'None', detail_value_style)]
+        ]
+        
+        # Create the details table
+        details_table = Table(data, colWidths=[1.5*inch, 2*inch, 1.5*inch, 2*inch])
+        details_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e2e8f0')),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#ffffff')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1a202c')),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TOPPADDING', (0, 0), (-1, 0), 12),
+        ]))
+        story.append(details_table)
+        story.append(Spacer(1, 20))
+        
+        # Create items table
+        story.append(Paragraph("Delivered Items", styles['Heading3']))
+        story.append(Spacer(1, 15))
+        
+        if delivery.items.exists():
+            items_data = [['Item Name', 'Brand', 'Category', 'Quantity']]
+            
+            for delivery_item in delivery.items.all():
+                items_data.append([
+                    delivery_item.item.item_name,
+                    delivery_item.item.brand.name if delivery_item.item.brand else 'N/A',
+                    delivery_item.item.category.name if delivery_item.item.category else 'N/A',
+                    str(delivery_item.quantity)
+                ])
+            
+            # Create and style the table
+            table = Table(items_data, colWidths=[3*inch, 1.5*inch, 1.5*inch, 1*inch])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a56db')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ffffff')),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor('#1a202c')),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e2e8f0')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ]))
+            story.append(table)
+            story.append(Spacer(1, 15))
+        
+        # Add footer
+        story.append(Spacer(1, 40))
+        footer_text = f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')} | Delivery #{delivery.id}"
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontSize=8,
+            textColor=colors.HexColor('#718096'),
+            alignment=TA_CENTER
+        )
+        story.append(Paragraph(footer_text, footer_style))
+        
+        # Build PDF
+        doc.build(story)
+        
+        # Return PDF response
+        if os.path.exists(filepath):
+            with open(filepath, 'rb') as pdf_file:
+                response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+                response['Content-Disposition'] = f'inline; filename="delivery_{delivery.id}.pdf"'
+                return response
+            
+    except Exception as e:
+        messages.error(request, f"Error generating PDF: {str(e)}")
+        return redirect('requisition:delivery_list')
     finally:
         # Clean up the temporary PDF file
         if 'filepath' in locals() and os.path.exists(filepath):
@@ -1637,3 +1709,150 @@ def view_requisition(request, pk):
         'user_role': user_role
     }
     return render(request, 'requisition/view_requisition.html', context)
+
+@login_required
+def admin_approve_requisition(request, pk):
+    print("\n=== DEBUG: Admin Approve Requisition ===")
+    print(f"Request method: {request.method}")
+    print(f"POST data: {request.POST}")
+    
+    requisition = get_object_or_404(Requisition, pk=pk)
+    user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
+    
+    print(f"User role: {user_role}")
+    print(f"Requisition status: {requisition.status}")
+    
+    # Only admin can approve these requisitions
+    if user_role != 'admin':
+        messages.error(request, "Only admin can review these requisitions.")
+        return redirect('requisition:requisition_list')
+    
+    # Cannot approve if not pending admin review
+    if requisition.status != 'pending_admin_approval':
+        messages.error(request, "This requisition is not pending admin review.")
+        return redirect('requisition:requisition_list')
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        comment = request.POST.get('comment', '')
+        
+        print(f"Action received: {action}")
+        print(f"Comment received: {comment}")
+        
+        try:
+            with transaction.atomic():
+                if action == 'reject':
+                    print("Processing rejection...")
+                    # Update requisition status
+                    requisition.status = 'rejected_by_admin'
+                    requisition.approval_comment = comment
+                    requisition.save()
+
+                    # Create notification
+                    Notification.objects.create(
+                        user=requisition.requester,
+                        requisition=requisition,
+                        message=f'Your requisition has been rejected by admin {request.user.username}.'
+                    )
+
+                    messages.success(request, 'Requisition rejected successfully.')
+                    return redirect('requisition:requisition_list')
+                
+                elif action == 'approve':
+                    print("Processing approval...")
+                    # Update requisition status
+                    requisition.status = 'approved_by_admin'
+                    requisition.approval_comment = comment
+                    requisition.approved_by = request.user
+                    requisition.approved_at = timezone.now()
+                    requisition.save()
+
+                    # Create notification
+                    Notification.objects.create(
+                        user=requisition.requester,
+                        requisition=requisition,
+                        message=f'Your requisition has been approved by admin {request.user.username}.'
+                    )
+
+                    # Redirect to create purchase order with this requisition
+                    messages.success(request, 'Requisition approved successfully. Please create a purchase order.')
+                    return redirect('purchasing:create_purchase_order_with_requisition', requisition_id=requisition.id)
+                else:
+                    print(f"Invalid action received: {action}")
+                    messages.error(request, "Invalid action specified.")
+                        
+        except Exception as e:
+            print(f"Error processing requisition: {str(e)}")
+            messages.error(request, f"Error processing requisition: {str(e)}")
+    else:
+        print("GET request - displaying form")
+    
+    return render(request, 'requisition/admin_approve_requisition.html', {
+        'requisition': requisition
+    })
+
+def send_to_manager(request, pk):
+    delivery = get_object_or_404(Delivery, pk=pk)
+    manager_email = delivery.requisition.destination_warehouse.manager.email
+    subject = f"Delivery Confirmation Required for Delivery ID: DEL-{delivery.id:04d}"
+    message = f"Please confirm the delivery details for Delivery ID: DEL-{delivery.id:04d}."
+    send_mail(subject, message, 'from@example.com', [manager_email])
+    return JsonResponse({'success': 'Delivery details sent to manager.'})
+
+def get_requisition_details(request, pk):
+    try:
+        requisition = get_object_or_404(Requisition, pk=pk)
+        
+        # Get timeline events and latest comments
+        timeline = []
+        manager_comment = None
+        admin_comment = None
+        status_history = requisition.status_history.all().order_by('timestamp')
+        
+        for history in status_history:
+            timeline.append({
+                'status': history.status,
+                'status_display': history.get_status_display(),
+                'timestamp': history.timestamp.strftime('%Y-%m-%d %H:%M'),
+                'comment': history.comment
+            })
+            
+            # Get the latest manager and admin comments from status history
+            if history.comment:
+                if history.changed_by and history.changed_by.customuser.role == 'manager':
+                    manager_comment = history.comment
+                elif history.changed_by and history.changed_by.customuser.role == 'admin':
+                    admin_comment = history.comment
+        
+        # Get items data
+        items_data = []
+        for requisition_item in requisition.items.all():
+            item = requisition_item.item
+            items_data.append({
+                'name': item.item_name,
+                'brand': item.brand.name if item.brand else 'N/A',
+                'model': item.model,
+                'quantity': requisition_item.quantity,
+                'is_new_item': requisition_item.is_new_item if hasattr(requisition_item, 'is_new_item') else False
+            })
+        
+        data = {
+            'id': requisition.id,
+            'status': requisition.status,
+            'status_display': requisition.get_status_display(),
+            'requester_name': requisition.requester.get_full_name() or requisition.requester.username,
+            'requester_role': requisition.requester.customuser.get_role_display(),
+            'source_warehouse': requisition.source_warehouse.name if requisition.source_warehouse else 'None',
+            'destination_warehouse': requisition.destination_warehouse.name if requisition.destination_warehouse else 'None',
+            'created_at': requisition.created_at.strftime('%Y-%m-%d %H:%M'),
+            'reason': requisition.reason,
+            'items': items_data,
+            'timeline': timeline,
+            'admin_comment': admin_comment if admin_comment else '',
+            'manager_comment': manager_comment if manager_comment else ''
+        }
+        
+        return JsonResponse(data)
+    except Exception as e:
+        print(f"Error in get_requisition_details: {str(e)}")
+        return JsonResponse({'error': str(e)}, status=500)

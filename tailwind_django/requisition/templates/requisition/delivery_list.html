@@ -146,23 +146,20 @@
                 <div class="px-6 py-4 bg-gray-50 border-t space-y-3">
                     {% if user.customuser.role == 'attendance' %}
                         {% if delivery.status == 'in_delivery' %}
-                        <form method="post" action="{% url 'requisition:confirm_delivery' delivery.pk %}" enctype="multipart/form-data">
-                            {% csrf_token %}
-                            <div class="flex items-center space-x-2">
-                                <label class="flex-grow">
-                                    <span class="sr-only">Choose delivery image</span>
-                                    <input type="file" name="delivery_image" accept="image/*" required
-                                           class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-                                </label>
-                                <button type="submit" 
-                                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-                                    </svg>
-                                    Upload & Confirm
-                                </button>
-                            </div>
-                        </form>
+                        <div class="flex items-center space-x-3">
+                            <form method="post" action="{% url 'requisition:confirm_delivery' delivery.pk %}" enctype="multipart/form-data" class="flex items-center space-x-2">
+                                {% csrf_token %}
+                                <div class="flex items-center space-x-2">
+                                    <label for="delivery_image_{{ delivery.id }}" class="text-gray-600 hover:text-gray-900 cursor-pointer inline-flex items-center">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                        Upload Image
+                                    </label>
+                                    <input type="file" id="delivery_image_{{ delivery.id }}" name="delivery_image" accept="image/*" class="hidden" onchange="this.form.submit()">
+                                </div>
+                            </form>
+                        </div>
                         {% endif %}
                     {% elif user.customuser.role == 'manager' %}
                         {% if delivery.status == 'pending_delivery' %}
@@ -176,7 +173,7 @@
                         {% elif delivery.status == 'pending_manager' %}
                         <div class="space-y-2">
                             {% if delivery.delivery_image %}
-                            <button onclick="showDeliveryImage('{{ delivery.delivery_image.url }}')" 
+                            <button onclick="showImage('{{ delivery.delivery_image.url }}')" 
                                     class="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -200,8 +197,30 @@
 
                     <!-- Footer Actions -->
                     <div class="flex justify-end space-x-3 pt-2 text-sm border-t border-gray-200">
-                        <button type="button" 
-                                onclick="fetch('/requisition/delivery/{{ delivery.id }}/details/')
+                        <div class="flex items-center space-x-3">
+                            {% if user.customuser.role == 'attendant' and delivery.status == 'in_delivery' %}
+                            <form method="post" action="{% url 'requisition:confirm_delivery' delivery.pk %}" enctype="multipart/form-data" class="flex items-center space-x-2">
+                                {% csrf_token %}
+                                <div class="flex items-center space-x-2">
+                                    <label for="delivery_image_{{ delivery.id }}" class="text-gray-600 hover:text-gray-900 cursor-pointer inline-flex items-center">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                        </svg>
+                                        Upload Image
+                                    </label>
+                                    <input type="file" id="delivery_image_{{ delivery.id }}" name="delivery_image" accept="image/*" class="hidden" onchange="this.form.submit()">
+                                </div>
+                            </form>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <button type="button" 
+                                    onclick="fetchWithCSRF('/requisition/delivery/{{ delivery.id }}/details/', {
+                                        method: 'GET',
+                                        headers: {
+                                            'Accept': 'application/json',
+                                        }
+                                    })
                                     .then(response => {
                                         if (!response.ok) {
                                             throw new Error('Network response was not ok');
@@ -218,21 +237,20 @@
                                         console.error('Error:', error);
                                         alert('Error loading delivery details. Please try again.');
                                     })"
-                                class="text-gray-600 hover:text-gray-900 inline-flex items-center">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                            Details
-                        </button>
-                        {% if delivery.status != 'pending_delivery' %}
-                        <a href="{% url 'requisition:view_delivery_pdf' delivery.id %}" target="_blank"
-                           class="text-gray-600 hover:text-gray-900 inline-flex items-center">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                            </svg>
-                            PDF
-                        </a>
-                        {% endif %}
+                                    class="text-gray-600 hover:text-gray-900 inline-flex items-center">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                Details
+                            </button>
+                            <a href="{% url 'requisition:view_delivery_pdf' delivery.id %}" target="_blank"
+                               class="text-gray-600 hover:text-gray-900 inline-flex items-center">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                PDF
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -295,236 +313,31 @@
 {% endblock %}
 
 {% block extra_content %}
-<!-- PDF Modal -->
-<div id="pdfModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-            <div class="absolute right-0 top-0 pr-4 pt-4">
-                <button type="button" onclick="closePdfModal()" 
-                        class="text-gray-400 hover:text-gray-500">
+<!-- Image Modal -->
+<div id="imageModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-lg shadow-xl max-w-4xl w-full">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h3 class="text-xl font-semibold text-gray-900">Delivery Image</h3>
+                <button type="button" onclick="closeImageModal()" class="text-gray-400 hover:text-gray-500">
                     <span class="sr-only">Close</span>
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
-            <div class="bg-white p-6">
-                <iframe id="pdfFrame" class="w-full h-[80vh]" frameborder="0"></iframe>
+            <div class="p-4">
+                <img id="modalImage" src="" alt="Delivery Image" class="max-w-full h-auto mx-auto">
             </div>
         </div>
     </div>
 </div>
 
-<!-- Image Upload Modal -->
-{% for delivery in page_obj %}
-{% if delivery.status == 'in_delivery' and user.customuser.role == 'attendance' %}
-<div id="uploadModal{{ delivery.id }}" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden" aria-hidden="true">
-    <div class="fixed inset-0 overflow-y-auto">
-        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-            <div class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
-                <div class="absolute right-0 top-0 hidden pr-4 pt-4 sm:block">
-                    <button type="button" onclick="document.getElementById('uploadModal{{ delivery.id }}').classList.add('hidden')"
-                            class="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
-                        <span class="sr-only">Close</span>
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-                <div class="sm:flex sm:items-start">
-                    <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
-                        <h3 class="text-base font-semibold leading-6 text-gray-900">Upload Delivery Image</h3>
-                        <form action="{% url 'requisition:confirm_delivery' delivery.id %}" method="post" enctype="multipart/form-data" class="mt-4">
-                            {% csrf_token %}
-                            <div class="mt-2">
-                                <input type="file" name="delivery_image" accept="image/*" required
-                                       class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold
-                                       file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-                            </div>
-                            <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                                <button type="submit"
-                                        class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 sm:ml-3 sm:w-auto">
-                                    Upload and Confirm Delivery
-                                </button>
-                                <button type="button" onclick="document.getElementById('uploadModal{{ delivery.id }}').classList.add('hidden')"
-                                        class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-medium text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">
-                                    Cancel
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-{% endfor %}
-
-<!-- Delivery Image Modal -->
-<div id="imageModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-            <div class="bg-white p-4">
-                <div class="sm:flex sm:items-start">
-                    <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
-                        <img id="deliveryImage" src="" alt="Delivery Image" class="w-full h-auto rounded-lg">
-                    </div>
-                </div>
-            </div>
-            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button type="button" 
-                        onclick="closeImageModal()"
-                        class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
-                    Close
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Delivery Details Modal -->
-<div id="deliveryDetailsModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
-            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div class="sm:flex sm:items-start">
-                    <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">
-                            Delivery Details
-                        </h3>
-                        <div class="space-y-6">
-                            <!-- Basic Info -->
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <p class="text-sm text-gray-500">Delivery ID</p>
-                                    <p class="mt-1 text-sm font-medium text-gray-900" id="deliveryId"></p>
-                                </div>
-                                <div>
-                                    <p class="text-sm text-gray-500">Status</p>
-                                    <p class="mt-1 text-sm font-medium text-gray-900" id="deliveryStatus"></p>
-                                </div>
-                            </div>
-
-                            <!-- Request Info -->
-                            <div class="bg-gray-50 rounded-lg p-4">
-                                <h4 class="text-sm font-medium text-gray-900 mb-3">Request Information</h4>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <p class="text-sm text-gray-500">Requested By</p>
-                                        <p class="mt-1 text-sm font-medium text-gray-900" id="requestedBy"></p>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm text-gray-500">Request Date</p>
-                                        <p class="mt-1 text-sm font-medium text-gray-900" id="requestDate"></p>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm text-gray-500">Source Warehouse</p>
-                                        <p class="mt-1 text-sm font-medium text-gray-900" id="sourceWarehouse"></p>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm text-gray-500">Destination Warehouse</p>
-                                        <p class="mt-1 text-sm font-medium text-gray-900" id="destinationWarehouse"></p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Delivery Info -->
-                            <div class="bg-gray-50 rounded-lg p-4">
-                                <h4 class="text-sm font-medium text-gray-900 mb-3">Delivery Information</h4>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <p class="text-sm text-gray-500">Delivery Set By</p>
-                                        <p class="mt-1 text-sm font-medium text-gray-900" id="deliverySetBy"></p>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm text-gray-500">Delivery Set Date</p>
-                                        <p class="mt-1 text-sm font-medium text-gray-900" id="deliverySetDate"></p>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm text-gray-500">Est. Delivery Date</p>
-                                        <p class="mt-1 text-sm font-medium text-gray-900" id="deliveryDate"></p>
-                                    </div>
-                                    <div>
-                                        <p class="text-sm text-gray-500">Delivery Personnel</p>
-                                        <p class="mt-1 text-sm font-medium text-gray-900" id="deliveryPersonnel"></p>
-                                    </div>
-                                    <div class="col-span-2">
-                                        <p class="text-sm text-gray-500">Contact</p>
-                                        <p class="mt-1 text-sm font-medium text-gray-900" id="deliveryContact"></p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Items Table -->
-                            <div>
-                                <h4 class="text-sm font-medium text-gray-900 mb-3">Items</h4>
-                                <div class="mt-2 -mx-4 sm:-mx-6 lg:-mx-8">
-                                    <div class="min-w-full py-2 align-middle">
-                                        <table class="min-w-full divide-y divide-gray-200" id="itemsTable">
-                                            <thead class="bg-gray-50">
-                                                <tr>
-                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
-                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
-                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody class="bg-white divide-y divide-gray-200">
-                                                <!-- Items will be dynamically added here -->
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button type="button" 
-                        onclick="closeDeliveryDetailsModal()"
-                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
-                    Close
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Include the delivery modal template -->
-{% include 'requisition/delivery_modal.html' %}
-{% endblock %}
-
-{% block extra_scripts %}
-<script src="{% static 'js/delivery_pdf.js' %}"></script>
-<script src="{% static 'js/delivery_details.js' %}"></script>
 <script>
-function showPdfModal(url) {
-    document.getElementById('pdfFrame').src = url;
-    document.getElementById('pdfModal').classList.remove('hidden');
-}
-
-function closePdfModal() {
-    document.getElementById('pdfFrame').src = '';
-    document.getElementById('pdfModal').classList.add('hidden');
-}
-
-// Close modal when clicking outside
-document.getElementById('pdfModal').addEventListener('click', function(event) {
-    if (event.target === this) {
-        closePdfModal();
-    }
-});
-
-function showDeliveryImage(imageUrl) {
+function showImage(imageUrl) {
     const modal = document.getElementById('imageModal');
-    const image = document.getElementById('deliveryImage');
-    image.src = imageUrl;
+    const modalImage = document.getElementById('modalImage');
+    modalImage.src = imageUrl;
     modal.classList.remove('hidden');
 }
 
@@ -539,94 +352,172 @@ document.getElementById('imageModal').addEventListener('click', function(event) 
         closeImageModal();
     }
 });
+</script>
 
+<!-- Delivery Details Modal -->
+<div id="deliveryDetailsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50" 
+     aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-4/5 lg:w-3/4 shadow-lg rounded-md bg-white">
+        <!-- Modal Header -->
+        <div class="flex justify-between items-center pb-3 border-b">
+            <h3 class="text-xl font-semibold text-gray-900" id="modal-title">Delivery Details</h3>
+            <button type="button" onclick="closeDeliveryModal()" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+                <span class="sr-only">Close</span>
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Modal Content -->
+        <div class="mt-4 space-y-6">
+            <!-- Basic Info Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Delivery ID</p>
+                    <p id="deliveryId" class="mt-1 text-sm text-gray-900"></p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Status</p>
+                    <p id="deliveryStatus" class="mt-1 text-sm text-gray-900"></p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Created At</p>
+                    <p id="deliveryCreated" class="mt-1 text-sm text-gray-900"></p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Estimated Delivery</p>
+                    <p id="deliveryEstimated" class="mt-1 text-sm text-gray-900"></p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Personnel</p>
+                    <p id="deliveryPersonnel" class="mt-1 text-sm text-gray-900"></p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Contact</p>
+                    <p id="deliveryContact" class="mt-1 text-sm text-gray-900"></p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500">From</p>
+                    <p id="deliverySource" class="mt-1 text-sm text-gray-900"></p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500">To</p>
+                    <p id="deliveryDestination" class="mt-1 text-sm text-gray-900"></p>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-500">Requester</p>
+                    <p id="deliveryRequester" class="mt-1 text-sm text-gray-900"></p>
+                </div>
+            </div>
+
+            <!-- Items Table -->
+            <div class="mt-6">
+                <h4 class="text-lg font-medium text-gray-900 mb-4">Items</h4>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsTableBody" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="mt-6 flex justify-end">
+            <button type="button" onclick="closeDeliveryModal()" 
+                    class="inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:text-sm">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
 function showDeliveryDetails(data) {
-    console.log('Received data:', data); // Debug log
-
-    // Basic Info
-    document.getElementById('deliveryId').textContent = data.id || 'N/A';
-    document.getElementById('deliveryStatus').textContent = data.status || 'N/A';
+    // Update basic info
+    document.getElementById('deliveryId').textContent = data.id;
+    document.getElementById('deliveryStatus').textContent = data.status;
+    document.getElementById('deliveryCreated').textContent = data.created_at;
+    document.getElementById('deliveryEstimated').textContent = data.estimated_delivery;
+    document.getElementById('deliveryPersonnel').textContent = data.personnel_name;
+    document.getElementById('deliveryContact').textContent = data.contact_number;
+    document.getElementById('deliverySource').textContent = data.source_warehouse;
+    document.getElementById('deliveryDestination').textContent = data.destination_warehouse;
+    document.getElementById('deliveryRequester').textContent = data.requester;
     
-    // Request Information
-    document.getElementById('requestedBy').textContent = data.requester || 'N/A';
-    document.getElementById('requestDate').textContent = data.created_at || 'N/A';
-    document.getElementById('sourceWarehouse').textContent = data.source_warehouse || 'N/A';
-    document.getElementById('destinationWarehouse').textContent = data.destination_warehouse || 'N/A';
+    // Update items table
+    const itemsTableBody = document.getElementById('itemsTableBody');
+    itemsTableBody.innerHTML = '';
+    data.items.forEach((item, index) => {
+        const row = document.createElement('tr');
+        row.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.item_name}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.brand}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.category}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.quantity}</td>
+        `;
+        itemsTableBody.appendChild(row);
+    });
     
-    // Delivery Information
-    document.getElementById('deliverySetBy').textContent = data.delivery_personnel || 'N/A';
-    document.getElementById('deliverySetDate').textContent = data.created_at || 'N/A';
-    document.getElementById('deliveryDate').textContent = data.estimated_delivery_date || 'N/A';
-    document.getElementById('deliveryPersonnel').textContent = data.delivery_personnel || 'N/A';
-    document.getElementById('deliveryContact').textContent = data.contact_number || 'N/A';
-
-    // Handle items table
-    const itemsTableBody = document.querySelector('#itemsTable tbody');
-    console.log('Items table body:', itemsTableBody); // Debug log
-    console.log('Items data:', data.items); // Debug log
-
-    if (itemsTableBody) {
-        itemsTableBody.innerHTML = '';
-        
-        if (data.items && Array.isArray(data.items) && data.items.length > 0) {
-            data.items.forEach((item, index) => {
-                const row = itemsTableBody.insertRow();
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${index + 1}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.item_name || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.brand || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.category || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.quantity || 0}</td>
-                `;
-            });
-        } else {
-            const row = itemsTableBody.insertRow();
-            row.innerHTML = '<td colspan="5" class="px-6 py-4 text-sm text-gray-500 text-center">No items found</td>';
-        }
-    } else {
-        console.error('Items table body not found!'); // Debug log
-    }
-
     // Show the modal
     document.getElementById('deliveryDetailsModal').classList.remove('hidden');
 }
 
-function closeDeliveryDetailsModal() {
+function closeDeliveryModal() {
     document.getElementById('deliveryDetailsModal').classList.add('hidden');
 }
 
 // Close modal when clicking outside
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('click', function(event) {
     const modal = document.getElementById('deliveryDetailsModal');
-    if (modal) {
-        modal.addEventListener('click', function(event) {
-            if (event.target === this) {
-                closeDeliveryDetailsModal();
-            }
-        });
+    if (event.target === modal) {
+        closeDeliveryModal();
     }
 });
 
-// Update the click handler to use the new function name
-document.querySelectorAll('[data-delivery-id]').forEach(button => {
-    button.addEventListener('click', function() {
-        const deliveryId = this.getAttribute('data-delivery-id');
-        fetch(`/requisition/delivery/${deliveryId}/details/`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Delivery data:', data); // Debug log
-                showDeliveryDetails(data);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error loading delivery details. Please try again.');
-            });
-    });
-});
+// Add CSRF token to all AJAX requests
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+const csrftoken = getCookie('csrftoken');
+
+// Add CSRF token to all fetch requests
+function fetchWithCSRF(url, options = {}) {
+    const fetchOptions = {
+        ...options,
+        headers: {
+            ...options.headers,
+            'X-CSRFToken': csrftoken,
+        },
+    };
+    return fetch(url, fetchOptions);
+}
 </script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/delivery_pdf.js' %}"></script>
+<script src="{% static 'js/delivery_details.js' %}"></script>
 {% endblock %}

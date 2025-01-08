@@ -119,13 +119,21 @@
 
                     <!-- Right Column: Selected Items -->
                     <div class="xl:w-1/4">
-                        <div class="sticky top-4 bg-gray-50 rounded-xl p-4">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-lg font-semibold text-gray-700">Selected Items</h3>
-                                <span id="selectedCount" class="bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full text-sm font-medium">0 items</span>
+                        <div class="sticky top-4 bg-white rounded-xl shadow-md p-4 border border-gray-100">
+                            <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-shopping-cart text-indigo-500"></i>
+                                    <h3 class="text-lg font-semibold text-gray-800">Selected Items</h3>
+                                </div>
+                                <span id="selectedCount" class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium">0 items</span>
                             </div>
-                            <div id="selectedItems" class="space-y-3">
+                            <div id="selectedItems" class="space-y-3 max-h-[calc(100vh-16rem)] overflow-y-auto">
                                 <!-- Selected items will be inserted here -->
+                                <div class="text-gray-500 text-center py-8">
+                                    <i class="fas fa-cart-plus text-4xl text-gray-300 mb-2"></i>
+                                    <p>No items selected</p>
+                                    <p class="text-sm text-gray-400">Click on items to add them to your requisition</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -161,13 +169,268 @@ console.log('Requisition form script loaded');
 
 // Store selected items and their quantities
 let selectedItems = new Map();
+let newItems = [];
+
+// Function to get URL parameters
+function getUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        item_name: params.get('item_name'),
+        brand: params.get('brand'),
+        model: params.get('model'),
+        quantity: parseInt(params.get('quantity')) || 1
+    };
+}
+
+// Function to handle URL parameters on page load
+function handleUrlParams() {
+    const params = getUrlParams();
+    if (params.item_name) {
+        console.log('Found URL parameters:', params);
+        const newItem = {
+            item_name: params.item_name,
+            brand: params.brand || 'Unknown Brand',
+            model: params.model || 'N/A',
+            quantity: params.quantity,
+            is_new_item: true
+        };
+        
+        // Add to newItems array
+        newItems.push(newItem);
+        
+        // Update hidden input
+        const newItemsInput = document.getElementById('newItemsInput');
+        newItemsInput.value = JSON.stringify(newItems);
+        
+        // Add to selected items display
+        const selectedItemsDiv = document.getElementById('selectedItems');
+        // Clear the "No items selected" message if it exists
+        if (selectedItemsDiv.querySelector('.text-gray-500')) {
+            selectedItemsDiv.innerHTML = '';
+        }
+        
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200';
+        itemDiv.innerHTML = `
+            <div class="p-4">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            <h4 class="font-medium text-gray-900">${newItem.item_name}</h4>
+                            <span class="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">New Request</span>
+                        </div>
+                        <div class="text-sm text-gray-500 mt-1">${newItem.brand} - ${newItem.model}</div>
+                    </div>
+                    <button type="button" onclick="removeNewItem('${newItem.item_name}')"
+                            class="text-gray-400 hover:text-red-500 transition-colors">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mt-3 flex items-center justify-between">
+                    <div class="flex items-center space-x-1">
+                        <button type="button" onclick="adjustNewItemQuantity('${newItem.item_name}', -1)" 
+                                class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-indigo-100 hover:text-indigo-600 transition-colors">
+                            <i class="fas fa-minus text-xs"></i>
+                        </button>
+                        <span class="quantity-display w-12 text-center font-medium text-gray-700">${newItem.quantity}</span>
+                        <button type="button" onclick="adjustNewItemQuantity('${newItem.item_name}', 1)"
+                                class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-indigo-100 hover:text-indigo-600 transition-colors">
+                            <i class="fas fa-plus text-xs"></i>
+                        </button>
+                    </div>
+                    <div class="text-sm font-medium text-gray-500">
+                        Quantity
+                    </div>
+                </div>
+            </div>
+        `;
+        selectedItemsDiv.appendChild(itemDiv);
+        
+        // Update count
+        updateSelectedCount();
+    }
+}
+
+// Debug function to log the current state
+function logState(context) {
+    console.log(`=== State Debug (${context}) ===`);
+    console.log('Selected Items Map:', Array.from(selectedItems.entries()));
+    console.log('New Items:', newItems);
+}
+
+function submitNewItemForm() {
+    console.log('Submitting new item form');
+    
+    const itemName = document.getElementById('newItemName').value.trim();
+    const model = document.getElementById('newItemModel').value.trim();
+    const brand = document.getElementById('newItemBrand').value.trim();
+    
+    if (!itemName || !model || !brand) {
+        alert('Please fill in all fields');
+        return;
+    }
+    
+    const newItem = {
+        item_name: itemName,
+        model: model,
+        brand: brand,
+        quantity: 1,
+        is_new_item: true
+    };
+    
+    console.log('New item:', newItem);
+    
+    // Add to newItems array
+    newItems.push(newItem);
+    
+    // Update hidden input
+    const newItemsInput = document.getElementById('newItemsInput');
+    newItemsInput.value = JSON.stringify(newItems);
+    
+    // Add to selected items display
+    const selectedItemsDiv = document.getElementById('selectedItems');
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200';
+    itemDiv.innerHTML = `
+        <div class="p-4">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2">
+                        <h4 class="font-medium text-gray-900">${itemName}</h4>
+                        <span class="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">New Request</span>
+                    </div>
+                    <div class="text-sm text-gray-500 mt-1">${brand} - ${model}</div>
+                </div>
+                <button type="button" onclick="removeNewItem('${itemName}')"
+                        class="text-gray-400 hover:text-red-500 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mt-3 flex items-center justify-between">
+                <div class="flex items-center space-x-1">
+                    <button type="button" onclick="adjustNewItemQuantity('${itemName}', -1)" 
+                            class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-indigo-100 hover:text-indigo-600 transition-colors">
+                        <i class="fas fa-minus text-xs"></i>
+                    </button>
+                    <span class="quantity-display w-12 text-center font-medium text-gray-700">${newItem.quantity}</span>
+                    <button type="button" onclick="adjustNewItemQuantity('${itemName}', 1)"
+                            class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-indigo-100 hover:text-indigo-600 transition-colors">
+                        <i class="fas fa-plus text-xs"></i>
+                    </button>
+                </div>
+                <div class="text-sm font-medium text-gray-500">
+                    Quantity
+                </div>
+            </div>
+        </div>
+    `;
+    selectedItemsDiv.appendChild(itemDiv);
+    
+    // Update count
+    updateSelectedCount();
+    
+    // Close modal
+    closeNewItemModal();
+    
+    // Clear form
+    document.getElementById('newItemForm').reset();
+    
+    console.log('New item added successfully');
+    logState('After adding new item');
+}
+
+function adjustNewItemQuantity(itemName, delta) {
+    const itemIndex = newItems.findIndex(item => item.item_name === itemName);
+    if (itemIndex === -1) return;
+    
+    const newQuantity = Math.max(1, newItems[itemIndex].quantity + delta);
+    newItems[itemIndex].quantity = newQuantity;
+    
+    // Update display
+    const itemDiv = document.querySelector(`#selectedItems div:nth-child(${itemIndex + 1})`);
+    if (itemDiv) {
+        itemDiv.querySelector('.quantity-display').textContent = newQuantity;
+    }
+    
+    // Update hidden input
+    document.getElementById('newItemsInput').value = JSON.stringify(newItems);
+}
+
+function removeNewItem(itemName) {
+    const itemIndex = newItems.findIndex(item => item.item_name === itemName);
+    if (itemIndex === -1) return;
+    
+    // Remove from array
+    newItems.splice(itemIndex, 1);
+    
+    // Update display
+    const itemDiv = document.querySelector(`#selectedItems div:nth-child(${itemIndex + 1})`);
+    if (itemDiv) {
+        itemDiv.remove();
+    }
+    
+    // Update hidden input
+    document.getElementById('newItemsInput').value = JSON.stringify(newItems);
+    
+    // Update count
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const existingItemsCount = selectedItems.size;
+    const newItemsCount = newItems.length;
+    const totalCount = existingItemsCount + newItemsCount;
+    
+    const countElement = document.getElementById('selectedCount');
+    countElement.textContent = `${totalCount} item${totalCount === 1 ? '' : 's'}`;
+    
+    // Update form validation
+    const submitButton = document.querySelector('button[type="submit"]');
+    submitButton.disabled = totalCount === 0;
+    
+    // Update the empty state message
+    const selectedItemsDiv = document.getElementById('selectedItems');
+    if (totalCount === 0 && !selectedItemsDiv.querySelector('.text-gray-500')) {
+        selectedItemsDiv.innerHTML = `
+            <div class="text-gray-500 text-center py-8">
+                <i class="fas fa-cart-plus text-4xl text-gray-300 mb-2"></i>
+                <p>No items selected</p>
+                <p class="text-sm text-gray-400">Click on items to add them to your requisition</p>
+            </div>
+        `;
+    }
+    
+    if (totalCount === 0) {
+        submitButton.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+        submitButton.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+}
 
 // Initialize click handlers when the DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded');
     
+    // Handle URL parameters
+    handleUrlParams();
+    
     // Add click listeners to all item cards
     document.querySelectorAll('.item-card').forEach(card => {
+        // Add selection overlay if it doesn't exist
+        if (!card.querySelector('.selection-overlay')) {
+            const overlay = document.createElement('div');
+            overlay.className = 'selection-overlay absolute inset-0 bg-indigo-100/50 opacity-0 transition-opacity duration-300 pointer-events-none rounded-lg';
+            card.appendChild(overlay);
+        }
+        
+        // Add checkmark icon if it doesn't exist
+        if (!card.querySelector('.checkmark-icon')) {
+            const checkmark = document.createElement('div');
+            checkmark.className = 'checkmark-icon absolute top-2 right-2 w-6 h-6 bg-indigo-500 rounded-full flex items-center justify-center transform scale-0 transition-transform duration-200';
+            checkmark.innerHTML = '<i class="fas fa-check text-white"></i>';
+            card.appendChild(checkmark);
+        }
+        
         card.addEventListener('click', function(event) {
             event.preventDefault();
             event.stopPropagation();
@@ -188,6 +451,23 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // Add form submit handler
+    document.getElementById('requisitionForm').addEventListener('submit', function(event) {
+        console.log('Form submitted');
+        
+        // Prevent submission if no items are selected
+        if (selectedItems.size === 0 && newItems.length === 0) {
+            event.preventDefault();
+            alert('Please select at least one item or request a new item');
+            return false;
+        }
+        
+        // Update hidden inputs before submission
+        updateItemsInput();
+        updateQuantitiesInput();
+        return true;
+    });
 });
 
 function selectItem(element, itemId, itemName) {
@@ -200,24 +480,20 @@ function selectItem(element, itemId, itemName) {
     
     if (overlay) {
         overlay.style.opacity = '1';
-    } else {
-        console.error('Selection overlay not found');
     }
     
     if (checkmark) {
         checkmark.style.transform = 'scale(1)';
-    } else {
-        console.error('Checkmark icon not found');
     }
     
-    // Add to selected items
+    // Add to selected items with default quantity of 1
     selectedItems.set(itemId, { name: itemName, quantity: 1 });
-    console.log('Selected items after adding:', Array.from(selectedItems.entries()));
     
-    // Update UI
+    // Update UI and form inputs
     updateSelectedItemsList();
     updateItemsInput();
     updateQuantitiesInput();
+    updateSelectedCount();
 }
 
 function deselectItem(element, itemId) {
@@ -237,12 +513,12 @@ function deselectItem(element, itemId) {
     
     // Remove from selected items
     selectedItems.delete(itemId);
-    console.log('Selected items after removing:', Array.from(selectedItems.entries()));
     
-    // Update UI
+    // Update UI and form inputs
     updateSelectedItemsList();
     updateItemsInput();
     updateQuantitiesInput();
+    updateSelectedCount();
 }
 
 function updateSelectedItemsList() {
@@ -254,13 +530,22 @@ function updateSelectedItemsList() {
     }
     
     container.innerHTML = '';
-    console.log('Current selected items:', Array.from(selectedItems.entries()));
     
-    selectedItems.forEach((item, id) => {
-        console.log('Creating quantity field for:', { id, item });
-        const itemElement = createQuantityField(id, item.name);
-        container.appendChild(itemElement);
-    });
+    if (selectedItems.size === 0 && newItems.length === 0) {
+        container.innerHTML = '<div class="text-gray-500 text-center py-4">No items selected</div>';
+    } else {
+        selectedItems.forEach((item, id) => {
+            console.log('Creating quantity field for:', { id, item });
+            const itemElement = createQuantityField(id, item.name);
+            container.appendChild(itemElement);
+        });
+        
+        newItems.forEach((item, index) => {
+            console.log('Creating quantity field for new item:', { index, item });
+            const itemElement = createNewQuantityField(item, index);
+            container.appendChild(itemElement);
+        });
+    }
     
     updateSelectedCount();
 }
@@ -290,6 +575,46 @@ function createQuantityField(itemId, itemName) {
     return div;
 }
 
+function createNewQuantityField(item, index) {
+    console.log('Creating quantity field for new item:', { index, item });
+    const div = document.createElement('div');
+    div.className = 'bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200';
+    div.innerHTML = `
+        <div class="p-4">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2">
+                        <h4 class="font-medium text-gray-900">${item.item_name}</h4>
+                        <span class="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">New Request</span>
+                    </div>
+                    <div class="text-sm text-gray-500 mt-1">${item.brand} - ${item.model}</div>
+                </div>
+                <button type="button" onclick="removeNewItem('${item.item_name}')"
+                        class="text-gray-400 hover:text-red-500 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mt-3 flex items-center justify-between">
+                <div class="flex items-center space-x-1">
+                    <button type="button" onclick="adjustNewItemQuantity('${item.item_name}', -1)" 
+                            class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-indigo-100 hover:text-indigo-600 transition-colors">
+                        <i class="fas fa-minus text-xs"></i>
+                    </button>
+                    <span class="quantity-display w-12 text-center font-medium text-gray-700">${item.quantity}</span>
+                    <button type="button" onclick="adjustNewItemQuantity('${item.item_name}', 1)"
+                            class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-indigo-100 hover:text-indigo-600 transition-colors">
+                        <i class="fas fa-plus text-xs"></i>
+                    </button>
+                </div>
+                <div class="text-sm font-medium text-gray-500">
+                    Quantity
+                </div>
+            </div>
+        </div>
+    `;
+    return div;
+}
+
 function adjustQuantity(itemId, delta) {
     const item = selectedItems.get(itemId);
     if (item) {
@@ -307,17 +632,11 @@ function updateItemQuantity(itemId, value) {
     }
 }
 
-function updateQuantitiesInput() {
-    const quantities = {};
-    selectedItems.forEach((item, id) => {
-        quantities[id] = item.quantity;
-    });
-    document.querySelector('input[name="quantities"]').value = JSON.stringify(quantities);
-}
-
 function updateItemsInput() {
+    console.log('Updating items input');
     const itemsContainer = document.getElementById('selectedItemsContainer');
     itemsContainer.innerHTML = '';
+    
     selectedItems.forEach((item, id) => {
         const input = document.createElement('input');
         input.type = 'hidden';
@@ -327,11 +646,13 @@ function updateItemsInput() {
     });
 }
 
-function updateSelectedCount() {
-    const selectedCount = selectedItems.size;
-    const newItemsCount = document.querySelectorAll('.bg-yellow-50').length;
-    const totalCount = selectedCount + newItemsCount;
-    document.getElementById('selectedCount').textContent = `${totalCount} item${totalCount !== 1 ? 's' : ''}`;
+function updateQuantitiesInput() {
+    console.log('Updating quantities input');
+    const quantities = {};
+    selectedItems.forEach((item, id) => {
+        quantities[id] = item.quantity;
+    });
+    document.querySelector('input[name="quantities"]').value = JSON.stringify(quantities);
 }
 
 // New Item Request Functions
@@ -387,7 +708,7 @@ function openNewItemModal() {
     document.body.appendChild(modal);
     
     // Add event listener for form submission
-    document.getElementById('newItemForm').addEventListener('submit', handleNewItemSubmit);
+    document.getElementById('newItemForm').addEventListener('submit', submitNewItemForm);
 }
 
 function closeNewItemModal() {
@@ -418,20 +739,43 @@ function handleNewItemSubmit(e) {
     // Add to selected items display
     const selectedItemsDiv = document.getElementById('selectedItems');
     const itemDiv = document.createElement('div');
-    itemDiv.className = 'flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border border-gray-200';
+    itemDiv.className = 'bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200';
     itemDiv.innerHTML = `
-        <div class="flex-1">
-            <h4 class="text-sm font-medium text-gray-900">${newItem.item_name}</h4>
-            <p class="text-xs text-gray-500">${newItem.brand || 'No Brand'} - ${newItem.model || 'No Model'}</p>
-            <p class="text-xs text-indigo-600">New Item Request</p>
-        </div>
-        <div class="ml-4">
-            <span class="text-sm font-medium text-gray-900">Qty: ${newItem.quantity}</span>
+        <div class="p-4">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2">
+                        <h4 class="font-medium text-gray-900">${newItem.item_name}</h4>
+                        <span class="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">New Request</span>
+                    </div>
+                    <div class="text-sm text-gray-500 mt-1">${newItem.brand} - ${newItem.model}</div>
+                </div>
+                <button type="button" onclick="removeNewItem('${newItem.item_name}')"
+                        class="text-gray-400 hover:text-red-500 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mt-3 flex items-center justify-between">
+                <div class="flex items-center space-x-1">
+                    <button type="button" onclick="adjustNewItemQuantity('${newItem.item_name}', -1)" 
+                            class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-indigo-100 hover:text-indigo-600 transition-colors">
+                        <i class="fas fa-minus text-xs"></i>
+                    </button>
+                    <span class="quantity-display w-12 text-center font-medium text-gray-700">${newItem.quantity}</span>
+                    <button type="button" onclick="adjustNewItemQuantity('${newItem.item_name}', 1)"
+                            class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-indigo-100 hover:text-indigo-600 transition-colors">
+                        <i class="fas fa-plus text-xs"></i>
+                    </button>
+                </div>
+                <div class="text-sm font-medium text-gray-500">
+                    Quantity
+                </div>
+            </div>
         </div>
     `;
     selectedItemsDiv.appendChild(itemDiv);
     
-    // Update selected count
+    // Update count
     updateSelectedCount();
     
     // Close modal
@@ -447,86 +791,6 @@ function handleNewItemSubmit(e) {
     `;
     document.body.appendChild(successMessage);
     setTimeout(() => successMessage.remove(), 3000);
-}
-
-// Update the selected count to include new items
-function updateSelectedCount() {
-    const selectedCount = document.getElementById('selectedCount');
-    const quantitiesInput = document.getElementById('quantitiesInput');
-    const newItemsInput = document.getElementById('newItemsInput');
-    
-    const quantities = JSON.parse(quantitiesInput.value || '{}');
-    const newItems = JSON.parse(newItemsInput.value || '[]');
-    
-    const totalItems = Object.keys(quantities).length + newItems.length;
-    selectedCount.textContent = `${totalItems} item${totalItems === 1 ? '' : 's'}`;
-}
-
-// Modal functions
-function openNewItemModal() {
-    const modal = document.getElementById('newItemModal');
-    if (modal) {
-        modal.classList.remove('hidden');
-    } else {
-        console.error('Modal element not found');
-    }
-}
-
-function closeNewItemModal() {
-    const modal = document.getElementById('newItemModal');
-    if (modal) {
-        modal.classList.add('hidden');
-        document.getElementById('newItemForm').reset();
-    }
-}
-
-function submitNewItemForm() {
-    const form = document.getElementById('newItemForm');
-    const itemName = document.getElementById('newItemName').value;
-    const itemModel = document.getElementById('newItemModel').value;
-    const itemBrand = document.getElementById('newItemBrand').value;
-    
-    if (!itemName || !itemModel || !itemBrand) {
-        alert('Please fill in all fields');
-        return;
-    }
-    
-    // Add to hidden input for form submission
-    const newItemsContainer = document.getElementById('selectedItemsContainer');
-    const newItemInput = document.createElement('input');
-    newItemInput.type = 'hidden';
-    newItemInput.name = 'new_items';
-    newItemInput.value = JSON.stringify({
-        item_name: itemName,
-        model: itemModel,
-        brand: itemBrand
-    });
-    newItemsContainer.appendChild(newItemInput);
-    
-    // Create a visual representation of the new item request
-    const itemCard = document.createElement('div');
-    itemCard.className = 'p-4 mb-2 bg-yellow-50 rounded-lg border border-yellow-200';
-    itemCard.innerHTML = `
-        <div class="flex items-center justify-between">
-            <div>
-                <h4 class="font-medium text-yellow-800">${itemName}</h4>
-                <p class="text-sm text-yellow-600">${itemBrand || 'No Brand'} - ${itemModel || 'No Model'}</p>
-            </div>
-            <span class="text-xs font-medium bg-yellow-100 text-yellow-800 px-2 py-1 rounded">New Item Request</span>
-        </div>
-    `;
-    
-    // Add to selected items section
-    const selectedItemsList = document.getElementById('selectedItems');
-    if (selectedItemsList) {
-        selectedItemsList.appendChild(itemCard);
-    }
-    
-    // Update selected count
-    updateSelectedCount();
-    
-    // Close modal and reset form
-    closeNewItemModal();
 }
 
 // Add event listener for the new item form

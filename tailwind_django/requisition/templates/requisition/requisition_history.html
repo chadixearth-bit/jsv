@@ -35,23 +35,23 @@
             <form method="get" class="flex-grow flex gap-4 items-center">
                 <div class="relative">
                     <select name="status" id="statusSelect" onchange="updateStatusIcon(this)" class="pl-10 pr-8 py-2 text-sm rounded-lg border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 appearance-none bg-white">
-                        <option value="">All Status</option>
-                        <option value="pending" {% if status == 'pending' %}selected{% endif %}>Pending</option>
-                        <option value="pending_admin_approval" {% if status == 'pending_admin_approval' %}selected{% endif %}>Pending Admin Approval</option>
-                        <option value="approved_by_admin" {% if status == 'approved_by_admin' %}selected{% endif %}>Approved</option>
-                        <option value="rejected_by_manager" {% if status == 'rejected_by_manager' %}selected{% endif %}>Rejected by Manager</option>
-                        <option value="rejected_by_admin" {% if status == 'rejected_by_admin' %}selected{% endif %}>Rejected by Admin</option>
-                        <option value="completed" {% if status == 'completed' %}selected{% endif %}>Completed</option>
+                        <option value="all" {% if not current_status %}selected{% endif %}>All Status</option>
+                        {% for status_value, status_label in status_choices %}
+                            <option value="{{ status_value }}" {% if current_status == status_value %}selected{% endif %}>
+                                {{ status_label }}
+                            </option>
+                        {% endfor %}
                     </select>
-                    <div id="statusIcon" class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <!-- Default Filter Icon -->
-                        <svg class="h-4 w-4 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
-                        </svg>
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span id="statusIcon" class="text-gray-500">
+                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                            </svg>
+                        </span>
                     </div>
                     <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                        <svg class="h-4 w-4 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
                         </svg>
                     </div>
                 </div>
@@ -106,8 +106,7 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {{ requisition.requester.get_full_name }}
-                            <div class="text-sm text-gray-900">{{ requisition.requester.customuser.get_role_display }}</div>
+                            {{ requisition.requester.display_name }}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {{ requisition.source_warehouse.name }}
@@ -120,37 +119,40 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             <div class="relative" style="position: static;">
-                                <button onclick="toggleDropdown({{ requisition.id }})" type="button" class="inline-flex items-center p-2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                                <button onclick="toggleDropdown({{ requisition.id }}, event)" type="button" class="inline-flex items-center p-2 text-gray-400 hover:text-gray-600 focus:outline-none">
                                     <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
                                     </svg>
                                 </button>
-                                <div id="dropdown-{{ requisition.id }}" class="hidden fixed transform translate-x-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5" style="z-index: 9999;">
+                                <div id="dropdown-{{ requisition.id }}" class="hidden absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50" style="min-width: 12rem;">
                                     <div class="py-1" role="menu" aria-orientation="vertical">
-                                        <a href="{% url 'requisition:download_requisition_pdf' requisition.id %}" 
-                                           class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-                                            <svg class="mr-3 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0112.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                                            </svg>
+                                        <a href="javascript:void(0);" onclick="viewRequisitionDetails({{ requisition.id }})" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                            View Details
+                                        </a>
+                                        <a href="{% url 'requisition:download_requisition_pdf' requisition.id %}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
                                             Download PDF
                                         </a>
-                                        <button onclick="viewRequisitionDetails({{ requisition.id }})"
-                                                class="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-                                            <svg class="mr-3 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                            </svg>
-                                            View Details
-                                        </button>
-                                        {% if request.user.is_superuser or request.user == requisition.requester %}
-                                        <button onclick="confirmDelete('{% url 'requisition:delete_requisition' requisition.id %}')"
-                                                class="w-full flex items-center px-4 py-2 text-sm text-red-700 hover:bg-gray-100" role="menuitem">
-                                            <svg class="mr-3 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                            </svg>
-                                            Delete
-                                        </button>
+                                        <a href="{% url 'requisition:send_to_manager' requisition.id %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                            Send to Manager
+                                        </a>
+                                        {% if user.is_superuser %}
+                                        <form action="{% url 'requisition:delete_requisition' requisition.id %}" method="POST" class="block" onsubmit="return confirmDelete('{% url 'requisition:delete_requisition' requisition.id %}')">
+                                            {% csrf_token %}
+                                            <button type="submit" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100" role="menuitem">
+                                                Delete
+                                            </button>
+                                        </form>
                                         {% endif %}
+                                        <form method="post" enctype="multipart/form-data" action="{% url 'confirm_delivery' %}">
+                                            {% csrf_token %}
+                                            <label for="confirmation">Confirm Delivery:</label>
+                                            <input type="checkbox" id="confirmation" name="confirmation" required>
+                                            <br>
+                                            <label for="image">Upload Image:</label>
+                                            <input type="file" id="image" name="image" accept="image/*" required>
+                                            <br>
+                                            <button type="submit">Submit</button>
+                                        </form>
                                     </div>
                                 </div>
                             </div>
@@ -175,13 +177,13 @@
     <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-xl shadow-md">
         <div class="flex-1 flex justify-between sm:hidden">
             {% if requisitions.has_previous %}
-                <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if status %}&status={{ status }}{% endif %}" 
+                <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" 
                    class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                     Previous
                 </a>
             {% endif %}
             {% if requisitions.has_next %}
-                <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if status %}&status={{ status }}{% endif %}" 
+                <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" 
                    class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                     Next
                 </a>
@@ -202,7 +204,7 @@
             <div>
                 <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
                     {% if requisitions.has_previous %}
-                        <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if status %}&status={{ status }}{% endif %}" 
+                        <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" 
                            class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                             <span class="sr-only">Previous</span>
                             <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -217,7 +219,7 @@
                                 {{ i }}
                             </span>
                         {% elif i > requisitions.number|add:'-3' and i < requisitions.number|add:'3' %}
-                            <a href="?page={{ i }}{% if query %}&q={{ query }}{% endif %}{% if status %}&status={{ status }}{% endif %}" 
+                            <a href="?page={{ i }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" 
                                class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
                                 {{ i }}
                             </a>
@@ -225,7 +227,7 @@
                     {% endfor %}
 
                     {% if requisitions.has_next %}
-                        <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if status %}&status={{ status }}{% endif %}" 
+                        <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" 
                            class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                             <span class="sr-only">Next</span>
                             <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -244,60 +246,264 @@
 <div id="requisitionModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <!-- Background overlay -->
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
 
         <!-- Modal panel -->
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-6xl sm:w-full">
-            <div class="flex">
-                <!-- Left side: Requisition Details -->
-                <div class="w-1/2 p-6 bg-white">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-lg font-medium leading-6 text-gray-900" id="modal-title">
+        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                    <div class="w-full">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">
                             Requisition Details
                         </h3>
-                        <span class="px-3 py-1 text-sm font-semibold rounded-full" id="modalStatus"></span>
-                    </div>
-                    
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Requester</label>
-                            <p class="mt-1 text-sm text-gray-900" id="modalRequester"></p>
-                            <p class="text-sm text-gray-500" id="modalRequesterRole"></p>
-                        </div>
                         
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Source Warehouse</label>
-                            <p class="mt-1 text-sm text-gray-900" id="modalSourceWarehouse"></p>
+                        <!-- Status Badge -->
+                        <div class="mb-6">
+                            <span id="modalStatus" class="px-3 py-1 text-sm font-semibold rounded-full"></span>
                         </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Destination Warehouse</label>
-                            <p class="mt-1 text-sm text-gray-900" id="modalDestinationWarehouse"></p>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Admin Comment</label>
-                            <p class="mt-1 text-sm text-gray-900" id="modalAdminComment"></p>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Right side: Timeline -->
-                <div class="w-1/2 bg-gray-50 p-6">
-                    <h3 class="text-lg font-medium leading-6 text-gray-900 mb-6">Timeline</h3>
-                    <div id="modalTimeline" class="space-y-6"></div>
+                        <!-- Requisition Info Grid -->
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-500">Requester</h4>
+                                <p id="modalRequester" class="mt-1 text-sm text-gray-900"></p>
+                                <p id="modalRequesterRole" class="text-sm text-gray-500"></p>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-500">Created At</h4>
+                                <p id="modalCreatedAt" class="mt-1 text-sm text-gray-900"></p>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-500">Source Warehouse</h4>
+                                <p id="modalSourceWarehouse" class="mt-1 text-sm text-gray-900"></p>
+                            </div>
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-500">Destination Warehouse</h4>
+                                <p id="modalDestinationWarehouse" class="mt-1 text-sm text-gray-900"></p>
+                            </div>
+                        </div>
+
+                        <!-- Reason -->
+                        <div class="mb-6">
+                            <h4 class="text-sm font-medium text-gray-500">Reason</h4>
+                            <p id="modalReason" class="mt-1 text-sm text-gray-900"></p>
+                        </div>
+
+                        <!-- Items Table -->
+                        <div class="mb-6">
+                            <h4 class="text-sm font-medium text-gray-500 mb-2">Items</h4>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="modalItemsBody" class="bg-white divide-y divide-gray-200">
+                                        <!-- Items will be inserted here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Comments -->
+                        <div class="mb-6">
+                            <h4 class="text-sm font-medium text-gray-500">Comments</h4>
+                            <div class="mt-2 space-y-4">
+                                <div id="modalManagerComment" class="text-sm text-gray-900"></div>
+                                <div id="modalAdminComment" class="text-sm text-gray-900"></div>
+                            </div>
+                        </div>
+
+                        <!-- Timeline -->
+                        <div class="mb-6">
+                            <h4 class="text-sm font-medium text-gray-500 mb-2">Timeline</h4>
+                            <ul id="modalTimeline" class="relative space-y-4">
+                                <!-- Timeline events will be inserted here -->
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
-            
-            <!-- Modal footer -->
             <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button type="button" onclick="closeModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                <button type="button" onclick="closeModal()"
+                        class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
                     Close
                 </button>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    function viewRequisitionDetails(id) {
+        const modal = document.getElementById('requisitionModal');
+        modal.classList.remove('hidden');
+        
+        // Clear previous data
+        document.getElementById('modalStatus').textContent = '';
+        document.getElementById('modalRequester').textContent = '';
+        document.getElementById('modalRequesterRole').textContent = '';
+        document.getElementById('modalCreatedAt').textContent = '';
+        document.getElementById('modalSourceWarehouse').textContent = '';
+        document.getElementById('modalDestinationWarehouse').textContent = '';
+        document.getElementById('modalReason').textContent = '';
+        document.getElementById('modalItemsBody').innerHTML = '';
+        document.getElementById('modalManagerComment').innerHTML = '';
+        document.getElementById('modalAdminComment').innerHTML = '';
+        document.getElementById('modalTimeline').innerHTML = '<div class="p-4 text-center text-gray-500">Loading...</div>';
+        
+        fetch(`/requisition/requisition/get-details/${id}/`)
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Failed to load requisition details');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Received data:', data);  // Debug log
+                
+                // Update status badge
+                const modalStatus = document.getElementById('modalStatus');
+                modalStatus.textContent = data.status_display;
+                modalStatus.className = `px-3 py-1 text-sm font-semibold rounded-full ${getStatusClass(data.status)}`;
+                
+                // Update basic info
+                document.getElementById('modalRequester').textContent = data.requester_name;
+                document.getElementById('modalRequesterRole').textContent = data.requester_role;
+                document.getElementById('modalCreatedAt').textContent = data.created_at;
+                document.getElementById('modalSourceWarehouse').textContent = data.source_warehouse;
+                document.getElementById('modalDestinationWarehouse').textContent = data.destination_warehouse;
+                document.getElementById('modalReason').textContent = data.reason;
+                
+                // Update items table
+                const itemsBody = document.getElementById('modalItemsBody');
+                itemsBody.innerHTML = data.items.map(item => `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.brand}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.model}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.quantity}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${item.is_new_item ? 
+                                '<span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">New Item</span>' : 
+                                '<span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">Existing</span>'
+                            }
+                        </td>
+                    </tr>
+                `).join('');
+                
+                // Update comments
+                document.getElementById('modalManagerComment').innerHTML = data.manager_comment ? 
+                    `<div class="p-3 bg-gray-50 rounded-lg">
+                        <span class="font-medium text-gray-700">Manager Comment:</span><br>
+                        ${data.manager_comment}
+                    </div>` : '';
+                    
+                document.getElementById('modalAdminComment').innerHTML = data.admin_comment ? 
+                    `<div class="p-3 bg-gray-50 rounded-lg">
+                        <span class="font-medium text-gray-700">Admin Comment:</span><br>
+                        ${data.admin_comment}
+                    </div>` : '';
+                
+                // Update timeline
+                const timelineContainer = document.getElementById('modalTimeline');
+                if (data.timeline && data.timeline.length > 0) {
+                    timelineContainer.innerHTML = data.timeline.map((event, index) => `
+                        <li>
+                            <div class="relative pb-8">
+                                ${index < data.timeline.length - 1 ? 
+                                    '<span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"></span>' : ''
+                                }
+                                <div class="relative flex space-x-3">
+                                    <div>
+                                        <span class="h-8 w-8 rounded-full bg-${getTimelineColor(event.status)} flex items-center justify-center ring-8 ring-white">
+                                            <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="min-w-0 flex-1 pt-1.5">
+                                        <p class="text-sm font-medium text-gray-900">${event.status_display}</p>
+                                        <p class="mt-1 text-sm text-gray-500">${event.timestamp}</p>
+                                        ${event.comment ? `
+                                            <p class="mt-2 text-sm text-gray-700">${event.comment}</p>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                    `).join('');
+                } else {
+                    timelineContainer.innerHTML = `
+                        <div class="p-4 text-center text-gray-500">
+                            <p>No timeline events available.</p>
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // Show error in all sections
+                document.getElementById('modalRequester').textContent = 'Error loading data';
+                document.getElementById('modalRequesterRole').textContent = '';
+                document.getElementById('modalCreatedAt').textContent = '';
+                document.getElementById('modalSourceWarehouse').textContent = '';
+                document.getElementById('modalDestinationWarehouse').textContent = '';
+                document.getElementById('modalReason').textContent = '';
+                document.getElementById('modalItemsBody').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-4 text-center text-red-600">
+                            Error loading items. Please try again.
+                        </td>
+                    </tr>
+                `;
+                document.getElementById('modalManagerComment').innerHTML = '';
+                document.getElementById('modalAdminComment').innerHTML = '';
+                document.getElementById('modalTimeline').innerHTML = `
+                    <div class="p-4 text-center text-red-600">
+                        <p>Error loading requisition details. Please try again.</p>
+                        <p class="text-sm mt-2">${error.message}</p>
+                    </div>
+                `;
+            });
+    }
+
+    function getStatusClass(status) {
+        const classes = {
+            'pending': 'bg-yellow-100 text-yellow-800',
+            'pending_admin_approval': 'bg-blue-100 text-blue-800',
+            'approved_by_admin': 'bg-green-100 text-green-800',
+            'rejected_by_manager': 'bg-red-100 text-red-800',
+            'rejected_by_admin': 'bg-red-100 text-red-800',
+            'completed': 'bg-gray-100 text-gray-800'
+        };
+        return classes[status] || classes.completed;
+    }
+
+    function getTimelineColor(status) {
+        const colors = {
+            'pending': 'yellow-500',
+            'pending_admin_approval': 'blue-500',
+            'approved_by_admin': 'green-500',
+            'rejected_by_manager': 'red-500',
+            'rejected_by_admin': 'red-500',
+            'completed': 'gray-500'
+        };
+        return colors[status] || 'gray-500';
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('requisitionModal');
+        modal.classList.add('hidden');
+    }
+</script>
 
 <script>
     function toggleTimelineView(button) {
@@ -373,182 +579,42 @@
 </script>
 
 <script>
-    function toggleDropdown(id) {
+    function toggleDropdown(id, event) {
         const dropdown = document.getElementById(`dropdown-${id}`);
-        const button = event.currentTarget;
-        const rect = button.getBoundingClientRect();
-        const allDropdowns = document.querySelectorAll('[id^="dropdown-"]');
-        
-        // Close all other dropdowns
-        allDropdowns.forEach(d => {
-            if (d.id !== `dropdown-${id}`) {
-                d.classList.add('hidden');
-            }
-        });
-
-        // Toggle current dropdown
-        dropdown.classList.toggle('hidden');
-        
-        if (!dropdown.classList.contains('hidden')) {
-            // Position dropdown relative to button
-            dropdown.style.top = `${rect.bottom + window.scrollY}px`;
-            dropdown.style.left = `${rect.left - dropdown.offsetWidth + button.offsetWidth}px`;
+        if (dropdown) {
+            dropdown.classList.toggle('hidden');
+            event.stopPropagation();
         }
     }
 
     // Close dropdowns when clicking outside
     document.addEventListener('click', function(event) {
         const dropdowns = document.querySelectorAll('[id^="dropdown-"]');
-        const buttons = document.querySelectorAll('button[onclick^="toggleDropdown"]');
-        
-        let clickedOnButton = false;
-        buttons.forEach(button => {
-            if (button.contains(event.target)) {
-                clickedOnButton = true;
+        dropdowns.forEach(dropdown => {
+            if (!dropdown.contains(event.target)) {
+                dropdown.classList.add('hidden');
             }
         });
-
-        if (!clickedOnButton) {
-            dropdowns.forEach(dropdown => {
-                dropdown.classList.add('hidden');
-            });
-        }
     });
+</script>
 
-    // function viewRequisitionDetails(id) {
-    //     const modal = document.getElementById('requisitionModal');
-        
-    //     // Show modal
-    //     modal.classList.remove('hidden');
-    //     document.body.style.overflow = 'hidden';  // Prevent background scrolling
-        
-    //     // Fetch requisition details
-    //     fetch(`/requisition/api/details/${id}/`)
-    //         .then(response => response.json())
-    //         .then(data => {
-    //             // Update status
-    //             document.getElementById('modalStatus').className = `px-3 py-1 text-sm font-semibold rounded-full ${getStatusClass(data.status)}`;
-    //             document.getElementById('modalStatus').textContent = data.status_display;
-                
-    //             // Update requester details
-    //             document.getElementById('modalRequester').textContent = data.requester_name;
-    //             document.getElementById('modalRequesterRole').textContent = `(${data.requester_role})`;
-                
-    //             // Update warehouse details
-    //             document.getElementById('modalSourceWarehouse').textContent = data.source_warehouse;
-    //             document.getElementById('modalDestinationWarehouse').textContent = data.destination_warehouse;
-                
-    //             // Update admin comment
-    //             document.getElementById('modalAdminComment').textContent = data.approval_comment || 'No comment';
-                
-    //             // Update timeline
-    //             document.getElementById('modalTimeline').innerHTML = generateTimelineHTML(data.timeline);
-    //         })
-    //         .catch(error => {
-    //             console.error('Error:', error);
-    //             // Show error message in modal
-    //             document.getElementById('modalTimeline').innerHTML = `
-    //                 <div class="p-6 text-center text-red-600">
-    //                     <p>Error loading requisition details. Please try again.</p>
-    //                 </div>
-    //             `;
-    //         });
-    // }
+<script>
+    function confirmDeleteAll() {
+        return confirm('Are you sure you want to delete all requisition history? This action cannot be undone.');
+    }
+</script>
 
-    // function closeModal() {
-    //     const modal = document.getElementById('requisitionModal');
-    //     modal.classList.add('hidden');
-    //     document.body.style.overflow = '';  // Restore background scrolling
-    // }
+<script>
+    function confirmDelete(deleteUrl) {
+        if (confirm('Are you sure you want to permanently delete this requisition? This action cannot be undone.')) {
+            window.location.href = deleteUrl;
+        }
+    }
 
-//     function getStatusClass(status) {
-//         const statusClasses = {
-//             'pending': 'bg-yellow-100 text-yellow-800',
-//             'pending_admin_approval': 'bg-blue-100 text-blue-800',
-//             'approved_by_admin': 'bg-green-100 text-green-800',
-//             'rejected_by_manager': 'bg-red-100 text-red-800',
-//             'rejected_by_admin': 'bg-red-100 text-red-800',
-//             'default': 'bg-gray-100 text-gray-800'
-//         };
-//         return statusClasses[status] || statusClasses.default;
-//     }
-
-//     function generateTimelineHTML(timeline) {
-//         return timeline.map((event, index, array) => `
-//             <li>
-//                 <div class="relative pb-8">
-//                     ${index < array.length - 1 ? `
-//                         <span class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
-//                     ` : ''}
-//                     <div class="relative flex space-x-3">
-//                         <div>
-//                             <span class="h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white ${getTimelineIconClass(event.status)}">
-//                                 <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-//                                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-//                                 </svg>
-//                             </span>
-//                         </div>
-//                         <div class="min-w-0 flex-1">
-//                             <div class="text-sm">
-//                                 <div class="font-medium text-gray-900">Status changed to: ${event.status_display}</div>
-//                                 <div class="mt-1 text-gray-500">${event.timestamp}</div>
-//                                 ${event.comment ? `
-//                                 <div class="mt-2 text-sm text-gray-700">
-//                                     <p>${event.comment}</p>
-//                                 </div>
-//                                 ` : ''}
-//                             </div>
-//                         </div>
-//                     </div>
-//                 </div>
-//             </li>
-//         `).join('');
-//     }
-
-//     function getTimelineIconClass(status) {
-//         const iconClasses = {
-//             'pending': 'bg-yellow-500',
-//             'pending_admin_approval': 'bg-blue-500',
-//             'approved_by_admin': 'bg-green-500',
-//             'rejected_by_manager': 'bg-red-500',
-//             'rejected_by_admin': 'bg-red-500',
-//             'pending_delivery': 'bg-purple-500',
-//             'in_delivery': 'bg-indigo-500',
-//             'delivered': 'bg-teal-500',
-//             'completed': 'bg-green-600',
-//             'default': 'bg-gray-500'
-//         };
-//         return iconClasses[status] || iconClasses.default;
-//     }
-
-//     // Close modal when clicking outside
-//     document.addEventListener('click', function(event) {
-//         const modal = document.getElementById('requisitionModal');
-//         const modalPanel = modal.querySelector('.inline-block');
-//         if (event.target === modal) {
-//             closeModal();
-//         }
-//     });
-
-//     // Close modal on escape key
-//     document.addEventListener('keydown', function(event) {
-//         if (event.key === 'Escape') {
-//             closeModal();
-//         }
-//     });
-// </script>
-
-// <script>
-//     function confirmDelete(deleteUrl) {
-//         if (confirm('Are you sure you want to permanently delete this requisition? This action cannot be undone.')) {
-//             window.location.href = deleteUrl;
-//         }
-//     }
-
-//     function confirmDeleteAll() {
-//         return confirm('Are you sure you want to permanently delete ALL requisition history? This action cannot be undone and will delete all requisitions for all users.');
-//     }
-// </script>
+    function confirmDeleteAll() {
+        return confirm('Are you sure you want to permanently delete ALL requisition history? This action cannot be undone and will delete all requisitions for all users.');
+    }
+</script>
 {% endblock %}
 
 {% block extra_js %}

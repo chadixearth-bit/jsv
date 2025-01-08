@@ -30,16 +30,14 @@ class CustomUser(models.Model):
             if self.role == 'admin':
                 all_warehouses = Warehouse.objects.all()
                 self.warehouses.add(*all_warehouses)
-            # For attendant role, assign to Attendant Warehouse
+            # For attendant role, create and assign to Attendant Warehouse if it doesn't exist
             elif self.role == 'attendant':
-                attendant_warehouse = Warehouse.objects.filter(name='Attendant Warehouse').first()
-                if attendant_warehouse:
-                    self.warehouses.add(attendant_warehouse)
-            # For manager role, assign to Manager Warehouse
+                attendant_warehouse, created = Warehouse.objects.get_or_create(name='Attendant Warehouse', defaults={'id': 1})
+                self.warehouses.add(attendant_warehouse)
+            # For manager role, create and assign to Manager Warehouse if it doesn't exist
             elif self.role == 'manager':
-                manager_warehouse = Warehouse.objects.filter(name='Manager Warehouse').first()
-                if manager_warehouse:
-                    self.warehouses.add(manager_warehouse)
+                manager_warehouse, created = Warehouse.objects.get_or_create(name='Manager Warehouse', defaults={'id': 2})
+                self.warehouses.add(manager_warehouse)
 
     def update_permissions(self):
         # Remove all existing permissions

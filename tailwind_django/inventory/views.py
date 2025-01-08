@@ -33,9 +33,9 @@ def inventory_list(request):
     # Filter by warehouse based on role, but show all items for admin
     if not request.user.is_superuser:  # Only filter for non-admin users
         if user_role == 'attendant':
-            queryset = queryset.filter(warehouse__name='Attendant Warehouse')
+            queryset = queryset.filter(warehouse_id=1)  # Attendant Warehouse (ID: 1)
         elif user_role == 'manager':
-            queryset = queryset.filter(warehouse__name='Manager Warehouse')
+            queryset = queryset.filter(warehouse_id=2)  # Manager Warehouse (ID: 2)
     
     # Search functionality
     query = request.GET.get('q')
@@ -112,6 +112,7 @@ def inventory_list(request):
         'query': query,
         'sort_by': sort_by,
         'user_role': user_role,
+        'is_main_warehouse': user_role == 'manager' or request.user.is_superuser,
     }
     
     return render(request, 'inventory/inventory_list.html', context)

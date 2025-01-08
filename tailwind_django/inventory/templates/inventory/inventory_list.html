@@ -198,7 +198,7 @@
                                             <div>
                                                 <div class="text-sm font-medium text-gray-900 mb-1">{{ item.item_name }}</div>
                                                 <!-- <div class="text-sm text-gray-500">{{ item.brand }} - {{ item.model }}</div> -->
-                                                {% if item.location == 'attendant_warehouse' %}
+                                                {% if item.warehouse_id == 1 %}
                                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                                                         Attendant Warehouse
                                                     </span>
@@ -230,7 +230,7 @@
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
                                                     Low
                                                 </span>
-                                            {% endif %}
+                                            {% endif %} 
                                         </div>
                                     </td>
                                     <td class="px-6 py-4">
