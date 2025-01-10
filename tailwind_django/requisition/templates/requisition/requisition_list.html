@@ -16,7 +16,7 @@
                             {% elif user_role == 'manager' %}
                                 View and manage requisitions
                             {% else %}
-                                View manager requisitions
+                                View and manage requisitions (admin)
                             {% endif %}
                         </p>
                     </div>
@@ -116,4 +116,101 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function approveRequisition(requisitionId) {
+        if (!confirm('Are you sure you want to approve this requisition?')) {
+            return;
+        }
+
+        fetch(`/requisition/${requisitionId}/approve/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Error approving requisition: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error approving requisition');
+        });
+    }
+
+    function rejectRequisition(requisitionId) {
+        if (!confirm('Are you sure you want to reject this requisition?')) {
+            return;
+        }
+
+        fetch(`/requisition/${requisitionId}/reject/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Error rejecting requisition: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error rejecting requisition');
+        });
+    }
+
+    function adminApproveRequisition(requisitionId) {
+        if (!confirm('Are you sure you want to approve this requisition?')) {
+            return;
+        }
+
+        fetch(`/requisition/${requisitionId}/admin-approve/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Error approving requisition: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error approving requisition');
+        });
+    }
+</script>
 {% endblock %}

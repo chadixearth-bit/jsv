@@ -142,7 +142,7 @@
                                     </div>
                                     <!-- Create PO Actions -->
                                     <div class="p-4 bg-gray-50">
-                                        <div class="space-y-4">
+                                        <form id="po_form_{{ brand }}" class="space-y-4">
                                             <div class="grid grid-cols-2 gap-4">
                                                 <div>
                                                     <label for="supplier_{{ brand }}" class="block text-sm font-medium text-gray-700">Supplier</label>
@@ -163,25 +163,23 @@
                                                     </select>
                                                 </div>
                                             </div>
-                                            <div class="grid grid-cols-2 gap-4 mt-4">
-                                                <div>
-                                                    <label for="delivery_date_{{ brand }}" class="block text-sm font-medium text-gray-700">Expected Delivery Date</label>
-                                                    <input type="date" id="delivery_date_{{ brand }}" name="delivery_date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                                                </div>
-                                                <div>
-                                                    <label for="notes_{{ brand }}" class="block text-sm font-medium text-gray-700">Notes</label>
-                                                    <textarea id="notes_{{ brand }}" name="notes" rows="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
-                                                </div>
+                                            <div>
+                                                <label for="expected_delivery_date_{{ brand }}" class="block text-sm font-medium text-gray-700">Expected Delivery Date</label>
+                                                <input type="date" id="expected_delivery_date_{{ brand }}" name="expected_delivery_date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                             </div>
-                                            <div class="mt-4 flex justify-end space-x-3">
-                                                <button type="button" onclick="clearBrandItems('{{ brand }}')" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                                                    Clear All
-                                                </button>
-                                                <button type="button" onclick="createPurchaseOrder('{{ brand }}')" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                            <div>
+                                                <label for="notes_{{ brand }}" class="block text-sm font-medium text-gray-700">Notes</label>
+                                                <textarea id="notes_{{ brand }}" name="notes" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                                            </div>
+                                            <div class="flex justify-between items-center">
+                                                <button type="button" onclick="createPurchaseOrder('{{ brand }}')" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                                                     Create Purchase Order
                                                 </button>
+                                                <button type="button" onclick="clearBrandItems('{{ brand }}')" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                                                    Clear Items
+                                                </button>
                                             </div>
-                                        </div>
+                                        </form>
                                     </div>
                                 </div>
                             </div>
@@ -300,10 +298,10 @@
                 return;
             }
 
-            const supplier = form.querySelector('select[name="supplier"]').value;
-            const warehouse = form.querySelector('select[name="warehouse"]').value;
-            const expectedDeliveryDate = form.querySelector('input[name="expected_delivery_date"]').value;
-            const notes = form.querySelector('textarea[name="notes"]').value;
+            const supplier = form.querySelector(`#supplier_${brand}`).value;
+            const warehouse = form.querySelector(`#warehouse_${brand}`).value;
+            const expectedDeliveryDate = form.querySelector(`#expected_delivery_date_${brand}`).value;
+            const notes = form.querySelector(`#notes_${brand}`).value;
 
             if (!supplier || !warehouse || !expectedDeliveryDate) {
                 alert('Please fill in all required fields');
@@ -315,11 +313,10 @@
                 supplier: supplier,
                 warehouse: warehouse,
                 expected_delivery_date: expectedDeliveryDate,
-                notes: notes,
-                brand: brand
+                notes: notes
             };
 
-            fetch('{% url "purchasing:create_po_from_pending" "BRAND" %}'.replace('BRAND', brand), {
+            fetch(`{% url "purchasing:create_po_from_pending" "BRAND" %}`.replace('BRAND', brand), {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': csrftoken,
@@ -330,7 +327,11 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    window.location.reload();
+                    if (data.redirect_url) {
+                        window.location.href = data.redirect_url;
+                    } else {
+                        window.location.reload();
+                    }
                 } else {
                     alert('Error creating purchase order: ' + data.error);
                 }

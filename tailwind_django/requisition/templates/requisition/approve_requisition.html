@@ -37,178 +37,254 @@
             <!-- Requested Items -->
             <div class="mt-6 border-t border-gray-200 pt-6">
                 <h3 class="text-lg font-medium text-gray-900 mb-4">Requested Items</h3>
-                <div class="space-y-4">
-                    {% for item_info in items_with_availability %}
-                    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
-                        <div class="p-4">
-                            <div class="flex items-start space-x-4">
-                                <!-- Item Image -->
-                                <div class="flex-shrink-0">
-                                    {% if item_info.item.item.image %}
-                                    <img class="h-24 w-24 object-cover rounded-lg border border-gray-200" 
-                                         src="{{ item_info.item.item.image.url }}" 
-                                         alt="{{ item_info.item.item.item_name }}">
-                                    {% else %}
-                                    <div class="h-24 w-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
-                                        <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                        </svg>
-                                    </div>
-                                    {% endif %}
-                                </div>
+                
+                {% if has_new_items or has_unavailable_items %}
+                <div class="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700">
+                                {% if has_new_items and has_unavailable_items %}
+                                    This requisition contains new item requests and items that are not available in stock. After your review, these items will be forwarded to admin for approval.
+                                {% elif has_new_items %}
+                                    This requisition contains new item requests. After your review, these items will be forwarded to admin for approval.
+                                {% else %}
+                                    Some items in this requisition are not available in stock. After your review, these items will be forwarded to admin for approval.
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
 
-                                <!-- Item Details -->
-                                <div class="flex-grow">
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <h4 class="text-lg font-semibold text-gray-900">{{ item_info.item.item.item_name }}</h4>
-                                            <div class="mt-1 space-y-1">
-                                                <p class="text-sm text-gray-600">
-                                                    <span class="font-medium">Brand:</span> {{ item_info.item.item.brand }}
-                                                </p>
-                                                <p class="text-sm text-gray-600">
-                                                    <span class="font-medium">Model:</span> {{ item_info.item.item.model }}
-                                                </p>
-                                                <p class="text-sm text-gray-600">
-                                                    <span class="font-medium">Requested Quantity:</span> {{ item_info.item.quantity }}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <!-- Availability Status -->
-                                        {% if user.customuser.role == 'manager' and requisition.status == 'pending' %}
-                                        <div class="flex flex-col items-end justify-between">
-                                            <div class="text-right">
-                                                {% if item_info.is_new_item %}
-                                                    <div class="inline-flex flex-col items-end">
-                                                        <span class="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-                                                            New Item Request
-                                                        </span>
-                                                        <span class="mt-1 text-sm text-gray-600">
-                                                            Requires Admin Review
-                                                        </span>
-                                                    </div>
-                                                {% elif item_info.is_available %}
-                                                    <div class="inline-flex flex-col items-end">
-                                                        <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                                                            Available
-                                                        </span>
-                                                        <span class="mt-1 text-sm text-gray-600">
-                                                            {{ item_info.available_stock }} in stock
-                                                        </span>
-                                                    </div>
-                                                {% elif item_info.is_partial %}
-                                                    <div class="inline-flex flex-col items-end">
-                                                        <span class="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                                                            Partial Stock
-                                                        </span>
-                                                        <span class="mt-1 text-sm text-gray-600">
-                                                            {{ item_info.available_stock }} available (need {{ item_info.item.quantity }})
-                                                        </span>
-                                                    </div>
-                                                {% else %}
-                                                    <div class="inline-flex flex-col items-end">
-                                                        <span class="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                                                            Not Available
-                                                        </span>
-                                                        <span class="mt-1 text-sm text-gray-500">
-                                                            {{ item_info.available_stock }} in stock (need {{ item_info.item.quantity }})
-                                                        </span>
-                                                    </div>
-                                                {% endif %}
-                                            </div>
+                <!-- Available Items Section -->
+                {% if available_items %}
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-900 mb-3">Available Items</h4>
+                    <div class="space-y-4">
+                        {% for item_info in available_items %}
+                        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+                            <div class="p-4">
+                                <div class="flex items-start space-x-4">
+                                    <!-- Item Image -->
+                                    <div class="flex-shrink-0">
+                                        {% if item_info.item.item.image %}
+                                        <img class="h-24 w-24 object-cover rounded-lg border border-gray-200" 
+                                             src="{{ item_info.item.item.image.url }}" 
+                                             alt="{{ item_info.item.item.item_name }}">
+                                        {% else %}
+                                        <div class="h-24 w-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                                            <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                            </svg>
                                         </div>
                                         {% endif %}
+                                    </div>
+
+                                    <!-- Item Details -->
+                                    <div class="flex-grow">
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="text-lg font-semibold text-gray-900">{{ item_info.item.item.item_name }}</h4>
+                                                <div class="mt-1 space-y-1">
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Brand:</span> {{ item_info.item.item.brand }}
+                                                    </p>
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Model:</span> {{ item_info.item.item.model }}
+                                                    </p>
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Requested Quantity:</span> {{ item_info.requested_quantity }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="flex flex-col items-end justify-between">
+                                                <div class="inline-flex flex-col items-end">
+                                                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                                        Available
+                                                    </span>
+                                                    <span class="mt-1 text-sm text-gray-600">
+                                                        {{ item_info.available_stock }} in stock
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
+                {% endif %}
+
+                <!-- Unavailable Items Section -->
+                {% if unavailable_items %}
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-900 mb-3">Unavailable Items</h4>
+                    <div class="space-y-4">
+                        {% for item_info in unavailable_items %}
+                        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+                            <div class="p-4">
+                                <div class="flex items-start space-x-4">
+                                    <!-- Item Image -->
+                                    <div class="flex-shrink-0">
+                                        {% if item_info.item.item.image %}
+                                        <img class="h-24 w-24 object-cover rounded-lg border border-gray-200" 
+                                             src="{{ item_info.item.item.image.url }}" 
+                                             alt="{{ item_info.item.item.item_name }}">
+                                        {% else %}
+                                        <div class="h-24 w-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                                            <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                            </svg>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Item Details -->
+                                    <div class="flex-grow">
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="text-lg font-semibold text-gray-900">{{ item_info.item.item.item_name }}</h4>
+                                                <div class="mt-1 space-y-1">
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Brand:</span> {{ item_info.item.item.brand }}
+                                                    </p>
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Model:</span> {{ item_info.item.item.model }}
+                                                    </p>
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Requested Quantity:</span> {{ item_info.requested_quantity }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="flex flex-col items-end justify-between">
+                                                <div class="inline-flex flex-col items-end">
+                                                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                                        Not Available
+                                                    </span>
+                                                    <span class="mt-1 text-sm text-gray-500">
+                                                        {{ item_info.available_stock }} in stock (need {{ item_info.requested_quantity }})
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- New Items Section -->
+                {% if new_items %}
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-900 mb-3">New Item Requests</h4>
+                    <div class="space-y-4">
+                        {% for item in new_items %}
+                        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+                            <div class="p-4">
+                                <div class="flex items-start space-x-4">
+                                    <!-- Item Image -->
+                                    <div class="flex-shrink-0">
+                                        {% if item.item.image %}
+                                        <img class="h-24 w-24 object-cover rounded-lg border border-gray-200" 
+                                             src="{{ item.item.image.url }}" 
+                                             alt="{{ item.item.item_name }}">
+                                        {% else %}
+                                        <div class="h-24 w-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                                            <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                            </svg>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Item Details -->
+                                    <div class="flex-grow">
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="text-lg font-semibold text-gray-900">{{ item.item.item_name }}</h4>
+                                                <div class="mt-1 space-y-1">
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Brand:</span> {{ item.item.brand }}
+                                                    </p>
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Model:</span> {{ item.item.model }}
+                                                    </p>
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Requested Quantity:</span> {{ item.quantity }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="flex flex-col items-end justify-between">
+                                                <div class="inline-flex flex-col items-end">
+                                                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                                                        New Item Request
+                                                    </span>
+                                                    <span class="mt-1 text-sm text-gray-600">
+                                                        Requires Admin Review
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
 
             <!-- Attendant's Reason -->
             <div class="mt-6 border-t border-gray-200 pt-6">
-                <h4 class="text-sm font-medium text-gray-700 mb-2">Reason:</h4>
-                <div class="bg-gray-50 rounded-lg p-4 text-gray-700">
-                    {{ requisition.reason }}
-                </div>
+                <h3 class="text-lg font-medium text-gray-900">Reason:</h3>
+                <p class="mt-2 text-sm text-gray-600">{{ requisition.reason }}</p>
+            </div>
+
+            <!-- Approval Form -->
+            <div class="mt-6 border-t border-gray-200 pt-6">
+                <form method="post" class="space-y-4">
+                    {% csrf_token %}
+                    <div>
+                        <label for="comment" class="block text-sm font-medium text-gray-700">Comment</label>
+                        <textarea
+                            id="comment"
+                            name="comment"
+                            rows="3"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                            placeholder="Add a comment (optional)"
+                        ></textarea>
+                    </div>
+
+                    <div class="flex space-x-4">
+                        <button
+                            type="submit"
+                            name="action"
+                            value="approve"
+                            class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                            Approve
+                        </button>
+                        <a
+                            href="{% url 'requisition:requisition_list' %}"
+                            class="inline-flex justify-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                            Cancel
+                        </a>
+                    </div>
+                </form>
             </div>
         </div>
-
-        {% if user.customuser.role == 'admin' and requisition.status == 'pending_admin_approval' %}
-        <!-- Admin Approval Form -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">Admin Approval</h2>
-            <form method="post" class="space-y-6">
-                {% csrf_token %}
-                
-                <!-- Comment Field -->
-                <div>
-                    <label for="comment" class="block text-sm font-medium text-gray-700">Comment (Optional)</label>
-                    <div class="mt-1">
-                        <textarea id="comment" name="comment" rows="3" 
-                                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                                placeholder="Add any comments about this requisition..."></textarea>
-                    </div>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="flex justify-end space-x-3">
-                    <a href="{% url 'requisition:requisition_list' %}"
-                        class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Cancel
-                    </a>
-                    <button type="button" onclick="setAction('reject')"
-                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                        Reject
-                    </button>
-                    <button type="button" onclick="setAction('approve')"
-                        class="py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                        Approve
-                    </button>
-                </div>
-
-                <!-- Hidden Action Field -->
-                <input type="hidden" name="action" id="action" value="">
-            </form>
-        </div>
-        {% elif user.customuser.role == 'manager' and requisition.status == 'pending' %}
-        <!-- Manager Approval Form -->
-        <div class="bg-white shadow rounded-lg p-6">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">Manager Approval</h2>
-            <form method="post" class="space-y-6">
-                {% csrf_token %}
-                
-                <!-- Comment Field -->
-                <div>
-                    <label for="comment" class="block text-sm font-medium text-gray-700">Comment (Optional)</label>
-                    <div class="mt-1">
-                        <textarea id="comment" name="comment" rows="3" 
-                                class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                                placeholder="Add any comments about this requisition..."></textarea>
-                    </div>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="flex justify-end space-x-3">
-                    <a href="{% url 'requisition:requisition_list' %}" 
-                       class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Cancel
-                    </a>
-                    <button type="submit" name="action" value="reject"
-                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                        Reject
-                    </button>
-                    <button type="submit" name="action" value="approve"
-                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Approve and Deliver
-                    </button>
-                </div>
-            </form>
-        </div>
-        {% endif %}
     </div>
 </div>
 

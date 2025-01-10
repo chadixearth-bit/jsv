@@ -6,7 +6,7 @@ app_name = 'purchasing'
 urlpatterns = [
     # Purchase Order List and Creation
     path('', views.PurchaseOrderListView.as_view(), name='list'),
-    path('create/', views.PurchaseOrderCreateView.as_view(), name='create_purchase_order'),
+    path('create/', views.create_purchase_order, name='create_purchase_order'),
     path('create/<int:requisition_id>/', views.create_purchase_order, name='create_purchase_order_with_requisition'),
     
     # Supplier Management
@@ -40,6 +40,7 @@ urlpatterns = [
     # Pending Items Management
     path('pending-items/', views.pending_po_items, name='pending_po_items'),
     path('create_po_from_pending/<str:brand>/', views.create_po_from_pending, name='create_po_from_pending'),
+    path('create-po-from-pending/', views.create_po_from_pending, name='create_po_from_pending_no_brand'),
     path('clear_brand_pending_items/<str:brand_name>/', views.clear_brand_pending_items, name='clear_brand_pending_items'),
     path('remove_pending_item/<int:pk>/', views.remove_pending_item, name='remove_pending_item'),
     path('pending-items/clear/', views.clear_pending_items, name='clear_pending_items'),

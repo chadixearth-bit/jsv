@@ -27,18 +27,18 @@
                         Order Details
                     </h3>
                     <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
-                        <!-- Supplier Field -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Supplier</label>
-                            <div class="mt-1 relative">
-                                <select name="supplier" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                                    <option value="">Select a supplier...</option>
-                                    {% for supplier in suppliers %}
-                                        <option value="{{ supplier.id }}">{{ supplier.name }}</option>
-                                    {% endfor %}
-                                </select>
+                            <!-- Supplier Field -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Supplier</label>
+                                <div class="mt-1 relative">
+                                    <select name="supplier" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                        <option value="">Select a supplier...</option>
+                                        {% for supplier in suppliers %}
+                                            <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                             </div>
-                        </div>
 
                         <!-- Warehouse Field -->
                         <div>

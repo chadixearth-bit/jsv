@@ -26,6 +26,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.files.storage import FileSystemStorage
 from django.core.mail import send_mail
+from account.models import CustomUser
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -98,6 +99,7 @@ def requisition_list(request):
     # Get query parameters
     query = request.GET.get('q', '')
     status = request.GET.get('status', '')
+    role_filter = request.GET.get('role', '')  # Get role filter from query params
     
     # Start with all requisitions that are not deleted
     requisitions = Requisition.objects.filter(is_deleted=False)
@@ -116,11 +118,13 @@ def requisition_list(request):
         )
     elif user_role == 'admin':
         # Admins can see:
-        # 1. All requisitions from managers (any status)
-        # 2. Their own requisitions
+        # 1. Requisitions that need admin approval
+        # 2. Requisitions they have approved/rejected
+        # 3. Requisitions that were completed after admin approval
         requisitions = requisitions.filter(
-            Q(requester__customuser__role='manager') |  # All manager requisitions
-            Q(requester=request.user)  # Their own requisitions
+            Q(status='pending_admin_approval') |  # Needs admin approval
+            Q(status='approved_by_admin') |  # Approved by admin
+            Q(status='rejected_by_admin')  # Rejected by admin
         )
     else:
         # For other roles, only show their own requisitions
@@ -157,7 +161,8 @@ def requisition_list(request):
     
     context = {
         'requisitions': requisitions,
-        'user_role': user_role
+        'user_role': user_role,
+        'current_role_filter': role_filter,  # Add role filter to context
     }
     return render(request, 'requisition/requisition_list.html', context)
 
@@ -336,8 +341,10 @@ def create_requisition(request):
                                 is_new_item=True  # Mark as a new item request
                             )
                             
-                            # Set requisition status to pending_admin_approval for new items
-                            requisition.status = 'pending_admin_approval'
+                            # Only set to pending_admin_approval if the requester is a manager
+                            if request.user.customuser.role == 'manager':
+                                requisition.status = 'pending_admin_approval'
+                            # For attendants, keep it as pending for manager review
                             requisition.save()
                     except json.JSONDecodeError:
                         messages.error(request, "Invalid new items data format")
@@ -471,24 +478,23 @@ def approve_requisition(request, pk):
     items_with_availability = []
     available_items = []  # Track items that are available
     unavailable_items = []  # Track items that need to be ordered
-    
-    # Ensure correct manager warehouse is used
-    manager_warehouse = request.user.customuser.warehouses.first()
-    print(f"DEBUG: Manager's warehouse: {manager_warehouse}")
+    new_items = []  # Track new item requests
     
     for req_item in requisition.items.all():
+        if req_item.is_new_item:
+            new_items.append(req_item)
+            continue
+            
         # Check availability in manager's warehouse
         manager_item = InventoryItem.objects.filter(
             warehouse=manager_warehouse,
-            item_name=req_item.item.item_name,  # Use exact match
-            brand=req_item.item.brand,  # Match brand as well
-            model=req_item.item.model  # Match model as well
+            item_name=req_item.item.item_name,
+            brand=req_item.item.brand,
+            model=req_item.item.model
         ).first()
         
         available_stock = manager_item.stock if manager_item else 0
         requested_quantity = req_item.quantity
-        print(f"DEBUG: Item: {req_item.item.item_name}, Brand: {req_item.item.brand}, Model: {req_item.item.model}")
-        print(f"DEBUG: Available stock in manager's warehouse: {available_stock}, Requested: {requested_quantity}")
         
         is_available = available_stock >= requested_quantity
         
@@ -497,16 +503,14 @@ def approve_requisition(request, pk):
             'requested_quantity': requested_quantity,
             'available_stock': available_stock,
             'is_available': is_available,
-            'destination_warehouse': requisition.requester.customuser.warehouses.first()
+            'manager_item': manager_item
         }
         
         items_with_availability.append(item_info)
         if is_available:
             available_items.append(item_info)
-            print(f"DEBUG: Item {req_item.item.item_name} is available")
         else:
             unavailable_items.append(item_info)
-            print(f"DEBUG: Item {req_item.item.item_name} is not available")
     
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -514,149 +518,122 @@ def approve_requisition(request, pk):
         
         try:
             with transaction.atomic():
-                if action == 'reject':
-                    # Create a new requisition to admin for PO
-                    admin_requisition = Requisition.objects.create(
-                        requester=request.user,  # Manager becomes the requester
-                        status='pending_admin_approval',  # Directly goes to admin
-                        reason=f"Auto-generated from rejected requisition #{requisition.id}. Original requester: {requisition.requester.username}. Reason: {requisition.reason}",
-                    )
-
-                    # Copy all items to the new requisition
-                    for req_item in requisition.items.all():
-                        RequisitionItem.objects.create(
-                            requisition=admin_requisition,
-                            item=req_item.item,
-                            quantity=req_item.quantity
+                if action == 'approve':
+                    # Handle available items first - create delivery
+                    if available_items:
+                        delivery = Delivery.objects.create(
+                            requisition=requisition,
+                            source_warehouse=manager_warehouse,
+                            destination_warehouse=requisition.requester.customuser.warehouses.first(),
+                            status='pending_delivery',
+                            delivered_by=request.user
                         )
-
-                    # Update original requisition
-                    requisition.status = 'rejected'
-                    requisition.approval_comment = comment
-                    requisition.save()
-
-                    # Create notification
-                    Notification.objects.create(
-                        user=requisition.requester,
-                        requisition=requisition,
-                        message=f'Your requisition has been rejected by {request.user.username}. A new requisition has been created for admin review.'
-                    )
-
-                    messages.success(request, 'Requisition rejected and forwarded to admin for review.')
-                    return redirect('requisition:requisition_list')
-                
-                elif action == 'approve':
-                    # If no items are available, create admin requisition for all items
-                    if not available_items:
+                        
+                        # Add items to delivery 
+                        for item_info in available_items:
+                            req_item = item_info['item']
+                            manager_item = item_info['manager_item']
+                            
+                            # Create delivery item
+                            DeliveryItem.objects.create(
+                                delivery=delivery,
+                                item=manager_item,
+                                quantity=req_item.quantity
+                            )
+                    
+                    # Create new requisition for admin if there are new items or unavailable items
+                    if new_items or unavailable_items:
                         admin_requisition = Requisition.objects.create(
                             requester=request.user,  # Manager becomes the requester
-                            status='pending_admin_approval',  # Directly goes to admin
-                            reason=f"Auto-generated from approved requisition #{requisition.id} - no items available. Original requester: {requisition.requester.username}",
+                            status='pending_admin_approval',
+                            reason=f"Auto-generated from requisition #{requisition.id}. Original requester: {requisition.requester.username}",
+                            source_warehouse=manager_warehouse
                         )
-
-                        # Copy all items to the admin requisition
-                        for req_item in requisition.items.all():
+                        
+                        # Add new items to admin requisition
+                        for req_item in new_items:
                             RequisitionItem.objects.create(
                                 requisition=admin_requisition,
                                 item=req_item.item,
-                                quantity=req_item.quantity
+                                quantity=req_item.quantity,
+                                is_new_item=True
                             )
-
-                        # Update original requisition status
-                        requisition.status = 'approved'
-                        requisition.approved_by = request.user
-                        requisition.approved_at = timezone.now()
-                        requisition.approval_comment = comment
-                        requisition.source_warehouse = manager_warehouse
-                        requisition.save()
-
-                        # Notify original requester
-                        Notification.objects.create(
-                            user=requisition.requester,
-                            requisition=requisition,
-                            message=f'Your requisition has been approved but no items are currently available. A requisition has been sent to admin for processing.'
-                        )
-
-                        messages.success(request, 'Requisition approved and forwarded to admin for processing.')
-                        return redirect('requisition:requisition_list')
+                        
+                        # Add unavailable items to admin requisition
+                        for item_info in unavailable_items:
+                            req_item = item_info['item']
+                            RequisitionItem.objects.create(
+                                requisition=admin_requisition,
+                                item=req_item.item,
+                                quantity=req_item.quantity,
+                                is_new_item=False
+                            )
+                        
+                        # Notify admins
+                        admin_users = CustomUser.objects.filter(role='admin').select_related('user')
+                        for admin_user in admin_users:
+                            if admin_user.user:
+                                Notification.objects.create(
+                                    user=admin_user.user,
+                                    requisition=admin_requisition,
+                                    message=f'A requisition with new/unavailable items from {requisition.requester.username} requires your approval.'
+                                )
                     
-                    # Process available items and create admin requisition for unavailable items
-                    # Create delivery for available items
-                    requester_warehouse = requisition.requester.customuser.warehouses.first()
-                    print(f"DEBUG: Creating delivery for requisition {requisition.id}")
-                    print(f"DEBUG: Requester: {requisition.requester.username}")
-                    print(f"DEBUG: Source warehouse: {manager_warehouse}")
-                    print(f"DEBUG: Destination warehouse: {requester_warehouse}")
-                    
-                    delivery = Delivery.objects.create(
-                        requisition=requisition,
-                        status='pending_delivery'
-                    )
-                    
-                    # Update requisition warehouses
-                    requisition.source_warehouse = manager_warehouse
-                    requisition.destination_warehouse = requester_warehouse
-                    requisition.save()
-                    
-                    # Add available items to delivery
-                    for item_info in available_items:
-                        DeliveryItem.objects.create(
-                            delivery=delivery,
-                            item=item_info['item'].item,
-                            quantity=item_info['requested_quantity']
-                        )
-                    
-                    # Update requisition status
-                    if requisition.requester.customuser.role == 'manager':
-                        requisition.status = 'pending_admin_approval'  # Manager's requisition goes to admin for approval
-                    else:
-                        requisition.status = 'approved'  # Attendant's requisition is fully approved
+                    # Update original requisition
+                    requisition.status = 'approved'
                     requisition.approved_by = request.user
                     requisition.approved_at = timezone.now()
                     requisition.approval_comment = comment
                     requisition.save()
                     
-                    # Create new requisition for unavailable items
-                    if unavailable_items:
-                        admin_requisition = Requisition.objects.create(
-                            requester=request.user,  # Manager becomes the requester
-                            status='pending_admin_approval',  # Directly goes to admin
-                            reason=f"Auto-generated for unavailable items from requisition #{requisition.id}. Original requester: {requisition.requester.username}",
-                        )
-                        
-                        # Add unavailable items to admin requisition
-                        for item_info in unavailable_items:
-                            RequisitionItem.objects.create(
-                                requisition=admin_requisition,
-                                item=item_info['item'].item,
-                                quantity=item_info['requested_quantity']
-                            )
-                        
-                        # Notify original requester
+                    # Create notifications
+                    if available_items:
                         Notification.objects.create(
                             user=requisition.requester,
                             requisition=requisition,
-                            message=f'Your requisition has been partially approved. Available items will be delivered, and unavailable items have been forwarded to admin.'
+                            message=f'Your requisition has been partially approved. Available items will be delivered.'
                         )
-                    else:
-                        # Notify original requester of full approval
+                    
+                    if new_items or unavailable_items:
                         Notification.objects.create(
                             user=requisition.requester,
                             requisition=requisition,
-                            message=f'Your requisition has been fully approved and will be delivered soon.'
+                            message=f'New and unavailable items from your requisition have been forwarded to admin for review.'
                         )
                     
                     messages.success(request, 'Requisition processed successfully.')
                     return redirect('requisition:requisition_list')
-                        
+                
+                elif action == 'reject':
+                    requisition.status = 'rejected'
+                    requisition.approval_comment = comment
+                    requisition.save()
+                    
+                    # Create notification
+                    Notification.objects.create(
+                        user=requisition.requester,
+                        requisition=requisition,
+                        message=f'Your requisition has been rejected by {request.user.username}.'
+                    )
+                    
+                    messages.success(request, 'Requisition rejected successfully.')
+                    return redirect('requisition:requisition_list')
+                
         except Exception as e:
-            messages.error(request, f"Error processing requisition: {str(e)}")
+            messages.error(request, f'Error processing requisition: {str(e)}')
+            return redirect('requisition:requisition_list')
     
-    return render(request, 'requisition/approve_requisition.html', {
+    context = {
         'requisition': requisition,
-        'items_with_availability': items_with_availability,
-        'manager_warehouse': manager_warehouse
-    })
+        'items_with_availability': items_with_availability + new_items,  # Combine all items for display
+        'has_new_items': bool(new_items),
+        'has_unavailable_items': bool(unavailable_items),
+        'available_items': available_items,
+        'unavailable_items': unavailable_items,
+        'new_items': new_items
+    }
+    
+    return render(request, 'requisition/approve_requisition.html', context)
 
 def complete_requisition(request, pk):
     requisition = get_object_or_404(Requisition, pk=pk)
@@ -738,9 +715,15 @@ def requisition_history(request):
             Q(status='pending_manager_approval')  # Requisitions pending their approval
         )
     elif user_role == 'admin':
-        # Admins can see all requisitions, with optional role filtering
-        if role_filter:
-            requisitions = requisitions.filter(requester__customuser__role=role_filter)
+        # Admins can see:
+        # 1. Requisitions that need admin approval
+        # 2. Requisitions they have approved/rejected
+        # 3. Requisitions that were completed after admin approval
+        requisitions = requisitions.filter(
+            Q(status='pending_admin_approval') |  # Needs admin approval
+            Q(status='approved_by_admin') |  # Approved by admin
+            Q(status='rejected_by_admin')  # Rejected by admin
+        )
     else:
         # For other roles, only show their own requisitions
         requisitions = requisitions.filter(requester=request.user)
@@ -815,12 +798,12 @@ def delivery_list(request):
         manager_warehouses = request.user.customuser.warehouses.all()
         print(f"Manager warehouses: {[w.name for w in manager_warehouses]}")
         deliveries = Delivery.objects.filter(
-            requisition__source_warehouse__in=manager_warehouses
+            source_warehouse__in=manager_warehouses
         ).select_related(
             'requisition',
             'requisition__requester',
-            'requisition__source_warehouse',
-            'requisition__destination_warehouse',
+            'source_warehouse',
+            'destination_warehouse',
             'delivered_by'
         ).prefetch_related('items__item__brand')
         print(f"Found deliveries: {[d.id for d in deliveries]}")
@@ -832,8 +815,8 @@ def delivery_list(request):
             Q(status='delivered') |
             Q(status='pending_manager') |
             Q(status='received', delivery_date__gte=timezone.now() - timedelta(days=7))) &
-            (Q(requisition__destination_warehouse__in=attendant_warehouses) |
-            Q(requisition__source_warehouse__in=attendant_warehouses))
+            (Q(destination_warehouse__in=attendant_warehouses) |
+            Q(source_warehouse__in=attendant_warehouses))
         ).order_by(
             Case(
                 When(status='in_delivery', then=0),
@@ -848,8 +831,8 @@ def delivery_list(request):
         ).select_related(
             'requisition',
             'requisition__requester',
-            'requisition__source_warehouse',
-            'requisition__destination_warehouse',
+            'source_warehouse',
+            'destination_warehouse',
             'delivered_by'
         ).prefetch_related('items__item__brand')
     else:
@@ -898,7 +881,7 @@ def manage_delivery(request, pk):
     print(f"Delivery ID: {delivery.id}")
     print(f"User: {request.user.username}")
     print(f"User Role: {user_role}")
-    print(f"Source Warehouse: {requisition.source_warehouse.name if requisition.source_warehouse else 'None'}")
+    print(f"Source Warehouse: {delivery.source_warehouse.name if delivery.source_warehouse else 'None'}")
     print(f"User's Warehouses: {[w.name for w in request.user.customuser.warehouses.all()]}")
     
     if user_role != 'manager':
@@ -910,7 +893,7 @@ def manage_delivery(request, pk):
         return redirect('requisition:delivery_list')
 
     # Get items from the source warehouse (manager's warehouse)
-    source_warehouse = requisition.source_warehouse
+    source_warehouse = delivery.source_warehouse
     if not source_warehouse:
         messages.error(request, "No source warehouse set for this delivery.")
         return redirect('requisition:delivery_list')
@@ -919,7 +902,7 @@ def manage_delivery(request, pk):
     print(f"Source Warehouse ID: {source_warehouse.id}")
     print(f"User's Warehouse IDs: {[w.id for w in request.user.customuser.warehouses.all()]}")
     
-    if source_warehouse not in request.user.customuser.warehouses.all():
+    if source_warehouse.id not in [w.id for w in request.user.customuser.warehouses.all()]:
         messages.error(request, "You don't have access to the source warehouse.")
         return redirect('requisition:delivery_list')
 
@@ -1099,38 +1082,52 @@ def confirm_delivery(request, pk):
                     
                     # Update inventory quantities
                     for delivery_item in delivery.items.all():
+                        print("\n=== Debug: Updating Inventory ===")
+                        print(f"Processing item: {delivery_item.item.item_name}")
+                        print(f"Quantity to transfer: {delivery_item.quantity}")
+                        print(f"Source warehouse: {delivery.source_warehouse.name}")
+                        print(f"Destination warehouse: {delivery.destination_warehouse.name}")
+                        
                         # Deduct from source warehouse (manager's)
                         source_item = InventoryItem.objects.filter(
-                            warehouse=delivery.requisition.source_warehouse,
+                            warehouse=delivery.source_warehouse,
                             item_name__iexact=delivery_item.item.item_name,
                             brand=delivery_item.item.brand,
                             model=delivery_item.item.model
                         ).first()
                         
                         if not source_item:
-                            raise InventoryItem.DoesNotExist(f"Source item {delivery_item.item.item_name} not found in {delivery.requisition.source_warehouse.name}")
+                            raise InventoryItem.DoesNotExist(f"Source item {delivery_item.item.item_name} not found in {delivery.source_warehouse.name}")
+                        
+                        print(f"Source item found: {source_item.item_name} (Current stock: {source_item.stock})")
                         
                         if source_item.stock < delivery_item.quantity:
-                            raise Exception(f"Insufficient stock for {delivery_item.item.item_name} in {delivery.requisition.source_warehouse.name}")
+                            raise Exception(f"Insufficient stock for {delivery_item.item.item_name} in {delivery.source_warehouse.name}")
                         
                         source_item.stock -= delivery_item.quantity
                         source_item.save()
+                        print(f"Updated source stock: {source_item.stock}")
                         
                         # Add to destination warehouse (attendant's)
                         dest_item = InventoryItem.objects.filter(
-                            warehouse=delivery.requisition.destination_warehouse,
+                            warehouse=delivery.destination_warehouse,
                             item_name__iexact=delivery_item.item.item_name,
                             brand=delivery_item.item.brand,
                             model=delivery_item.item.model
                         ).first()
                         
+                        print(f"Destination item exists: {bool(dest_item)}")
+                        
                         if dest_item:
+                            print(f"Current destination stock: {dest_item.stock}")
                             dest_item.stock += delivery_item.quantity
                             dest_item.save()
+                            print(f"Updated destination stock: {dest_item.stock}")
                         else:
+                            print("Creating new item in destination warehouse")
                             # Create new item in destination warehouse if it doesn't exist
-                            InventoryItem.objects.create(
-                                warehouse=delivery.requisition.destination_warehouse,
+                            dest_item = InventoryItem.objects.create(
+                                warehouse=delivery.destination_warehouse,
                                 item_name=delivery_item.item.item_name,
                                 brand=delivery_item.item.brand,
                                 model=delivery_item.item.model,
@@ -1141,6 +1138,7 @@ def confirm_delivery(request, pk):
                                 reorder_level=delivery_item.item.reorder_level,
                                 unit_price=delivery_item.item.unit_price
                             )
+                            print(f"Created new item with stock: {dest_item.stock}")
                     
                     # Create notification for attendant
                     Notification.objects.create(

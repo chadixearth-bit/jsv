@@ -96,6 +96,13 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        
+        # Always add suppliers and warehouses to context
+        context['suppliers'] = Supplier.objects.all()
+        context['warehouses'] = Warehouse.objects.filter(
+            name__in=['Attendant Warehouse', 'Manager Warehouse']
+        )
+        
         if 'po_draft_data' in self.request.session:
             draft_data = self.request.session['po_draft_data']
             context['draft_data'] = draft_data
@@ -115,12 +122,6 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
             context['pending_items'] = pending_items
             context['brand'] = draft_data.get('brand')
             
-            # Add suppliers and warehouses to context
-            context['suppliers'] = Supplier.objects.all()
-            context['warehouses'] = Warehouse.objects.filter(
-                name__in=['Attendant Warehouse', 'Manager Warehouse']
-            )
-            
             # Set initial values
             context['initial'] = {
                 'supplier': draft_data.get('supplier'),
@@ -128,6 +129,18 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
                 'expected_delivery_date': draft_data.get('expected_delivery_date'),
                 'notes': draft_data.get('notes')
             }
+        
+        # Add debug information
+        print("\n====== DEBUG: Context Data ======")
+        print(f"Number of suppliers: {len(context['suppliers'])}")
+        print("Suppliers:")
+        for supplier in context['suppliers']:
+            print(f"- {supplier.name}")
+        print(f"\nNumber of warehouses: {len(context['warehouses'])}")
+        print("Warehouses:")
+        for warehouse in context['warehouses']:
+            print(f"- {warehouse.name}")
+            
         return context
 
     def get_initial(self):
@@ -183,7 +196,7 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
                             
                             # Mark pending items as processed
                             PendingPOItem.objects.filter(
-                                item=item,
+                                item__item=item,
                                 is_processed=False
                             ).update(is_processed=True)
                             
@@ -891,14 +904,29 @@ def create_purchase_order(request, requisition_id=None):
             print(f"\nAdded item to initial_items:")
             print(json.dumps(item_data, indent=2))
 
+    # Get suppliers and warehouses
     suppliers = Supplier.objects.all()
+    print("\n====== DEBUG: Suppliers ======")
+    print(f"Number of suppliers: {suppliers.count()}")
+    for supplier in suppliers:
+        print(f"- {supplier.name}")
+
     warehouses = Warehouse.objects.filter(
         name__in=['Attendant Warehouse', 'Manager Warehouse']
     )
+    print("\n====== DEBUG: Warehouses ======")
+    print(f"Number of warehouses: {warehouses.count()}")
+    print("All warehouses:")
+    for warehouse in Warehouse.objects.all():
+        print(f"- {warehouse.name}")
+    print("\nFiltered warehouses:")
+    for warehouse in warehouses:
+        print(f"- {warehouse.name}")
+
     available_items = InventoryItem.objects.all()
 
     context = {
-        'form': PurchaseOrderForm(),
+        'form': PurchaseOrderForm(user=request.user),  # Pass the user to the form
         'suppliers': suppliers,
         'warehouses': warehouses,
         'available_items': available_items,
@@ -907,6 +935,8 @@ def create_purchase_order(request, requisition_id=None):
     }
     
     print("\n====== DEBUG: Final Context ======")
+    print(f"Number of suppliers in context: {len(context['suppliers'])}")
+    print(f"Number of warehouses in context: {len(context['warehouses'])}")
     print(f"Number of initial items: {len(initial_items)}")
     print("Initial items JSON:")
     print(context['initial_items'])
@@ -1137,7 +1167,7 @@ def clear_pending_items(request):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
-def create_po_from_pending(request, brand):
+def create_po_from_pending(request, brand=None):
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Invalid request method'})
 
@@ -1147,6 +1177,7 @@ def create_po_from_pending(request, brand):
         warehouse_id = data.get('warehouse')
         expected_delivery_date = data.get('expected_delivery_date')
         notes = data.get('notes', '')
+        brand = brand or data.get('brand')  # Get brand from URL param or request data
 
         # Validate required fields
         if not all([supplier_id, warehouse_id, expected_delivery_date]):
@@ -1154,13 +1185,15 @@ def create_po_from_pending(request, brand):
 
         try:
             # Get pending items for this brand
-            pending_items = PendingPOItem.objects.filter(
-                brand__name=brand,
-                is_processed=False
-            ).select_related('item__item')
+            pending_items_query = PendingPOItem.objects.filter(is_processed=False)
+            if brand:
+                pending_items_query = pending_items_query.filter(brand__name=brand)
+            
+            pending_items = pending_items_query.select_related('item__item')
 
             if not pending_items.exists():
-                return JsonResponse({'success': False, 'error': f'No pending items found for brand {brand}'})
+                error_msg = f'No pending items found' + (f' for brand {brand}' if brand else '')
+                return JsonResponse({'success': False, 'error': error_msg})
 
             # Store the data in session
             request.session['po_draft_data'] = {
@@ -1183,7 +1216,6 @@ def create_po_from_pending(request, brand):
                 'success': True,
                 'redirect_url': reverse('purchasing:create_purchase_order')
             })
-
         except Exception as e:
             print(f"Error preparing PO data: {str(e)}")
             import traceback

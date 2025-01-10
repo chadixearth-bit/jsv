@@ -101,7 +101,7 @@
                                     </svg>
                                     <p class="text-sm text-gray-500">From</p>
                                 </div>
-                                <p class="font-medium text-gray-900">{{ delivery.requisition.source_warehouse.name }}</p>
+                                <p class="font-medium text-gray-900">{{ delivery.source_warehouse.name }}</p>
                             </div>
                             <div>
                                 <div class="flex items-center space-x-1">
@@ -110,7 +110,7 @@
                                     </svg>
                                     <p class="text-sm text-gray-500">To</p>
                                 </div>
-                                <p class="font-medium text-gray-900">{{ delivery.requisition.destination_warehouse.name }}</p>
+                                <p class="font-medium text-gray-900">{{ delivery.destination_warehouse.name }}</p>
                             </div>
                         </div>
 
@@ -144,7 +144,7 @@
 
                 <!-- Actions -->
                 <div class="px-6 py-4 bg-gray-50 border-t space-y-3">
-                    {% if user.customuser.role == 'attendance' %}
+                    {% if user.customuser.role == 'attendant' %}
                         {% if delivery.status == 'in_delivery' %}
                         <div class="flex items-center space-x-3">
                             <form method="post" action="{% url 'requisition:confirm_delivery' delivery.pk %}" enctype="multipart/form-data" class="flex items-center space-x-2">
@@ -152,7 +152,7 @@
                                 <div class="flex items-center space-x-2">
                                     <label for="delivery_image_{{ delivery.id }}" class="text-gray-600 hover:text-gray-900 cursor-pointer inline-flex items-center">
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                         </svg>
                                         Upload Image
                                     </label>
@@ -161,42 +161,48 @@
                             </form>
                         </div>
                         {% endif %}
-                    {% elif user.customuser.role == 'manager' %}
-                        {% if delivery.status == 'pending_delivery' %}
-                        <a href="{% url 'requisition:manage_delivery' delivery.pk %}" 
-                           class="inline-flex w-full justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                            </svg>
-                            Manage Delivery
-                        </a>
-                        {% elif delivery.status == 'pending_manager' %}
-                        <div class="space-y-2">
-                            {% if delivery.delivery_image %}
-                            <button onclick="showImage('{{ delivery.delivery_image.url }}')" 
-                                    class="w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                                </svg>
+
+                        {% if delivery.delivery_image %}
+                        <div class="flex space-x-2">
+                            <button onclick="openDeliveryImageModal('{{ delivery.delivery_image.url }}', {{ delivery.id }})" 
+                                    class="text-blue-600 hover:text-blue-800">
                                 View Image
                             </button>
-                            {% endif %}
-                            <form method="post" action="{% url 'requisition:confirm_delivery' delivery.pk %}" class="w-full">
-                                {% csrf_token %}
-                                <button type="submit" 
-                                        class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                    </svg>
-                                    Verify Delivery
-                                </button>
-                            </form>
                         </div>
+                        {% endif %}
+                    {% elif user.customuser.role == 'manager' %}
+                        {% if delivery.status == 'pending_delivery' %}
+                        <a href="{% url 'requisition:manage_delivery' delivery.pk %}" class="text-blue-600 hover:text-blue-800 inline-flex items-center">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            Set Delivery Details
+                        </a>
+                        {% endif %}
+
+                        {% if delivery.status == 'pending_manager' %}
+                            {% if delivery.delivery_image %}
+                            <div class="flex items-center space-x-3">
+                                <button onclick="openDeliveryImageModal('{{ delivery.delivery_image.url }}', {{ delivery.id }})" 
+                                        class="text-blue-600 hover:text-blue-800">
+                                    View Image
+                                </button>
+                                <form method="post" action="{% url 'requisition:confirm_delivery' delivery.id %}" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="text-green-600 hover:text-green-800 inline-flex items-center">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                        </svg>
+                                        Verify Delivery
+                                    </button>
+                                </form>
+                            </div>
+                            {% endif %}x
                         {% endif %}
                     {% endif %}
 
                     <!-- Footer Actions -->
-                    <div class="flex justify-end space-x-3 pt-2 text-sm border-t border-gray-200">
+                    <div class="flex justify-end space-x-3 pt-2 tet-sm border-t border-gray-200">
                         <div class="flex items-center space-x-3">
                             {% if user.customuser.role == 'attendant' and delivery.status == 'in_delivery' %}
                             <form method="post" action="{% url 'requisition:confirm_delivery' delivery.pk %}" enctype="multipart/form-data" class="flex items-center space-x-2">
@@ -204,7 +210,7 @@
                                 <div class="flex items-center space-x-2">
                                     <label for="delivery_image_{{ delivery.id }}" class="text-gray-600 hover:text-gray-900 cursor-pointer inline-flex items-center">
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                                         </svg>
                                         Upload Image
                                     </label>
@@ -237,14 +243,14 @@
                                         console.error('Error:', error);
                                         alert('Error loading delivery details. Please try again.');
                                     })"
-                                    class="text-gray-600 hover:text-gray-900 inline-flex items-center">
-                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    class="text-gray-600 hover:text-gray-800">
+                                <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
                                 Details
                             </button>
                             <a href="{% url 'requisition:view_delivery_pdf' delivery.id %}" target="_blank"
-                               class="text-gray-600 hover:text-gray-900 inline-flex items-center">
+                               class="text-gray-600 hover:text-gray-800 inline-flex items-center">
                                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                 </svg>
@@ -258,7 +264,7 @@
             {% if not page_obj %}
             <div class="col-span-full bg-white rounded-xl shadow-md border border-gray-100 p-8 text-center">
                 <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                 </svg>
                 <h3 class="mt-4 text-lg font-medium text-gray-900">No deliveries found</h3>
                 <p class="mt-2 text-sm text-gray-500">There are no deliveries matching your current filter criteria.</p>
@@ -321,8 +327,8 @@
                 <h3 class="text-xl font-semibold text-gray-900">Delivery Image</h3>
                 <button type="button" onclick="closeImageModal()" class="text-gray-400 hover:text-gray-500">
                     <span class="sr-only">Close</span>
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </div>
@@ -361,7 +367,7 @@ document.getElementById('imageModal').addEventListener('click', function(event) 
         <!-- Modal Header -->
         <div class="flex justify-between items-center pb-3 border-b">
             <h3 class="text-xl font-semibold text-gray-900" id="modal-title">Delivery Details</h3>
-            <button type="button" onclick="closeDeliveryModal()" class="text-gray-400 hover:text-gray-500 focus:outline-none">
+            <button type="button" onclick="closeDeliveryModal()" class="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                 <span class="sr-only">Close</span>
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -514,6 +520,63 @@ function fetchWithCSRF(url, options = {}) {
     };
     return fetch(url, fetchOptions);
 }
+</script>
+
+<!-- Delivery Image Modal -->
+<div id="deliveryImageModal" class="fixed inset-0 z-50 hidden overflow-auto bg-black bg-opacity-50">
+    <div class="relative p-8 mx-auto my-20 bg-white rounded-lg shadow-xl max-w-4xl">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">Delivery Image</h3>
+            <button onclick="closeDeliveryImageModal()" class="text-gray-500 hover:text-gray-700">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div class="mb-4">
+            <img id="modalDeliveryImage" src="" alt="Delivery Image" class="w-full h-auto rounded-lg">
+        </div>
+        <div id="modalVerifyButton" class="flex justify-end mt-4">
+            {% if user.customuser.role == 'manager' %}
+            <form method="post" action="{% url 'requisition:confirm_delivery' 0 %}" id="verifyDeliveryForm" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    Verify Delivery
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function openDeliveryImageModal(imageUrl, deliveryId) {
+    const modal = document.getElementById('deliveryImageModal');
+    const modalImg = document.getElementById('modalDeliveryImage');
+    const verifyForm = document.getElementById('verifyDeliveryForm');
+    
+    modalImg.src = imageUrl;
+    modal.classList.remove('hidden');
+    
+    // Update verify form action if it exists
+    if (verifyForm && deliveryId) {
+        const url = verifyForm.action.replace('0', deliveryId);
+        verifyForm.action = url;
+    }
+}
+
+function closeDeliveryImageModal() {
+    const modal = document.getElementById('deliveryImageModal');
+    modal.classList.add('hidden');
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', function(event) {
+    const modal = document.getElementById('deliveryImageModal');
+    if (event.target === modal) {
+        closeDeliveryImageModal();
+    }
+});
 </script>
 {% endblock %}
 

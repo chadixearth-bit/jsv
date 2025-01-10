@@ -18,6 +18,16 @@ class SupplierForm(forms.ModelForm):
         }
 
 class PurchaseOrderForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Initialize supplier and warehouse querysets
+        self.fields['supplier'].queryset = Supplier.objects.all()
+        self.fields['warehouse'].queryset = Warehouse.objects.filter(
+            name__in=['Attendant Warehouse', 'Manager Warehouse']
+        )
+
     verification_file = forms.FileField(required=False, widget=forms.FileInput(attrs={
         'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
         'accept': 'image/*,.pdf'
@@ -31,16 +41,8 @@ class PurchaseOrderForm(forms.ModelForm):
             'warehouse': forms.Select(attrs={'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500', 'required': True}),
             'order_date': forms.DateInput(attrs={'type': 'date', 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500', 'required': True}),
             'expected_delivery_date': forms.DateInput(attrs={'type': 'date', 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500', 'required': True}),
-            'notes': forms.Textarea(attrs={'rows': 3, 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500'}),
+            'notes': forms.Textarea(attrs={'rows': 3, 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500', 'placeholder': 'Add any additional notes about this purchase order...'}),
         }
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
-        # Set warehouse queryset to only show Attendant and Manager warehouses
-        self.fields['warehouse'].queryset = Warehouse.objects.filter(
-            name__in=['Attendant Warehouse', 'Manager Warehouse']
-        )
 
     def clean(self) -> dict:
         cleaned_data = super().clean()

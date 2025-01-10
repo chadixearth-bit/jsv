@@ -280,8 +280,10 @@ class Delivery(models.Model):
     ]
 
     requisition = models.ForeignKey(Requisition, on_delete=models.CASCADE)
+    source_warehouse = models.ForeignKey('inventory.Warehouse', on_delete=models.CASCADE, related_name='source_deliveries', null=True)
+    destination_warehouse = models.ForeignKey('inventory.Warehouse', on_delete=models.CASCADE, related_name='destination_deliveries', null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending_delivery')
-    delivered_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    delivered_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deliveries_made')
     delivery_personnel_name = models.CharField(max_length=100, null=True, blank=True)
     delivery_personnel_phone = models.CharField(
         max_length=20, 
