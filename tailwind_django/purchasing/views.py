@@ -1,188 +1,216 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import ListView, CreateView, UpdateView
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.contrib import messages
+from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.db import transaction
-from django.http import HttpResponse, HttpResponseRedirect
-from django.db.models.manager import Manager
-from django.db.models import QuerySet
+from django.utils import timezone
+from django.db.models import F, Sum, Manager, QuerySet
+from django.template.loader import get_template
+from typing import Any, Dict, Optional, Type, Union
 import json
 from decimal import Decimal
-import os
-from django.conf import settings
-from django.contrib.auth.decorators import login_required
-from django.utils import timezone
-from django.template.loader import get_template
 from io import BytesIO
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
-from reportlab.lib.styles import getSampleStyleSheet
-from typing import Any, Dict, Optional, Type, Union
+from xhtml2pdf import pisa
+import os
+import traceback
 
-from requisition.models import Requisition
-from inventory.models import InventoryItem, Brand, Warehouse, Category
-from .models import PurchaseOrder, PurchaseOrderItem, Supplier, Delivery, DeliveryItem
+# Local models
+from .models import (
+    PurchaseOrder, PurchaseOrderItem, Supplier, Warehouse,
+    PendingPOItem, Delivery, DeliveryItem
+)
 from .forms import PurchaseOrderForm, PurchaseOrderItemForm, SupplierForm, DeliveryReceiptForm
-from .utils import generate_purchase_order_pdf
-from django.db.models import Q
+
+# External models
+from inventory.models import Brand, InventoryItem, Warehouse, Category
+from requisition.models import Requisition, RequisitionItem
 
 # Type hints for Django models
-PurchaseOrder.objects: Manager
-Requisition.objects: Manager
-InventoryItem.objects: Manager
-Brand.objects: Manager
-Delivery.objects: Manager
-DeliveryItem.objects: Manager
-PurchaseOrderItem.objects: Manager
-Supplier.objects: Manager
+PurchaseOrder.objects: Manager[PurchaseOrder]
+PurchaseOrderItem.objects: Manager[PurchaseOrderItem]
+PendingPOItem.objects: Manager[PendingPOItem]
+Supplier.objects: Manager[Supplier]
+Brand.objects: Manager[Brand]
+InventoryItem.objects: Manager[InventoryItem]
+Requisition.objects: Manager[Requisition]
+RequisitionItem.objects: Manager[RequisitionItem]
+Delivery.objects: Manager[Delivery]
+DeliveryItem.objects: Manager[DeliveryItem]
+Warehouse.objects: Manager[Warehouse]
+Category.objects: Manager[Category]
 
 class PurchaseOrderListView(LoginRequiredMixin, ListView):
     model = PurchaseOrder
     template_name = 'purchasing/purchase_order_list.html'
-    context_object_name = 'orders'
+    context_object_name = 'purchase_orders'
 
-    def get_queryset(self) -> QuerySet[PurchaseOrder]:
-        return PurchaseOrder.objects.all().order_by('-created_at')
+    def get_queryset(self) -> QuerySet[Any]:
+        return PurchaseOrder.objects.select_related('supplier').order_by('-order_date', '-pk')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Add approved requisitions that don't have POs yet
-        approved_requisitions = Requisition.objects.filter(
-            status='approved_by_admin'
-        ).exclude(
-            purchase_orders__isnull=False
-        ).order_by('-updated_at')
-        context['approved_requisitions'] = approved_requisitions
+        
+        # Get pending items grouped by brand
+        pending_items = PendingPOItem.objects.filter(
+            is_processed=False
+        ).select_related(
+            'brand',
+            'item__item',
+            'item__requisition',
+            'item__requisition__requester'
+        ).order_by('brand__name', 'created_at')
+        
+        # Group items by brand
+        pending_by_brand = {}
+        for item in pending_items:
+            brand_name = item.brand.name
+            if brand_name not in pending_by_brand:
+                pending_by_brand[brand_name] = []
+            pending_by_brand[brand_name].append(item)
+        
+        context['pending_requisitions_by_brand'] = pending_by_brand
+        context['suppliers'] = Supplier.objects.all()
+        context['warehouses'] = Warehouse.objects.filter(
+            name__in=['Attendant Warehouse', 'Manager Warehouse']
+        )
         return context
 
 class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
     model = PurchaseOrder
     form_class = PurchaseOrderForm
     template_name = 'purchasing/purchase_order_form.html'
-    
-    def dispatch(self, request, *args, **kwargs) -> Any:
-        # Allow both superusers and admin users to create POs
-        if request.user.is_superuser or (hasattr(request.user, 'customuser') and request.user.customuser.role == 'admin'):
-            return super().dispatch(request, *args, **kwargs)
-        messages.error(request, "Only admin users can create purchase orders.")
-        return redirect('purchasing:list')
 
-    def get_form_kwargs(self) -> Dict:
+    def dispatch(self, request, *args, **kwargs):
+        if not hasattr(request.user, 'customuser') or request.user.customuser.role != 'admin':
+            messages.error(request, "Only admin users can create purchase orders.")
+            return redirect('purchasing:list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['user'] = self.request.user
         return kwargs
 
-    def get_context_data(self, **kwargs: Any) -> Dict:
+    def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Create Purchase Order'
-        context['suppliers'] = Supplier.objects.all()
-        context['warehouses'] = Warehouse.objects.filter(
-            name__in=['Attendant Warehouse', 'Manager Warehouse']
-        )
-        context['pending_requisitions'] = Requisition.objects.filter(
-            request_type='item',
-            status='approved_by_admin',
-            items__item__stock=0
-        ).distinct()
-        context['available_items'] = InventoryItem.objects.select_related(
-            'brand', 
-            'category',
-            'warehouse'
-        ).filter(
-            availability=True
-        ).order_by('brand__name', 'model', 'item_name')
+        if 'po_draft_data' in self.request.session:
+            draft_data = self.request.session['po_draft_data']
+            context['draft_data'] = draft_data
+            # Get the actual item objects for the pending items
+            pending_items = []
+            for item_data in draft_data.get('pending_items', []):
+                try:
+                    item = InventoryItem.objects.get(id=item_data['item_id'])
+                    pending_items.append({
+                        'item': item,
+                        'quantity': item_data['quantity'],
+                        'unit_price': item_data['unit_price'],
+                        'subtotal': Decimal(item_data['quantity']) * Decimal(item_data['unit_price'])
+                    })
+                except InventoryItem.DoesNotExist:
+                    continue
+            context['pending_items'] = pending_items
+            context['brand'] = draft_data.get('brand')
+            
+            # Add suppliers and warehouses to context
+            context['suppliers'] = Supplier.objects.all()
+            context['warehouses'] = Warehouse.objects.filter(
+                name__in=['Attendant Warehouse', 'Manager Warehouse']
+            )
+            
+            # Set initial values
+            context['initial'] = {
+                'supplier': draft_data.get('supplier'),
+                'warehouse': draft_data.get('warehouse'),
+                'expected_delivery_date': draft_data.get('expected_delivery_date'),
+                'notes': draft_data.get('notes')
+            }
         return context
 
-    def form_valid(self, form: PurchaseOrderForm) -> Any:
+    def get_initial(self):
+        initial = super().get_initial()
+        if 'po_draft_data' in self.request.session:
+            draft_data = self.request.session['po_draft_data']
+            initial.update({
+                'supplier': draft_data.get('supplier'),
+                'warehouse': draft_data.get('warehouse'),
+                'expected_delivery_date': draft_data.get('expected_delivery_date'),
+                'notes': draft_data.get('notes')
+            })
+        return initial
+
+    def form_valid(self, form):
         try:
             with transaction.atomic():
-                po = form.save(commit=False)
-                po.created_by = self.request.user
-                po.status = 'pending_supplier'
-                po.save()
-
-                # Get items data from the form
-                items_data = self.request.POST.get('items_data', '[]')
-                print("\n====== DEBUG: Items Data from Form ======")
-                print(f"Raw items_data: {items_data}")
-                items = json.loads(items_data)
-                print(f"Parsed items: {items}")
-
-                for item_data in items:
-                    print(f"\nProcessing item: {item_data}")
-                    # Handle both existing and new items
-                    if item_data.get('item_id'):
-                        # Existing item
-                        print(f"Getting existing item with ID: {item_data['item_id']}")
-                        item = InventoryItem.objects.get(id=item_data['item_id'])
-                    else:
-                        print("Creating new item")
-                        # Create or get brand
-                        brand, _ = Brand.objects.get_or_create(name=item_data['brand'])
-                        
-                        # Get or create a default category
-                        category, _ = Category.objects.get_or_create(name='General')
-                        
-                        # Create new item with the item name from the form
-                        item_name = item_data.get('itemName', f"{item_data['brand']} {item_data['model']}")
-                        
-                        # Create new item
-                        item = InventoryItem.objects.create(
-                            brand=brand,
-                            category=category,
-                            model=item_data['model'],
-                            item_name=item_name,
-                            price=Decimal(str(item_data['unitPrice'])),
-                            stock=0,  # Initial stock is 0 until delivery
-                            warehouse=po.warehouse,  # Assign to PO's warehouse
-                            availability=True
-                        )
-                        print(f"Created new item: {item.item_name}")
-
-                    # Create purchase order item
-                    po_item = PurchaseOrderItem.objects.create(
-                        purchase_order=po,
-                        item=item,
-                        brand=item_data['brand'],
-                        model_name=item_data['model'],
-                        quantity=int(item_data['quantity']),
-                        unit_price=Decimal(str(item_data['unitPrice']))
-                    )
-                    print(f"Created PO item: {po_item}")
-
-                # Calculate and update total amount
-                po.calculate_total()
+                # Generate PO number
+                today = timezone.now()
+                po_count = PurchaseOrder.objects.filter(
+                    order_date__year=today.year
+                ).count()
+                form.instance.po_number = f'PO-{today.year}-{po_count + 1:04d}'
                 
-                # Link requisition to purchase order if it exists
-                requisition_id = self.request.GET.get('requisition_id')
-                if requisition_id:
-                    requisition = Requisition.objects.get(id=requisition_id)
-                    requisition.purchase_orders.add(po)
-                    print(f"Linked requisition {requisition_id} to PO {po.id}")
-                
-                po.save()
-                
-                print("\n====== DEBUG: Final PO Details ======")
-                print(f"PO ID: {po.id}")
-                print(f"PO Number: {po.po_number}")
-                print(f"Total Amount: {po.total_amount}")
-                print(f"Number of items: {po.items.count()}")
-                for item in po.items.all():
-                    print(f"- Item: {item.item.item_name}, Qty: {item.quantity}, Price: {item.unit_price}")
+                form.instance.created_by = self.request.user
+                form.instance.status = 'draft'
+                form.instance.order_date = today.date()
+                response = super().form_valid(form)
 
-                messages.success(self.request, "Purchase order created successfully!")
-                return redirect('purchasing:view_purchase_order', pk=po.pk)
+                if 'po_draft_data' in self.request.session:
+                    draft_data = self.request.session['po_draft_data']
+                    pending_items = draft_data.get('pending_items', [])
+                    
+                    total_amount = Decimal('0')
+                    # Add items to PO
+                    for item_data in pending_items:
+                        try:
+                            item = InventoryItem.objects.get(id=item_data['item_id'])
+                            unit_price = Decimal(str(item_data['unit_price']))
+                            quantity = int(item_data['quantity'])
+                            
+                            po_item = PurchaseOrderItem.objects.create(
+                                purchase_order=self.object,
+                                item=item,
+                                brand=item.brand.name,
+                                model_name=item.model,
+                                quantity=quantity,
+                                unit_price=unit_price
+                            )
+                            
+                            # Add to total
+                            total_amount += po_item.subtotal
+                            
+                            # Mark pending items as processed
+                            PendingPOItem.objects.filter(
+                                item=item,
+                                is_processed=False
+                            ).update(is_processed=True)
+                            
+                        except (InventoryItem.DoesNotExist, ValueError, KeyError) as e:
+                            print(f"Error processing item: {str(e)}")
+                            continue
+
+                    # Clean up session after use
+                    del self.request.session['po_draft_data']
+                    self.request.session.modified = True
+
+                    # Update PO total
+                    self.object.total_amount = total_amount
+                    self.object.save()
+
+                messages.success(self.request, 'Purchase order created successfully.')
+                return redirect('purchasing:list')
 
         except Exception as e:
-            print(f"Error creating purchase order: {str(e)}")
-            messages.error(self.request, f"Error creating purchase order: {str(e)}")
+            print(f"Error creating PO: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            messages.error(self.request, f'Error creating purchase order: {str(e)}')
             return super().form_invalid(form)
 
     def get_success_url(self):
-        return reverse_lazy('purchasing:view_purchase_order', kwargs={'pk': self.object.pk})
+        return reverse('purchasing:list')
 
 class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
     model = PurchaseOrder
@@ -237,7 +265,6 @@ class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
                         if quantity and price:
                             item.quantity = int(quantity)
                             item.unit_price = Decimal(price)
-                            item.subtotal = item.quantity * item.unit_price
                             item.save()
                 
                 # Delete removed items
@@ -318,6 +345,7 @@ def download_po_pdf(request, pk: int) -> Any:
         messages.error(request, f"Error generating PDF: {str(e)}")
         return redirect('purchasing:view_po', pk=pk)
 
+@login_required
 def submit_purchase_order(request, pk: int) -> Any:
     if not hasattr(request.user, 'customuser') or request.user.customuser.role != 'admin':
         messages.error(request, "Only admin users can submit purchase orders.")
@@ -326,9 +354,30 @@ def submit_purchase_order(request, pk: int) -> Any:
     po = get_object_or_404(PurchaseOrder, pk=pk)
     if request.method == 'POST':
         if po.status == 'draft':
-            po.status = 'pending_supplier'
-            po.save()
-            messages.success(request, 'Purchase order submitted for supplier approval.')
+            try:
+                with transaction.atomic():
+                    # Update PO status
+                    po.status = 'pending_supplier'
+                    po.save()
+
+                    # Get all items in this PO
+                    po_items = po.purchaseorderitem_set.all()
+                    
+                    # Find and mark corresponding pending items as processed
+                    for po_item in po_items:
+                        pending_items = PendingPOItem.objects.filter(
+                            item__item=po_item.item,
+                            is_processed=False
+                        )
+                        if pending_items.exists():
+                            pending_items.update(is_processed=True)
+
+                    messages.success(request, 'Purchase order submitted for supplier approval.')
+            except Exception as e:
+                print(f"Error submitting PO: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                messages.error(request, f'Error submitting purchase order: {str(e)}')
         else:
             messages.error(request, 'Purchase order can only be submitted from draft status.')
     return redirect('purchasing:list')
@@ -469,7 +518,10 @@ def receive_delivery(request, pk: int) -> Any:
 def confirm_delivery(request, pk):
     delivery = get_object_or_404(Delivery.objects.select_related(
         'purchase_order',
-        'purchase_order__warehouse'
+        'purchase_order__supplier',
+        'purchase_order__warehouse',
+        'received_by',
+        'confirmed_by'
     ).prefetch_related(
         'items',
         'items__purchase_order_item',
@@ -920,12 +972,10 @@ def create_po_from_requisition(request, requisition_id):
                         unit_price=Decimal('0.00')  # You may want to set a default price
                     )
 
-            # Link the requisition
-            draft_po.requisitions.add(requisition)
-
-            # Update requisition status
-            requisition.status = 'pending_po'
-            requisition.save()
+                # Link requisition to PO and update its status
+                draft_po.requisitions.add(requisition)
+                requisition.status = 'pending_po'
+                requisition.save()
 
             messages.success(request, f'Items from requisition #{requisition.id} added to Purchase Order #{draft_po.id}')
             return redirect('purchasing:view_purchase_order', pk=draft_po.id)
@@ -935,79 +985,218 @@ def create_po_from_requisition(request, requisition_id):
         return redirect('requisition:requisition_list')
 
 @login_required
+@transaction.atomic
 def create_bulk_po(request):
-    """Create a single PO from all approved requisitions"""
-    user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
+    if request.method != 'POST':
+        return redirect('purchasing:pending_po_items')
 
-    if user_role != 'admin':
-        messages.error(request, "Only admin can create purchase orders.")
-        return redirect('purchasing:list')
+    # Get all brands with pending items
+    brands = Brand.objects.filter(pendingpoitem__is_processed=False).distinct()
+    
+    success_count = 0
+    error_count = 0
+    
+    for brand in brands:
+        try:
+            pending_items = PendingPOItem.objects.filter(
+                brand=brand,
+                is_processed=False
+            )
+            
+            if pending_items.exists():
+                # Create new PO for this brand
+                po = PurchaseOrder.objects.create(
+                    status='pending_supplier',
+                    created_by=request.user
+                )
+                
+                # Generate PO number
+                po.po_number = f'PO{str(po.id).zfill(6)}'
+                po.save()
+                
+                # Add items to PO
+                for pending_item in pending_items:
+                    PurchaseOrderItem.objects.create(
+                        purchase_order=po,
+                        item=pending_item.item.item,
+                        quantity=pending_item.quantity,
+                        brand=brand
+                    )
+                    
+                    # Mark pending item as processed
+                    pending_item.is_processed = True
+                    pending_item.save()
+                
+                success_count += 1
+                
+        except Exception as e:
+            error_count += 1
+            messages.error(request, f'Error creating PO for {brand.name}: {str(e)}')
+            continue
+    
+    if success_count > 0:
+        messages.success(request, f'Successfully created {success_count} purchase orders.')
+    if error_count > 0:
+        messages.warning(request, f'Failed to create {error_count} purchase orders. Check the error messages above.')
+    
+    return redirect('purchasing:pending_po_items')
+
+@login_required
+@transaction.atomic
+def create_po_from_pending_form(request):
+    if request.method != 'POST':
+        return redirect('purchasing:pending_po_items')
+        
+    brand_id = request.POST.get('brand_id')
+    if not brand_id:
+        messages.error(request, 'No brand ID provided')
+        return redirect('purchasing:pending_po_items')
+        
+    brand = get_object_or_404(Brand, id=brand_id)
+    pending_items = PendingPOItem.objects.filter(
+        brand=brand,  # Use brand object directly since it's a ForeignKey
+        is_processed=False
+    ).select_related('item__item')
+    
+    if not pending_items.exists():
+        messages.error(request, f'No pending items found for {brand.name}')
+        return redirect('purchasing:pending_po_items')
+    
+    try:
+        # Create new PO
+        po = PurchaseOrder.objects.create(
+            status='pending_supplier',
+            created_by=request.user,
+            supplier=Supplier.objects.get(brand=brand),  # Set the supplier
+            order_date=timezone.now().date(),
+            expected_delivery_date=timezone.now().date() + timezone.timedelta(days=7)  # Default to 7 days from now
+        )
+        
+        # Generate PO number
+        po.po_number = f'PO{str(po.id).zfill(6)}'
+        po.save()
+        
+        # Add items to PO
+        for pending_item in pending_items:
+            PurchaseOrderItem.objects.create(
+                purchase_order=po,
+                item=pending_item.item.item,
+                brand=brand.name,  # Use brand.name for the string field in PO item
+                model_name=pending_item.item.item.model,
+                quantity=pending_item.quantity,
+                unit_price=pending_item.item.item.price or Decimal('0.00')
+            )
+            
+            # Mark pending item as processed
+            pending_item.is_processed = True
+            pending_item.save()
+            
+            # Link requisition to PO if it exists
+            if pending_item.item.requisition:
+                po.requisitions.add(pending_item.item.requisition)
+        
+        # Calculate total and save
+        po.calculate_total()
+        po.save()
+            
+        messages.success(request, f'Successfully created purchase order for {brand.name}')
+        return redirect('purchasing:view_purchase_order', pk=po.id)
+        
+    except Brand.DoesNotExist:
+        messages.error(request, f'Brand with ID {brand_id} not found')
+        return redirect('purchasing:pending_po_items')
+    except Exception as e:
+        messages.error(request, f'Error creating purchase order: {str(e)}')
+        return redirect('purchasing:pending_po_items')
+
+@login_required
+def clear_pending_items(request):
+    """Clear all pending PO items for a specific brand"""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid method'})
 
     try:
-        with transaction.atomic():
-            # Get all approved requisitions
-            approved_requisitions = Requisition.objects.filter(
-                status='approved_by_admin'
-            ).exclude(
-                purchase_orders__isnull=False
-            ).order_by('-updated_at')
+        data = json.loads(request.body)
+        brand = data.get('brand')
 
-            if not approved_requisitions:
-                messages.error(request, "No approved requisitions found.")
-                return redirect('purchasing:list')
+        if not brand:
+            return JsonResponse({'success': False, 'error': 'Brand is required'})
 
-            # Get first supplier (you may want to change this logic)
-            supplier = Supplier.objects.first()
-            if not supplier:
-                messages.error(request, "No suppliers found. Please create a supplier first.")
-                return redirect('purchasing:add_supplier')
+        # Get all pending requisitions with items of this brand
+        requisitions = Requisition.objects.filter(
+            status='pending_admin_approval',
+            items__item__brand__name=brand
+        ).distinct()
+        
+        # Update their status
+        requisitions.update(status='rejected')
 
-            # Create new PO
-            po = PurchaseOrder.objects.create(
-                created_by=request.user,
-                status='draft',
-                supplier=supplier,
-                warehouse=approved_requisitions.first().destination_warehouse or approved_requisitions.first().requester.customuser.warehouses.first(),
-                order_date=timezone.now().date(),
-                expected_delivery_date=timezone.now().date() + timezone.timedelta(days=7),
-                notes="Bulk PO from approved requisitions"
-            )
-
-            # Add all items from all requisitions
-            for req in approved_requisitions:
-                for req_item in req.items.all():
-                    # Check if item already exists in PO
-                    existing_item = PurchaseOrderItem.objects.filter(
-                        purchase_order=po,
-                        item=req_item.item
-                    ).first()
-
-                    if existing_item:
-                        # Update quantity if item exists
-                        existing_item.quantity += req_item.quantity
-                        existing_item.save()
-                    else:
-                        # Create new item if it doesn't exist
-                        PurchaseOrderItem.objects.create(
-                            purchase_order=po,
-                            item=req_item.item,
-                            brand=req_item.item.brand.name if req_item.item.brand else '',
-                            model_name=req_item.item.model or '',
-                            quantity=req_item.quantity,
-                            unit_price=Decimal('0.00')  # You may want to set a default price
-                        )
-
-                # Link requisition to PO and update its status
-                po.requisitions.add(req)
-                req.status = 'pending_po'
-                req.save()
-
-            messages.success(request, f'Purchase Order #{po.id} created successfully from {approved_requisitions.count()} requisitions')
-            return redirect('purchasing:view_purchase_order', pk=po.id)
+        return JsonResponse({'success': True})
 
     except Exception as e:
-        messages.error(request, f"Error creating purchase order: {str(e)}")
-        return redirect('purchasing:list')
+        return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+def create_po_from_pending(request, brand):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'})
+
+    try:
+        data = json.loads(request.body)
+        supplier_id = data.get('supplier')
+        warehouse_id = data.get('warehouse')
+        expected_delivery_date = data.get('expected_delivery_date')
+        notes = data.get('notes', '')
+
+        # Validate required fields
+        if not all([supplier_id, warehouse_id, expected_delivery_date]):
+            return JsonResponse({'success': False, 'error': 'Missing required fields'})
+
+        try:
+            # Get pending items for this brand
+            pending_items = PendingPOItem.objects.filter(
+                brand__name=brand,
+                is_processed=False
+            ).select_related('item__item')
+
+            if not pending_items.exists():
+                return JsonResponse({'success': False, 'error': f'No pending items found for brand {brand}'})
+
+            # Store the data in session
+            request.session['po_draft_data'] = {
+                'supplier': supplier_id,
+                'warehouse': warehouse_id,
+                'expected_delivery_date': expected_delivery_date,
+                'notes': notes,
+                'brand': brand,
+                'pending_items': [
+                    {
+                        'item_id': item.item.item.id,
+                        'quantity': item.quantity,
+                        'unit_price': str(item.item.item.price or Decimal('0.00'))
+                    }
+                    for item in pending_items
+                ]
+            }
+
+            return JsonResponse({
+                'success': True,
+                'redirect_url': reverse('purchasing:create_purchase_order')
+            })
+
+        except Exception as e:
+            print(f"Error preparing PO data: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'success': False, 'error': f'Error preparing purchase order data: {str(e)}'})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'})
+    except Exception as e:
+        print(f"Error processing request: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': f'Error processing request: {str(e)}'})
 
 @login_required
 def upload_delivery_image(request, pk):
@@ -1068,33 +1257,14 @@ def purchase_order_list(request):
     return render(request, 'purchasing/purchase_order_list.html', context)
 
 @login_required
-def remove_pending_item(request, item_id):
-    """Remove an item from pending PO items"""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'error': 'Invalid method'})
-
+def remove_pending_item(request, pk):
     try:
-        # Get the requisition item
-        item = RequisitionItem.objects.get(id=item_id)
-        requisition = item.requisition
-
-        if requisition.status != 'pending_admin_approval':
-            return JsonResponse({'success': False, 'error': 'Invalid requisition status'})
-
-        # Remove the item
-        item.delete()
-
-        # If no more items in requisition, update its status
-        if requisition.items.count() == 0:
-            requisition.status = 'rejected'
-            requisition.save()
-
-        return JsonResponse({'success': True})
-
-    except RequisitionItem.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Item not found'})
+        pending_item = get_object_or_404(PendingPOItem, id=pk)
+        pending_item.delete()
+        messages.success(request, "Item removed from pending items.")
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        messages.error(request, f"Error removing item: {str(e)}")
+    return redirect('purchasing:pending_po_items')
 
 @login_required
 def clear_pending_items(request):
@@ -1124,63 +1294,81 @@ def clear_pending_items(request):
         return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
-def create_po_from_pending(request):
-    """Create PO from pending items with specified quantities"""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'error': 'Invalid method'})
+def clear_brand_pending_items(request, brand_id):
+    if request.method == 'POST':
+        try:
+            print(f"Attempting to delete pending items for brand: {brand_id}")
+            # Get the brand object first
+            brand = Brand.objects.get(id=brand_id)
+            # Delete all pending items for this brand using the brand ID
+            deleted_count = PendingPOItem.objects.filter(
+                is_processed=False,
+                brand=brand
+            ).delete()[0]
+            print(f"Deleted {deleted_count} pending items")
+            messages.success(request, f'Successfully deleted all pending items for {brand.name}')
+        except Brand.DoesNotExist:
+            print(f"Brand not found: {brand_id}")
+            messages.error(request, f'Brand {brand_id} not found')
+        except Exception as e:
+            print(f"Error deleting items: {str(e)}")
+            messages.error(request, f'Error deleting items: {str(e)}')
+    
+    return redirect('purchasing:pending_po_items')
 
+@login_required
+def pending_po_items(request):
     try:
-        data = json.loads(request.body)
-        supplier_id = data.get('supplier_id')
-        warehouse_id = data.get('warehouse_id')
-        notes = data.get('notes')
-        items = data.get('items', {})
-        brand = data.get('brand')
+        # Get all pending items with related data
+        pending_items = PendingPOItem.objects.filter(
+            is_processed=False
+        ).select_related(
+            'brand',
+            'item',  # RequisitionItem
+            'item__item',  # InventoryItem from RequisitionItem
+            'item__requisition'  # Requisition from RequisitionItem
+        ).order_by('brand__name')
 
-        if not all([supplier_id, warehouse_id, brand]):
-            return JsonResponse({'success': False, 'error': 'Missing required fields'})
+        # Group by brand
+        brand_groups = {}
+        for pending_item in pending_items:
+            brand = pending_item.brand
+            
+            if brand.id not in brand_groups:
+                brand_groups[brand.id] = {
+                    'id': brand.id,
+                    'name': brand.name,
+                    'pending_items': []
+                }
+            
+            # Add item to brand group
+            item_data = {
+                'id': pending_item.id,
+                'item': pending_item.item.item,  # Get the InventoryItem from RequisitionItem
+                'quantity': pending_item.quantity,
+                'requisitions': [pending_item.item.requisition] if pending_item.item.requisition else []
+            }
+            brand_groups[brand.id]['pending_items'].append(item_data)
 
-        with transaction.atomic():
-            # Create the PO
-            po = PurchaseOrder.objects.create(
-                created_by=request.user,
-                status='draft',
-                supplier_id=supplier_id,
-                warehouse_id=warehouse_id,
-                order_date=timezone.now().date(),
-                expected_delivery_date=timezone.now().date() + timezone.timedelta(days=7),
-                notes=f"{brand} items: {notes}"
-            )
-
-            # Add items with specified quantities
-            for item_id, quantity in items.items():
-                req_item = RequisitionItem.objects.get(id=item_id)
-                
-                # Skip items from other brands
-                if req_item.item.brand.name != brand:
-                    continue
-
-                # Create PO item
-                PurchaseOrderItem.objects.create(
-                    purchase_order=po,
-                    item=req_item.item,
-                    brand=req_item.item.brand.name if req_item.item.brand else '',
-                    model_name=req_item.item.model or '',
-                    quantity=int(quantity),
-                    unit_price=Decimal('0.00')  # You may want to set a default price
-                )
-
-                # Link requisition to PO and update its status
-                po.requisitions.add(req_item.requisition)
-                req_item.requisition.status = 'pending_po'
-                req_item.requisition.save()
-
-            return JsonResponse({
-                'success': True,
-                'redirect_url': reverse('purchasing:view_purchase_order', kwargs={'pk': po.id})
-            })
-
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid JSON'})
+        # Convert to list for template
+        brands = list(brand_groups.values())
+        
+        context = {
+            'brands': sorted(brands, key=lambda x: x['name'])
+        }
+        
+        return render(request, 'purchasing/pending_po_items.html', context)
+        
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        messages.error(request, str(e))
+        return redirect('purchasing:list')
+
+@login_required
+def remove_pending_item(request, pk):
+    try:
+        pending_item = get_object_or_404(PendingPOItem, id=pk)
+        pending_item.delete()
+        messages.success(request, "Item removed from pending items.")
+    except Exception as e:
+        messages.error(request, f"Error removing item: {str(e)}")
+    return redirect('purchasing:pending_po_items')

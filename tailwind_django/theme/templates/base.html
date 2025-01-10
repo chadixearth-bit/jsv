@@ -215,6 +215,7 @@
                                     <a href="{% url 'purchasing:delivery_list' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200" data-item-id="nav_item_3">
                                         <span>External Deliveries</span>
                                     </a>
+
                                     
                                </div>
                             </div>
@@ -252,11 +253,13 @@
                                     <a href="{% url 'purchasing:add_supplier' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200" data-item-id="nav_item_5">
                                         <span>Add New Supplier</span>
                                     </a>
-                                    
+                                    <a href="{% url 'purchasing:pending_po_items' %}" class="nav-indicator flex items-center py-2 text-gray-300 hover:text-indigo-400 transition-colors duration-200" data-item-id="nav_item_5">
+                                        <span>View Pending Po Items</span>
+                                    </a>
                                 </div>
                             </div>
                         </div>
-                        {% endif %}
+                        {% endif %}x
 
                         <!-- Sales Section (visible only to attendance) -->
                         {% if user.customuser.role == 'attendant' %}

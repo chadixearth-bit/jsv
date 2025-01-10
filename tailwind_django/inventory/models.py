@@ -66,3 +66,16 @@ class InventoryItem(models.Model):
             )
         except cls.DoesNotExist:
             return None
+
+class PendingPOItem(models.Model):
+    brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='inventory_pending_items')
+    item = models.ForeignKey('requisition.RequisitionItem', on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_processed = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.brand.name} - {self.item.item.item_name} ({self.quantity})"
+
+    class Meta:
+        ordering = ['brand', 'created_at']

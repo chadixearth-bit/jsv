@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block main_content %}
+<!-- JavaScript functions -->
+<script type="text/javascript">
+    function clearBrandItems(brandId) {
+        if (!confirm('Are you sure you want to delete all pending items for this brand?')) {
+            return;
+        }
+
+        // Create and submit form
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/purchasing/clear-brand-pending-items/${brandId}/`;
+
+        // Add CSRF token
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrfmiddlewaretoken';
+        csrfToken.value = '{{ csrf_token }}';
+        form.appendChild(csrfToken);
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    function createPurchaseOrder(brandId) {
+        // Create and submit form
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/purchasing/create-po-from-pending/`;
+
+        // Add CSRF token
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = 'csrfmiddlewaretoken';
+        csrfToken.value = '{{ csrf_token }}';
+        form.appendChild(csrfToken);
+
+        // Add brand ID
+        const brandInput = document.createElement('input');
+        brandInput.type = 'hidden';
+        brandInput.name = 'brand_id';
+        brandInput.value = brandId;
+        form.appendChild(brandInput);
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+</script>
+
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Pending Items for Purchase Orders</h1>
+    </div>
+
+    {% if brands %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for brand in brands %}
+                <div class="bg-white shadow-lg rounded-lg overflow-hidden">
+                    <!-- Brand Header -->
+                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-xl font-semibold text-gray-800">{{ brand.name }}</h2>
+                            <div class="flex gap-2">
+                                <button onclick="createPurchaseOrder('{{ brand.id }}')" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium">
+                                    Create PO
+                                </button>
+                                <button onclick="clearBrandItems('{{ brand.id }}')" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium">
+                                    Delete All
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Brand Items -->
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            {% for item in brand.pending_items %}
+                                <div class="flex justify-between items-center border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+                                    <div>
+                                        <h3 class="font-medium text-gray-900">{{ item.item.item_name }}</h3>
+                                        <p class="text-sm text-gray-600">Model: {{ item.item.model }}</p>
+                                        <p class="text-sm text-gray-600">Total Quantity: {{ item.quantity }}</p>
+                                        <p class="text-sm text-gray-500">From Requisitions: 
+                                            {% for req in item.requisitions %}
+                                                <a href="{% url 'requisition:view_requisition' req.id %}" class="text-blue-600 hover:text-blue-800">
+                                                    #{{ req.id }}{% if not forloop.last %}, {% endif %}
+                                                </a>
+                                            {% endfor %}
+                                        </p>
+                                    </div>
+                                    <form method="POST" action="{% url 'purchasing:remove_pending_item' item.id %}" class="inline">
+                                        {% csrf_token %}
+                                        <button type="submit" onclick="return confirm('Are you sure you want to remove this item?')" class="text-red-600 hover:text-red-800">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="bg-white shadow-md rounded-lg p-6 text-center">
+            <p class="text-gray-600">No pending items for purchase orders.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

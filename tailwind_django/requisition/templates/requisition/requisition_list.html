@@ -31,7 +31,7 @@
     <!-- Main Content -->
     <div class="w-full max-w-[1920px] mx-auto">
         <!-- Action Bar -->
-        
+
 
         <!-- Requisitions Table -->
         <div class="bg-white shadow-md rounded-lg overflow-hidden">
@@ -84,7 +84,7 @@
                                 <a href="{% url 'requisition:approve_requisition' requisition.id %}" 
                                    class="text-indigo-600 hover:text-indigo-900">Review</a>
                             {% elif user_role == 'admin' and requisition.status == 'pending_admin_approval' %}
-                                <a href="{% url 'requisition:approve_requisition' requisition.id %}"
+                                <a href="{% url 'requisition:admin_approve_requisition' requisition.id %}" 
                                    class="text-indigo-600 hover:text-indigo-900">Review</a>
                             {% else %}
                                 <a href="{% url 'requisition:view_requisition' requisition.id %}"

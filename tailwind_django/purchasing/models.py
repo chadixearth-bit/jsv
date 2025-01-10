@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from inventory.models import InventoryItem, Warehouse
+from inventory.models import InventoryItem, Warehouse, Brand
 from decimal import Decimal
 from django.conf import settings
 
@@ -128,6 +128,20 @@ class PurchaseOrderItem(models.Model):
 
     def __str__(self):
         return f"{self.item.item_name} - {self.quantity} units"
+
+class PendingPOItem(models.Model):
+    brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='purchasing_pending_items')
+    item = models.ForeignKey('requisition.RequisitionItem', on_delete=models.CASCADE, related_name='pending_po_items')
+    quantity = models.PositiveIntegerField()
+    is_processed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.brand.name} - {self.item.item.item_name} ({self.quantity} units)"
+
+    class Meta:
+        ordering = ['-created_at']
 
 class Delivery(models.Model):
     STATUS_CHOICES = [

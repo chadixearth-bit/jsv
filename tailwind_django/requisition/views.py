@@ -11,6 +11,7 @@ from io import BytesIO
 from .models import Requisition, Notification, RequisitionItem, Delivery, DeliveryItem, RequisitionStatusHistory
 from .forms import RequisitionForm, RequisitionApprovalForm, DeliveryManagementForm, DeliveryConfirmationForm
 from inventory.models import InventoryItem, Warehouse, Brand, Category
+from purchasing.models import PendingPOItem
 import json
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -115,10 +116,10 @@ def requisition_list(request):
         )
     elif user_role == 'admin':
         # Admins can see:
-        # 1. All requisitions with status 'pending_admin_approval' (from managers)
+        # 1. All requisitions from managers (any status)
         # 2. Their own requisitions
         requisitions = requisitions.filter(
-            Q(status='pending_admin_approval') |  # All requisitions needing admin approval
+            Q(requester__customuser__role='manager') |  # All manager requisitions
             Q(requester=request.user)  # Their own requisitions
         )
     else:
@@ -271,7 +272,7 @@ def create_requisition(request):
                     print(f"Destination warehouse: {requisition.destination_warehouse.name}")
                 
                 elif request.user.customuser.role == 'manager':
-                    requisition.status = 'pending'  # Changed from 'pending_admin_approval' to 'pending'
+                    requisition.status = 'pending_admin_approval'  # Set to pending_admin_approval for manager requisitions
                     requisition.source_warehouse = user_warehouse
                 
                 print("\n=== DEBUG: Saving requisition ===")
@@ -716,6 +717,7 @@ def requisition_history(request):
     # Get query parameters
     query = request.GET.get('q', '')
     current_status = request.GET.get('status', '')
+    role_filter = request.GET.get('role', '')  # New parameter for role filtering
     
     # Start with all requisitions that are not deleted
     requisitions = Requisition.objects.filter(is_deleted=False)
@@ -729,18 +731,16 @@ def requisition_history(request):
         # Managers can see:
         # 1. All requisitions from attendants (any status)
         # 2. Their own requisitions (any status)
+        # 3. Requisitions pending their approval
         requisitions = requisitions.filter(
             Q(requester__customuser__role='attendant') |  # All attendant requisitions
-            Q(requester=request.user)  # Their own requisitions
+            Q(requester=request.user) |  # Their own requisitions
+            Q(status='pending_manager_approval')  # Requisitions pending their approval
         )
     elif user_role == 'admin':
-        # Admins can see:
-        # 1. All requisitions with status 'pending_admin_approval' (from managers)
-        # 2. Their own requisitions
-        requisitions = requisitions.filter(
-            Q(status='pending_admin_approval') |  # All requisitions needing admin approval
-            Q(requester=request.user)  # Their own requisitions
-        )
+        # Admins can see all requisitions, with optional role filtering
+        if role_filter:
+            requisitions = requisitions.filter(requester__customuser__role=role_filter)
     else:
         # For other roles, only show their own requisitions
         requisitions = requisitions.filter(requester=request.user)
@@ -759,11 +759,6 @@ def requisition_history(request):
     # Apply status filter if provided
     if current_status:
         requisitions = requisitions.filter(status=current_status)
-
-    # Filter by status
-    requisitions = requisitions.filter(
-        Q(status__in=['rejected_by_manager', 'rejected_by_admin', 'completed', 'approved_by_admin'])
-    )
     
     # Order by most recent first
     requisitions = requisitions.order_by('-created_at')
@@ -780,10 +775,19 @@ def requisition_history(request):
 
     # Get all possible statuses for filtering
     status_choices = [
-        ('approved_by_admin', 'Approved'),
+        ('pending_manager_approval', 'Pending Manager Approval'),
+        ('pending_admin_approval', 'Pending Admin Approval'),
+        ('approved_by_manager', 'Approved by Manager'),
+        ('approved_by_admin', 'Approved by Admin'),
         ('rejected_by_manager', 'Rejected by Manager'),
         ('rejected_by_admin', 'Rejected by Admin'),
         ('completed', 'Completed')
+    ]
+
+    # Role choices for admin filtering
+    role_choices = [
+        ('manager', 'Manager'),
+        ('attendant', 'Attendant')
     ]
 
     context = {
@@ -791,6 +795,9 @@ def requisition_history(request):
         'current_status': current_status,
         'status_choices': status_choices,
         'query': query,
+        'user_role': user_role,
+        'role_choices': role_choices,
+        'current_role': role_filter
     }
     
     return render(request, 'requisition/requisition_history.html', context)
@@ -1691,11 +1698,9 @@ def view_requisition(request, pk):
     elif user_role == 'manager':
         # Managers can view:
         # 1. Their own requisitions
-        # 2. Requisitions from attendants where they are the destination warehouse manager
-        user_warehouse = request.user.customuser.warehouses.first()
+        # 2. All requisitions from attendants
         if not (requisition.requester == request.user or 
-                (requisition.destination_warehouse == user_warehouse and 
-                 requisition.requester.customuser.role == 'attendant')):
+                requisition.requester.customuser.role == 'attendant'):
             raise PermissionDenied
     elif user_role == 'admin':
         # Admins can only view requisitions from managers
@@ -1761,34 +1766,78 @@ def admin_approve_requisition(request, pk):
                 elif action == 'approve':
                     print("Processing approval...")
                     # Update requisition status
-                    requisition.status = 'approved_by_admin'
+                    requisition.status = 'approved'  # Changed from 'pending_po' to 'approved'
                     requisition.approval_comment = comment
                     requisition.approved_by = request.user
                     requisition.approved_at = timezone.now()
                     requisition.save()
 
+                    print("\n=== Creating Pending PO Items ===")
+                    from purchasing.models import PendingPOItem
+                    
+                    for req_item in requisition.items.all():
+                        print(f"Processing item: {req_item.item.item_name}")
+                        print(f"Brand: {req_item.item.brand}")
+                        print(f"Quantity: {req_item.quantity}")
+                        
+                        # First check if brand exists
+                        if not req_item.item.brand:
+                            print("WARNING: Item has no brand!")
+                            continue
+                            
+                        # Check if item already exists in pending items
+                        existing_item = PendingPOItem.objects.filter(
+                            is_processed=False,
+                            item__item=req_item.item,  # Same inventory item
+                            brand=req_item.item.brand  # Use brand name since it's a CharField
+                        ).first()
+                        
+                        if existing_item:
+                            # Update quantity of existing item
+                            print(f"Found existing item, updating quantity from {existing_item.quantity} to {existing_item.quantity + req_item.quantity}")
+                            existing_item.quantity += req_item.quantity
+                            existing_item.save()
+                        else:
+                            # Create new pending item
+                            pending_item = PendingPOItem(
+                                item=req_item,
+                                brand=req_item.item.brand,  # Use brand name since it's a CharField
+                                quantity=req_item.quantity,
+                                is_processed=False
+                            )
+                            pending_item.save()
+                            print(f"Created new item with quantity: {pending_item.quantity}")
+
+                    # Verify items were created
+                    print("\n=== Verifying Created Items ===")
+                    pending_items = PendingPOItem.objects.filter(is_processed=False)
+                    print(f"Total pending items: {pending_items.count()}")
+                    for item in pending_items:
+                        print(f"Found item: {item.item.item.item_name} - Brand: {item.brand} - Quantity: {item.quantity}")
+
                     # Create notification
                     Notification.objects.create(
                         user=requisition.requester,
                         requisition=requisition,
-                        message=f'Your requisition has been approved by admin {request.user.username}.'
+                        message=f'Your requisition has been approved by admin {request.user.username} and added to pending purchase orders list.'
                     )
 
-                    # Redirect to create purchase order with this requisition
-                    messages.success(request, 'Requisition approved successfully. Please create a purchase order.')
-                    return redirect('purchasing:create_purchase_order_with_requisition', requisition_id=requisition.id)
+                    messages.success(request, 'Requisition approved and items added to pending purchase orders list.')
+                    return redirect('purchasing:pending_po_items')
                 else:
                     print(f"Invalid action received: {action}")
                     messages.error(request, "Invalid action specified.")
                         
         except Exception as e:
             print(f"Error processing requisition: {str(e)}")
+            import traceback
+            traceback.print_exc()
             messages.error(request, f"Error processing requisition: {str(e)}")
     else:
         print("GET request - displaying form")
     
     return render(request, 'requisition/admin_approve_requisition.html', {
-        'requisition': requisition
+        'requisition': requisition,
     })
 
 def send_to_manager(request, pk):
@@ -1801,18 +1850,61 @@ def send_to_manager(request, pk):
 
 def get_requisition_details(request, pk):
     try:
-        requisition = get_object_or_404(Requisition, pk=pk)
+        requisition = get_object_or_404(Requisition, id=pk)
         
         # Get timeline events and latest comments
         timeline = []
         manager_comment = None
         admin_comment = None
-        status_history = requisition.status_history.all().order_by('timestamp')
+        
+        # Define the expected status order for attendant-to-manager requisitions
+        attendant_manager_status_order = {
+            'pending': 1,  # Attendant creates requisition
+            'approved': 2,  # Manager approves
+            'in_delivery': 3,  # Manager starts delivery
+            'pending_manager': 4,  # Attendant confirms and uploads image
+            'delivered': 5  # Manager verifies delivery
+        }
+        
+        status_history = requisition.status_history.all()
+        
+        # Check if this is an attendant-to-manager requisition
+        is_attendant_to_manager = (
+            requisition.requester.customuser.role == 'attendant' and 
+            requisition.destination_warehouse and 
+            requisition.destination_warehouse.custom_users.filter(role='manager').exists()
+        )
+        
+        # If this is an attendant-to-manager requisition, sort by the defined order
+        if is_attendant_to_manager:
+            status_history = sorted(
+                status_history,
+                key=lambda x: (attendant_manager_status_order.get(x.status, 999), x.timestamp)
+            )
+        else:
+            # For other types of requisitions, just sort by timestamp
+            status_history = status_history.order_by('timestamp')
         
         for history in status_history:
+            # Get a more descriptive status display
+            status_display = history.get_status_display() or dict(Requisition.STATUS_CHOICES).get(history.status, history.status)
+            
+            # Customize the status display for attendant-to-manager flow
+            if is_attendant_to_manager:
+                if history.status == 'pending':
+                    status_display = 'Requisition Created'
+                elif history.status == 'approved':
+                    status_display = 'Approved by Manager'
+                elif history.status == 'in_delivery':
+                    status_display = 'Delivery Started by Manager'
+                elif history.status == 'pending_manager':
+                    status_display = 'Delivery Confirmed by Attendant'
+                elif history.status == 'delivered':
+                    status_display = 'Delivery Verified by Manager'
+            
             timeline.append({
                 'status': history.status,
-                'status_display': history.get_status_display(),
+                'status_display': status_display,
                 'timestamp': history.timestamp.strftime('%Y-%m-%d %H:%M'),
                 'comment': history.comment
             })
@@ -1836,14 +1928,17 @@ def get_requisition_details(request, pk):
                 'is_new_item': requisition_item.is_new_item if hasattr(requisition_item, 'is_new_item') else False
             })
         
+        # Get the status display from STATUS_CHOICES
+        status_display = dict(Requisition.STATUS_CHOICES).get(requisition.status, requisition.status)
+        
         data = {
             'id': requisition.id,
             'status': requisition.status,
-            'status_display': requisition.get_status_display(),
+            'status_display': status_display,
             'requester_name': requisition.requester.get_full_name() or requisition.requester.username,
-            'requester_role': requisition.requester.customuser.get_role_display(),
-            'source_warehouse': requisition.source_warehouse.name if requisition.source_warehouse else 'None',
-            'destination_warehouse': requisition.destination_warehouse.name if requisition.destination_warehouse else 'None',
+            'requester_role': requisition.requester.customuser.role.title(),
+            'source_warehouse': requisition.source_warehouse.name if requisition.source_warehouse else None,
+            'destination_warehouse': requisition.destination_warehouse.name if requisition.destination_warehouse else None,
             'created_at': requisition.created_at.strftime('%Y-%m-%d %H:%M'),
             'reason': requisition.reason,
             'items': items_data,

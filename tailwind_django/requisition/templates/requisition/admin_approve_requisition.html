@@ -79,7 +79,7 @@
         <!-- Admin Approval Form -->
         <div class="bg-white shadow rounded-lg p-6">
             <h2 class="text-lg font-semibold text-gray-900 mb-4">Admin Review</h2>
-            <form method="post" id="approvalForm" action="{% url 'purchasing:create_po_from_requisition' requisition.id %}">
+            <form method="post" id="approvalForm">
                 {% csrf_token %}
                 
                 <!-- Comment Field -->
@@ -98,21 +98,14 @@
                        class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         Cancel
                     </a>
-                    {% if requisition.status == 'pending_admin_approval' %}
-                        <button type="submit"
-                                class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            Create PO
-                        </button>
-                    {% else %}
-                        <button type="button" onclick="setAction('reject')"
-                                class="bg-red-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                            Reject
-                        </button>
-                        <button type="button" onclick="setAction('approve')"
-                                class="bg-green-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                            Approve & Create PO
-                        </button>
-                    {% endif %}
+                    <button type="button" onclick="setAction('reject')"
+                            class="bg-red-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        Reject
+                    </button>
+                    <button type="button" onclick="setAction('approve')"
+                            class="bg-green-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        Approve
+                    </button>
                 </div>
                 
                 <input type="hidden" name="action" id="action">
@@ -124,6 +117,7 @@
 <script>
     function setAction(action) {
         document.getElementById('action').value = action;
+        document.getElementById('approvalForm').submit();
     }
 </script>
 {% endblock %}

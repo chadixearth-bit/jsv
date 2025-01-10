@@ -151,12 +151,7 @@ CSP_DEFAULT_SRC = ("'self'",)
 CSP_FRAME_SRC = ("'self'",)
 
 # Email settings
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'your.inventory.system@gmail.com'  # Replace with your actual email
-EMAIL_HOST_PASSWORD = 'your-16-digit-app-password'  # Replace with your actual app password
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field

@@ -31,6 +31,7 @@ class Requisition(models.Model):
         ('received', 'Received'),
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
+        ('pending_po', 'Pending Purchase Order'),
     ]
     
     REQUEST_TYPE_CHOICES = [

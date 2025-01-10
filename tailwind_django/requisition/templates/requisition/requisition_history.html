@@ -33,6 +33,30 @@
     <div class="bg-transparent p-4 pt-0">
         <div class="flex justify-between items-center">
             <form method="get" class="flex-grow flex gap-4 items-center">
+                {% if user_role == 'admin' %}
+                <div class="relative">
+                    <select name="role" id="roleSelect" class="pl-10 pr-8 py-2 text-sm rounded-lg border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 appearance-none bg-white">
+                        <option value="" {% if not current_role %}selected{% endif %}>All Roles</option>
+                        {% for role_value, role_label in role_choices %}
+                            <option value="{{ role_value }}" {% if current_role == role_value %}selected{% endif %}>
+                                {{ role_label }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span class="text-gray-500">
+                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                        <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                </div>
+                {% endif %}
                 <div class="relative">
                     <select name="status" id="statusSelect" onchange="updateStatusIcon(this)" class="pl-10 pr-8 py-2 text-sm rounded-lg border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 appearance-none bg-white">
                         <option value="all" {% if not current_status %}selected{% endif %}>All Status</option>
@@ -132,9 +156,11 @@
                                         <a href="{% url 'requisition:download_requisition_pdf' requisition.id %}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
                                             Download PDF
                                         </a>
+                                        {% if requisition.status == 'pending' %}
                                         <a href="{% url 'requisition:send_to_manager' requisition.id %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
                                             Send to Manager
                                         </a>
+                                        {% endif %}
                                         {% if user.is_superuser %}
                                         <form action="{% url 'requisition:delete_requisition' requisition.id %}" method="POST" class="block" onsubmit="return confirmDelete('{% url 'requisition:delete_requisition' requisition.id %}')">
                                             {% csrf_token %}
@@ -143,16 +169,6 @@
                                             </button>
                                         </form>
                                         {% endif %}
-                                        <form method="post" enctype="multipart/form-data" action="{% url 'confirm_delivery' %}">
-                                            {% csrf_token %}
-                                            <label for="confirmation">Confirm Delivery:</label>
-                                            <input type="checkbox" id="confirmation" name="confirmation" required>
-                                            <br>
-                                            <label for="image">Upload Image:</label>
-                                            <input type="file" id="image" name="image" accept="image/*" required>
-                                            <br>
-                                            <button type="submit">Submit</button>
-                                        </form>
                                     </div>
                                 </div>
                             </div>
@@ -177,13 +193,13 @@
     <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-xl shadow-md">
         <div class="flex-1 flex justify-between sm:hidden">
             {% if requisitions.has_previous %}
-                <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" 
+                <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
                    class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                     Previous
                 </a>
             {% endif %}
             {% if requisitions.has_next %}
-                <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" 
+                <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
                    class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                     Next
                 </a>
@@ -204,7 +220,7 @@
             <div>
                 <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
                     {% if requisitions.has_previous %}
-                        <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" 
+                        <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
                            class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                             <span class="sr-only">Previous</span>
                             <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -219,7 +235,7 @@
                                 {{ i }}
                             </span>
                         {% elif i > requisitions.number|add:'-3' and i < requisitions.number|add:'3' %}
-                            <a href="?page={{ i }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" 
+                            <a href="?page={{ i }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
                                class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
                                 {{ i }}
                             </a>
@@ -227,7 +243,7 @@
                     {% endfor %}
 
                     {% if requisitions.has_next %}
-                        <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}" 
+                        <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
                            class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                             <span class="sr-only">Next</span>
                             <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

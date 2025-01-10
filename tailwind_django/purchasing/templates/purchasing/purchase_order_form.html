@@ -109,7 +109,34 @@
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200" id="itemsContainer">
-                                <!-- Items will be added here dynamically -->
+                                {% if pending_items %}
+                                    {% for item in pending_items %}
+                                    <tr class="hover:bg-gray-50" data-item-id="{{ item.item.id }}">
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ brand }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {{ item.item.item_name }}
+                                            <input type="hidden" name="item_ids[]" value="{{ item.item.id }}">
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.item.model }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <input type="number" name="quantities[]" value="{{ item.quantity }}" min="1"
+                                                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                   onchange="updateCalculations()">
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <input type="number" name="unit_prices[]" value="{{ item.unit_price }}" step="0.01" min="0"
+                                                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                   onchange="updateCalculations()">
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 item-total">{{ item.subtotal }}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-900">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>
@@ -177,401 +204,107 @@
 </div>
 
 <script>
-let items = [];
-let newItemIndex = 0;
+document.addEventListener('DOMContentLoaded', function() {
+    let items = [];
+    let newItemIndex = 0;
 
-function validateForm() {
-    // Get all item rows
-    const itemRows = document.querySelectorAll('.item-row');
-    if (itemRows.length === 0) {
-        alert('Please add at least one item to the purchase order.');
-        return false;
-    }
+    function validateForm() {
+        // Get all item rows
+        const itemRows = document.querySelectorAll('#itemsContainer tr');
+        if (itemRows.length === 0) {
+            alert('Please add at least one item to the purchase order.');
+            return false;
+        }
 
-    // Check each row for valid data
-    for (const row of itemRows) {
-        if (row.classList.contains('new-item')) {
-            // For new items
-            const index = row.dataset.index;
-            const brand = row.querySelector(`input[name="new_items[${index}][brand]"]`).value;
-            const itemName = row.querySelector(`input[name="new_items[${index}][itemName]"]`).value;
-            const model = row.querySelector(`input[name="new_items[${index}][model]"]`).value;
-            const quantity = row.querySelector(`input[name="new_items[${index}][quantity]"]`).value;
-            const unitPrice = row.querySelector(`input[name="new_items[${index}][unitPrice]"]`).value;
+        // Check required fields
+        const supplier = document.querySelector('select[name="supplier"]').value;
+        const warehouse = document.querySelector('select[name="warehouse"]').value;
+        const expectedDeliveryDate = document.querySelector('input[name="expected_delivery_date"]').value;
 
-            if (!brand || !itemName || !model || !quantity || !unitPrice) {
-                alert('Please fill in all fields for new items.');
-                return false;
-            }
-        } else {
-            // For existing items
-            const item = row.querySelector('select[name="items[]"]').value;
+        if (!supplier || !warehouse || !expectedDeliveryDate) {
+            alert('Please fill in all required fields (Supplier, Warehouse, Expected Delivery Date).');
+            return false;
+        }
+
+        // Add hidden input for items data
+        const itemsData = [];
+        itemRows.forEach(row => {
+            const itemId = row.dataset.itemId;
             const quantity = row.querySelector('input[name="quantities[]"]').value;
-            const price = row.querySelector('input[name="prices[]"]').value;
-
-            if (!item || !quantity || !price) {
-                alert('Please fill in all fields for existing items.');
-                return false;
-            }
-        }
-    }
-
-    // All validations passed
-    return true;
-}
-
-function updateCalculations() {
-    let total = 0;
-    document.querySelectorAll('.item-row').forEach(row => {
-        let quantity, unitPrice;
-        if (row.classList.contains('new-item')) {
-            const index = row.dataset.index;
-            quantity = parseFloat(row.querySelector(`input[name="new_items[${index}][quantity]"]`).value) || 0;
-            unitPrice = parseFloat(row.querySelector(`input[name="new_items[${index}][unitPrice]"]`).value) || 0;
-        } else {
-            quantity = parseFloat(row.querySelector('input[name="quantities[]"]').value) || 0;
-            unitPrice = parseFloat(row.querySelector('input[name="prices[]"]').value) || 0;
-        }
-        
-        const subtotal = quantity * unitPrice;
-        row.querySelector('.subtotal').textContent = '₱' + subtotal.toFixed(2);
-        total += subtotal;
-    });
-    
-    document.querySelector('.total-amount').textContent = '₱' + total.toFixed(2);
-}
-
-function addRowListeners(row) {
-    setupItemSearch(row);
-    const itemSelect = row.querySelector('select[name="items[]"]');
-    const brandInput = row.querySelector('input[name="brands[]"]');
-    const modelInput = row.querySelector('input[name="models[]"]');
-    
-    itemSelect.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        if (selectedOption.value) {
-            const itemInfo = selectedOption.text.match(/(.+) \((.+) - (.+)\)/);
-            if (itemInfo) {
-                brandInput.value = itemInfo[2];
-                modelInput.value = itemInfo[3];
-            }
-        } else {
-            brandInput.value = '';
-            modelInput.value = '';
-        }
-        updateCalculations();
-    });
-}
-
-function setupItemSearch(row) {
-    const searchInput = row.querySelector('.item-search');
-    const select = row.querySelector('.item-select');
-    const options = Array.from(select.options);
-
-    searchInput.addEventListener('input', function(e) {
-        const searchTerm = e.target.value.toLowerCase();
-        
-        options.forEach(option => {
-            if (option.value === '') return; // Skip the placeholder option
-            const searchData = option.getAttribute('data-search');
-            const matches = searchData && searchData.includes(searchTerm);
-            option.hidden = !matches; // Use hidden instead of display
+            const unitPrice = row.querySelector('input[name="unit_prices[]"]').value;
+            
+            itemsData.push({
+                item_id: itemId,
+                quantity: quantity,
+                unit_price: unitPrice
+            });
         });
-    });
-}
 
-function addExistingItem() {
-    const itemSelect = document.getElementById('itemSelect');
-    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
-    const quantityInput = document.getElementById('existingItemQuantity');
-    const priceInput = document.getElementById('existingItemPrice');
+        const itemsInput = document.createElement('input');
+        itemsInput.type = 'hidden';
+        itemsInput.name = 'items_data';
+        itemsInput.value = JSON.stringify(itemsData);
+        document.querySelector('form').appendChild(itemsInput);
 
-    if (!itemSelect.value || !quantityInput.value || !priceInput.value) {
-        alert('Please fill in all fields');
-        return;
+        return true;
     }
 
-    const template = document.getElementById('existingItemRowTemplate');
-    const clone = template.content.cloneNode(true);
-    const row = clone.querySelector('tr');
-
-    // Set data attributes for the row
-    row.classList.add('item-row');
-    row.dataset.itemId = itemSelect.value;
-    
-    const [itemName, brandModelText] = selectedOption.text.split(' (');
-    const [brand, model] = brandModelText.slice(0, -1).split(' - ');
-
-    // Set the content for each cell
-    row.querySelector('.item-brand').textContent = brand;
-    row.querySelector('.item-name').textContent = itemName;
-    row.querySelector('.item-model').textContent = model;
-    row.querySelector('input[name="quantities[]"]').value = quantityInput.value;
-    
-    // Set price from the selected item's data attribute
-    const price = selectedOption.getAttribute('data-price');
-    const priceField = row.querySelector('input[name="prices[]"]');
-    priceField.value = price;
-    priceField.readOnly = true;  // Make price readonly for existing items
-
-    // Calculate and set subtotal
-    const quantity = parseFloat(quantityInput.value);
-    const subtotal = quantity * parseFloat(price);
-    row.querySelector('.subtotal').textContent = `₱${subtotal.toFixed(2)}`;
-
-    document.getElementById('itemsContainer').appendChild(row);
-    updateCalculations();
-    closeExistingItemModal();
-
-    console.log('Added existing item:', {
-        itemId: itemSelect.value,
-        brand,
-        itemName,
-        model,
-        quantity,
-        price
-    });
-}
-
-function addNewItem() {
-    console.log('Adding new item with index:', newItemIndex);
-
-    const tr = document.createElement('tr');
-    tr.className = 'item-row new-item';
-    tr.dataset.index = newItemIndex;
-    
-    tr.innerHTML = `
-        <td class="px-6 py-4">
-            <input type="text" name="new_items[${newItemIndex}][brand]" required
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-        </td>
-        <td class="px-6 py-4">
-            <input type="text" name="new_items[${newItemIndex}][itemName]" required
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-        </td>
-        <td class="px-6 py-4">
-            <input type="text" name="new_items[${newItemIndex}][model]" required
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-        </td>
-        <td class="px-6 py-4">
-            <input type="number" name="new_items[${newItemIndex}][quantity]" required min="1"
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                   onchange="updateCalculations()">
-        </td>
-        <td class="px-6 py-4">
-            <input type="number" name="new_items[${newItemIndex}][unitPrice]" required min="0" step="0.01"
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                   onchange="updateCalculations()">
-        </td>
-        <td class="px-6 py-4">
-            <span class="subtotal">₱0.00</span>
-        </td>
-        <td class="px-6 py-4">
-            <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-900">Remove</button>
-        </td>
-    `;
-    
-    document.getElementById('itemsContainer').appendChild(tr);
-    addRowListeners(tr);
-
-    // Add item to the items array
-    const item = {
-        brand: tr.querySelector(`input[name="new_items[${newItemIndex}][brand]"]`).value,
-        itemName: tr.querySelector(`input[name="new_items[${newItemIndex}][itemName]"]`).value,
-        model: tr.querySelector(`input[name="new_items[${newItemIndex}][model]"]`).value,
-        quantity: parseFloat(tr.querySelector(`input[name="new_items[${newItemIndex}][quantity]"]`).value) || 0,
-        unitPrice: parseFloat(tr.querySelector(`input[name="new_items[${newItemIndex}][unitPrice]"]`).value) || 0
-    };
-    items.push(item);
-
-    newItemIndex++;
-    console.log('New item added:', item);
-}
-
-function serializeItems() {
-    const allItems = [];
-    
-    // Get all item rows
-    const rows = document.querySelectorAll('.item-row');
-    rows.forEach(row => {
-        if (row.dataset.itemId) {
-            // Existing item
-            allItems.push({
-                item_id: row.dataset.itemId,
-                brand: row.querySelector('.item-brand').textContent,
-                model: row.querySelector('.item-model').textContent,
-                quantity: parseInt(row.querySelector('input[name="quantities[]"]').value),
-                unitPrice: parseFloat(row.querySelector('input[name="prices[]"]').value)
-            });
-        } else {
-            // New item
-            allItems.push({
-                brand: row.querySelector('input[name^="new_items"][name$="[brand]"]').value,
-                itemName: row.querySelector('input[name^="new_items"][name$="[itemName]"]').value,
-                model: row.querySelector('input[name^="new_items"][name$="[model]"]').value,
-                quantity: parseInt(row.querySelector('input[name^="new_items"][name$="[quantity]"]').value),
-                unitPrice: parseFloat(row.querySelector('input[name^="new_items"][name$="[unitPrice]"]').value)
-            });
+    function updateCalculations() {
+        let total = 0;
+        const rows = document.querySelectorAll('#itemsContainer tr');
+        
+        rows.forEach(row => {
+            const quantityInput = row.querySelector('input[name="quantities[]"]');
+            const priceInput = row.querySelector('input[name="unit_prices[]"]');
+            const totalCell = row.querySelector('.item-total');
+            
+            if (quantityInput && priceInput && totalCell) {
+                const quantity = parseFloat(quantityInput.value) || 0;
+                const price = parseFloat(priceInput.value) || 0;
+                const subtotal = quantity * price;
+                total += subtotal;
+                totalCell.textContent = subtotal.toFixed(2);
+            }
+        });
+        
+        const totalAmountElement = document.getElementById('totalAmount');
+        if (totalAmountElement) {
+            totalAmountElement.textContent = total.toFixed(2);
         }
-    });
-    
-    console.log('Serialized items:', allItems);
-    return JSON.stringify(allItems);
-}
+    }
 
-document.querySelector('form').addEventListener('submit', function(event) {
-    const serializedItems = serializeItems();
-    const hiddenInput = document.createElement('input');
-    hiddenInput.type = 'hidden';
-    hiddenInput.name = 'items_data';
-    hiddenInput.value = serializedItems;
-    this.appendChild(hiddenInput);
+    function removeItem(button) {
+        const row = button.closest('tr');
+        if (row) {
+            row.remove();
+            updateCalculations();
+        }
+    }
 
-    console.log('Form submission - items data:', serializedItems);
-});
-
-function removeItem(button) {
-    const row = button.closest('tr');
-    row.remove();
-    updateCalculations();
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    // Add validation for dates
+    // Add event listeners for date validation
     const orderDateInput = document.querySelector('input[name="order_date"]');
     const deliveryDateInput = document.querySelector('input[name="expected_delivery_date"]');
-    
-    const today = new Date().toISOString().split('T')[0];
-    orderDateInput.value = today;
-    orderDateInput.min = today;
-    deliveryDateInput.min = today;
-    
+
     function validateDates() {
         const orderDate = new Date(orderDateInput.value);
         const deliveryDate = new Date(deliveryDateInput.value);
-        
+
         if (deliveryDate < orderDate) {
-            deliveryDateInput.setCustomValidity('Expected delivery date must be after or equal to the order date');
-        } else {
-            deliveryDateInput.setCustomValidity('');
+            alert('Expected delivery date cannot be earlier than the order date.');
+            deliveryDateInput.value = '';
         }
     }
 
-    orderDateInput.addEventListener('change', validateDates);
-    deliveryDateInput.addEventListener('change', validateDates);
+    if (orderDateInput && deliveryDateInput) {
+        orderDateInput.addEventListener('change', validateDates);
+        deliveryDateInput.addEventListener('change', validateDates);
+    }
+
+    // Make functions globally available
+    window.validateForm = validateForm;
+    window.updateCalculations = updateCalculations;
+    window.removeItem = removeItem;
 });
-
-function openExistingItemModal() {
-    document.getElementById('addExistingItemModal').classList.remove('hidden');
-    setupModalItemSearch();
-}
-
-function closeExistingItemModal() {
-    document.getElementById('addExistingItemModal').classList.add('hidden');
-    // Clear inputs
-    document.getElementById('itemSearchInput').value = '';
-    document.getElementById('itemSelect').selectedIndex = 0;
-    document.getElementById('existingItemQuantity').value = '';
-    document.getElementById('existingItemPrice').value = '';
-}
-
-function setupModalItemSearch() {
-    const searchInput = document.getElementById('itemSearchInput');
-    const select = document.getElementById('itemSelect');
-
-    // Remove existing listener if any
-    const newSearchInput = searchInput.cloneNode(true);
-    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
-
-    newSearchInput.addEventListener('input', function(e) {
-        const searchTerm = e.target.value.toLowerCase();
-        
-        Array.from(select.options).forEach(option => {
-            if (option.value === '') {
-                option.hidden = false; // Always show the "Select Item" option
-                return;
-            }
-            const searchData = option.getAttribute('data-search');
-            const matches = searchData && searchData.includes(searchTerm);
-            option.hidden = !matches; // Use hidden instead of display
-        });
-    });
-}
-
-function confirmAddExistingItem() {
-    const itemSelect = document.getElementById('itemSelect');
-    const quantityInput = document.getElementById('existingItemQuantity');
-    const priceInput = document.getElementById('existingItemPrice');
-
-    if (!itemSelect.value) {
-        alert('Please select an item');
-        return;
-    }
-    if (!quantityInput.value || quantityInput.value <= 0) {
-        alert('Please enter a valid quantity');
-        return;
-    }
-    if (!priceInput.value || priceInput.value < 0) {
-        alert('Please enter a valid price');
-        return;
-    }
-
-    console.log('Adding existing item:', itemSelect.value, 'Quantity:', quantityInput.value, 'Price:', priceInput.value);
-
-    const template = document.getElementById('existingItemRowTemplate');
-    const clone = template.content.cloneNode(true);
-    const row = clone.querySelector('tr');
-    
-    // Set values from selected item
-    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
-    const [itemName, brandAndModel] = selectedOption.text.split(' (');
-    const [brand, model] = brandAndModel.slice(0, -1).split(' - ');
-    
-    row.querySelector('select[name="items[]"]').value = itemSelect.value;
-    row.querySelector('input[name="quantities[]"]').value = quantityInput.value;
-    row.querySelector('input[name="prices[]"]').value = priceInput.value;
-    row.querySelector('input[name="brands[]"]').value = brand;
-    row.querySelector('input[name="models[]"]').value = model;
-    
-    document.getElementById('itemsContainer').appendChild(row);
-    addRowListeners(row);
-
-    closeExistingItemModal();
-
-    updateCalculations();
-}
-
-// Add warehouse change event listener to filter items
-document.querySelector('select[name="warehouse"]').addEventListener('change', function() {
-    const warehouseId = this.value;
-    const itemSelect = document.getElementById('itemSelect');
-    const options = itemSelect.querySelectorAll('option');
-    
-    options.forEach(option => {
-        if (option.value === '') return; // Skip the placeholder option
-        const itemWarehouseId = option.getAttribute('data-warehouse');
-        option.style.display = !warehouseId || itemWarehouseId === warehouseId ? '' : 'none';
-    });
-});
-
-// Add this function to handle item selection
-function handleItemSelection() {
-    const itemSelect = document.getElementById('itemSelect');
-    const priceInput = document.getElementById('existingItemPrice');
-    const selectedOption = itemSelect.options[itemSelect.selectedIndex];
-    
-    if (selectedOption && selectedOption.value) {
-        const price = selectedOption.getAttribute('data-price');
-        priceInput.value = price;
-        priceInput.readOnly = true;  // Make price readonly for existing items
-    } else {
-        priceInput.value = '';
-        priceInput.readOnly = false;
-    }
-}
-
-// Add event listener for item selection
-document.getElementById('itemSelect').addEventListener('change', handleItemSelection);
 </script>
 
 {% block extra_js %}
@@ -639,7 +372,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log(`Added row ${index + 1} to table`);
             
             // Setup listeners for the new row
-            addRowListeners(tr);
+            // addRowListeners(tr);
         });
         
         // Update calculations after all items are added
