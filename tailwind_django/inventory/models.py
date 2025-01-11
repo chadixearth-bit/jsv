@@ -41,6 +41,7 @@ class InventoryItem(models.Model):
     availability = models.BooleanField(default=True)
     image = models.ImageField(upload_to='inventory_images/', null=True, blank=True)
     description = models.TextField(blank=True, null=True)
+    last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.brand} {self.model} - {self.item_name}"

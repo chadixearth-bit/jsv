@@ -2,166 +2,165 @@
 {% load static %}
 
 {% block main_content %}
-<div class="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-4 px-2 sm:px-4 lg:px-6">
-    <!-- Page Header -->
-    <div class="w-full max-w-[1920px] mx-auto mb-6">
-        <div class="bg-white rounded-xl shadow-md overflow-hidden">
-            <div class="bg-white px-4 py-6 sm:px-6">
+<div class="py-6">
+    <div class="max-w-7xl mx-auto sm:px-4 lg:px-8">
+        <div class="min-h-screen bg-gray-50 py-2 sm:px-4 lg:px-2">
+            
+        <!-- Page Header -->
+        <div class="mb-8 bg-white rounded-2xl shadow-lg transform hover:scale-[1.02] transition-transform duration-300">
+            <div class="px-6 py-8 sm:px-8">
                 <div class="flex items-center justify-between">
-                    <div class="space-y-1">
-                        <h1 class="text-2xl sm:text-3xl font-bold text-black tracking-tight">Create Requisition</h1>
-                        <p class="text-gray-600 text-base sm:text-lg">
+                    <div>
+                        <h1 class="text-2xl sm:text-3xl font-bold text-black">Create Requisition</h1>
+                        <p class="mt-2 text-gray-600 text-sm sm:text-base">
                             Submit a new item requisition request
                         </p>
                     </div>
-                    <div class="flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 bg-white/10 rounded-full backdrop-blur-sm">
-                        <i class="fas fa-file-invoice text-white text-2xl sm:text-3xl"></i>
-                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Form Container -->
-    <form id="requisitionForm" method="post" class="space-y-8" action="{% url 'requisition:create_requisition' %}">
-        {% csrf_token %}
+        <!-- Form Container -->
+        <form id="requisitionForm" method="post" class="space-y-8" action="{% url 'requisition:create_requisition' %}">
+            {% csrf_token %}
 
-        <!-- Main Content -->
-        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div class="p-6">
-                <div class="flex flex-col xl:flex-row space-y-6 xl:space-y-0 xl:space-x-6">
-                    <!-- Left Column: Available Items -->
-                    <div class="xl:w-3/4">
-                        <div class="flex items-center justify-between mb-4">
-                            <label class="flex items-center text-base sm:text-lg font-semibold text-gray-700">
-                                <i class="fas fa-boxes mr-2 text-indigo-500"></i>Available Items
-                            </label>
-                            <div class="flex items-center space-x-4">
-                                <button type="button" 
-                                        onclick="openNewItemModal()"
-                                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                    <i class="fas fa-plus mr-2"></i>
-                                    Request New Item
-                                </button>
-                                <div class="text-sm text-gray-500">Click items to select</div>
+            <!-- Main Content -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="p-6">
+                    <div class="flex flex-col xl:flex-row space-y-6 xl:space-y-0 xl:space-x-6">
+                        <!-- Left Column: Available Items -->
+                        <div class="xl:w-3/4">
+                            <div class="flex items-center justify-between mb-4">
+                                <label class="flex items-center text-base sm:text-lg font-semibold text-gray-700">
+                                    <i class="fas fa-boxes mr-2 text-indigo-500"></i>Available Items
+                                </label>
+                                <div class="flex items-center space-x-4">
+                                    <button type="button" 
+                                            onclick="openNewItemModal()"
+                                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                        <i class="fas fa-plus mr-2"></i>
+                                        Request New Item
+                                    </button>
+                                    <div class="text-sm text-gray-500">Click items to select</div>
+                                </div>
                             </div>
-                        </div>
-                         
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
-                            {% for item in available_items %}
-                            <div class="item-card cursor-pointer group relative bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-all duration-300
-                                      {% if item.stock == 0 %}bg-red-50/50{% elif item.stock <= 5 %}bg-yellow-50/50{% endif %}
-                                      {% if item.stock == 0 %}opacity-75{% endif %}
-                                      hover:shadow-md transform hover:-translate-y-1"
-                                     data-id="{{ item.id }}"
-                                     data-name="{{ item.item_name|escapejs }}"
-                                     data-stock="{{ item.stock }}"
-                                     data-warehouse="{{ item.warehouse.name|default:'N/A' }}"
-                                     data-category="{{ item.category.name }}"
-                                     data-brand="{{ item.brand.name }}">
-                                
-                                <!-- Selection Indicator -->
-                                <div class="absolute inset-0 bg-indigo-100/50 opacity-0 transition-opacity duration-300 pointer-events-none selection-overlay rounded-lg"></div>
-                                
-                                <!-- Stock Status Badge -->
-                                {% if item.stock == 0 %}
-                                <div class="absolute top-2 right-2 z-10">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                        Out of Stock
-                                    </span>
-                                </div>
-                                {% elif item.stock <= 5 %}
-                                <div class="absolute top-2 right-2 z-10">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                        Low Stock ({{ item.stock }})
-                                    </span>
-                                </div>
-                                {% else %}
-                                <div class="absolute top-2 right-2 z-10">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        In Stock
-                                        <!-- In Stock ({{ item.stock }}) -->
-                                    </span>
-                                </div>
-                                {% endif %}
-                                
-                                <!-- Item Content -->
-                                <div class="p-4 space-y-3">
-                                    <!-- Image Container -->
-                                    <div class="aspect-w-16 aspect-h-12 rounded-md overflow-hidden bg-gray-100">
-                                        {% if item.image %}
-                                        <img src="{{ item.image.url }}" alt="{{ item.item_name }}" 
-                                             class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300">
-                                        {% else %}
-                                        <div class="w-full h-full flex items-center justify-center bg-gray-100">
-                                            <i class="fas fa-box text-gray-400 text-3xl"></i>
-                                        </div>
-                                        {% endif %}
-                                    </div>
+                            
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                                {% for item in available_items %}
+                                <div class="item-card cursor-pointer group relative bg-white rounded-lg border border-gray-200 hover:border-indigo-500 transition-all duration-300
+                                        {% if item.stock == 0 %}bg-red-50/50{% elif item.stock <= 5 %}bg-yellow-50/50{% endif %}
+                                        {% if item.stock == 0 %}opacity-75{% endif %}
+                                        hover:shadow-md transform hover:-translate-y-1"
+                                        data-id="{{ item.id }}"
+                                        data-name="{{ item.item_name|escapejs }}"
+                                        data-stock="{{ item.stock }}"
+                                        data-warehouse="{{ item.warehouse.name|default:'N/A' }}"
+                                        data-category="{{ item.category.name }}"
+                                        data-brand="{{ item.brand.name }}">
                                     
-                                    <!-- Item Details -->
-                                    <div class="space-y-2">
-                                        <h3 class="text-sm font-medium text-gray-900 line-clamp-2">{{ item.item_name }}</h3>
-                                        <div class="text-xs text-gray-500">{{ item.brand.name }} - {{ item.model }}</div>
+                                    <!-- Selection Indicator -->
+                                    <div class="absolute inset-0 bg-indigo-100/50 opacity-0 transition-opacity duration-300 pointer-events-none selection-overlay rounded-lg"></div>
+                                    
+                                    <!-- Stock Status Badge -->
+                                    {% if item.stock == 0 %}
+                                    <div class="absolute top-2 right-2 z-10">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                            Out of Stock
+                                        </span>
+                                    </div>
+                                    {% elif item.stock <= 5 %}
+                                    <div class="absolute top-2 right-2 z-10">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                            Low Stock ({{ item.stock }})
+                                        </span>
+                                    </div>
+                                    {% else %}
+                                    <div class="absolute top-2 right-2 z-10">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            In Stock
+                                            <!-- In Stock ({{ item.stock }}) -->
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Item Content -->
+                                    <div class="p-4 space-y-3">
+                                        <!-- Image Container -->
+                                        <div class="aspect-w-16 aspect-h-12 rounded-md overflow-hidden bg-gray-100">
+                                            {% if item.image %}
+                                            <img src="{{ item.image.url }}" alt="{{ item.item_name }}" 
+                                                class="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300">
+                                            {% else %}
+                                            <div class="w-full h-full flex items-center justify-center bg-gray-100">
+                                                <i class="fas fa-box text-gray-400 text-3xl"></i>
+                                            </div>
+                                            {% endif %}
+                                        </div>
                                         
-                                        <!-- Stock Status -->
-                                        <div class="flex items-center space-x-2">
-                                            <span class="text-xs font-medium {% if item.stock == 0 %}text-red-600{% elif item.stock <= 5 %}text-yellow-600{% else %}text-green-600{% endif %}">
-                                                Stock: {{ item.stock }}
-                                            </span>
+                                        <!-- Item Details -->
+                                        <div class="space-y-2">
+                                            <h3 class="text-sm font-medium text-gray-900 line-clamp-2">{{ item.item_name }}</h3>
+                                            <div class="text-xs text-gray-500">{{ item.brand.name }} - {{ item.model }}</div>
+                                            
+                                            <!-- Stock Status -->
+                                            <div class="flex items-center space-x-2">
+                                                <span class="text-xs font-medium {% if item.stock == 0 %}text-red-600{% elif item.stock <= 5 %}text-yellow-600{% else %}text-green-600{% endif %}">
+                                                    Stock: {{ item.stock }}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+                                {% endfor %}
                             </div>
-                            {% endfor %}
                         </div>
-                    </div>
 
-                    <!-- Right Column: Selected Items -->
-                    <div class="xl:w-1/4">
-                        <div class="sticky top-4 bg-white rounded-xl shadow-md p-4 border border-gray-100">
-                            <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-                                <div class="flex items-center space-x-2">
-                                    <i class="fas fa-shopping-cart text-indigo-500"></i>
-                                    <h3 class="text-lg font-semibold text-gray-800">Selected Items</h3>
+                        <!-- Right Column: Selected Items -->
+                        <div class="xl:w-1/4">
+                            <div class="sticky top-4 bg-white rounded-xl shadow-md p-4 border border-gray-100">
+                                <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-shopping-cart text-indigo-500"></i>
+                                        <h3 class="text-lg font-semibold text-gray-800">Selected Items</h3>
+                                    </div>
+                                    <span id="selectedCount" class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium">0 items</span>
                                 </div>
-                                <span id="selectedCount" class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-medium">0 items</span>
-                            </div>
-                            <div id="selectedItems" class="space-y-3 max-h-[calc(100vh-16rem)] overflow-y-auto">
-                                <!-- Selected items will be inserted here -->
-                                <div class="text-gray-500 text-center py-8">
-                                    <i class="fas fa-cart-plus text-4xl text-gray-300 mb-2"></i>
-                                    <p>No items selected</p>
-                                    <p class="text-sm text-gray-400">Click on items to add them to your requisition</p>
+                                <div id="selectedItems" class="space-y-3 max-h-[calc(100vh-16rem)] overflow-y-auto">
+                                    <!-- Selected items will be inserted here -->
+                                    <div class="text-gray-500 text-center py-8">
+                                        <i class="fas fa-cart-plus text-4xl text-gray-300 mb-2"></i>
+                                        <p>No items selected</p>
+                                        <p class="text-sm text-gray-400">Click on items to add them to your requisition</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+                
+                <!-- Reason for Request -->
+                <div class="border-t border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Reason for Request</h3>
+                    {{ form.reason }}
+                    {{ form.reason.errors }}
+                </div>
+                
+                <!-- Submit Button -->
+                <div class="bg-white-50 px-6 py-4 flex justify-end">
+                    <button type="submit" 
+                            class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                        Submit Requisition
+                    </button>
+                </div>
             </div>
             
-            <!-- Reason for Request -->
-            <div class="border-t border-gray-200 p-6">
-                <h3 class="text-lg font-semibold text-gray-900 mb-4">Reason for Request</h3>
-                {{ form.reason }}
-                {{ form.reason.errors }}
-            </div>
-            
-            <!-- Submit Button -->
-            <div class="bg-gray-50 px-6 py-4 flex justify-end">
-                <button type="submit" 
-                        class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                    Submit Requisition
-                </button>
-            </div>
-        </div>
-        
-        <!-- Hidden inputs -->
-        <div id="selectedItemsContainer"></div>
-        <input type="hidden" name="quantities" value="{}">
-        <input type="hidden" name="new_items" id="newItemsInput" value="[]">
-        <input type="hidden" name="request_type" value="item">
-    </form>
+            <!-- Hidden inputs -->
+            <div id="selectedItemsContainer"></div>
+            <input type="hidden" name="quantities" value="{}">
+            <input type="hidden" name="new_items" id="newItemsInput" value="[]">
+            <input type="hidden" name="request_type" value="item">
+        </form>
+    </div>
 </div>
 
 <script>

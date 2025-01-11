@@ -43,7 +43,7 @@
 
             <!-- Global Settings Section -->
             {% if request.user.customuser.role == 'admin' %}
-            <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+            <div class="bg-white rounded-2xl shadow-md p-6 mb-8">
                 <h3 class="text-lg font-medium text-gray-900 mb-4">Global Reorder Level Settings</h3>
                 <form method="post" class="space-y-4">
                     {% csrf_token %}
