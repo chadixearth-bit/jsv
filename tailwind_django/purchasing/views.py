@@ -952,19 +952,17 @@ def create_purchase_order(request, requisition_id=None):
 
             # Mark pending items as processed if they exist
             if 'po_draft_data' in request.session:
-                pending_item_ids = [item.get('pending_item_id') for item in request.session['po_draft_data'].get('pending_items', [])]
-                if pending_item_ids:
-                    PendingPOItem.objects.filter(id__in=pending_item_ids).update(is_processed=True)
-                    
-                    # Update associated requisitions status to 'processed'
-                    requisition_ids = set()
-                    for item in request.session['po_draft_data'].get('pending_items', []):
-                        if item.get('requisition_id'):
-                            requisition_ids.add(item['requisition_id'])
-                    
-                    if requisition_ids:
-                        Requisition.objects.filter(id__in=requisition_ids).update(status='processed')
+                # Get the brand from session data
+                brand = request.session['po_draft_data'].get('brand')
                 
+                # Update PendingPOItems to mark them as processed
+                if brand:
+                    PendingPOItem.objects.filter(
+                        brand__name=brand,
+                        is_processed=False
+                    ).update(is_processed=True)
+                
+                # Clear session data
                 del request.session['po_draft_data']
                 request.session.modified = True
 
@@ -1251,6 +1249,7 @@ def create_from_pending_items(request):
                 'warehouse': data.get('warehouse'),
                 'expected_delivery_date': data.get('expected_delivery_date'),
                 'notes': data.get('notes', ''),
+                'brand': data.get('brand'),  # Make sure brand is included
                 'pending_items': []
             }
             
@@ -1315,15 +1314,16 @@ def create_po_from_pending(request, brand=None):
                 'warehouse': warehouse_id,
                 'expected_delivery_date': expected_delivery_date,
                 'notes': notes,
-                'brand': brand,
+                'brand': brand,  # Make sure brand is included
                 'pending_items': [
                     {
                         'item_id': item.item.item.id,
                         'quantity': item.quantity,
                         'unit_price': str(item.item.item.price or Decimal('0.00')),
-                        'brand': item.item.item.brand.name,
+                        'brand': item.brand.name,
                         'item_name': item.item.item.item_name,
-                        'model': item.item.item.model
+                        'model': item.item.item.model,
+                        'pending_item_id': item.id  # Include the pending item ID
                     }
                     for item in pending_items
                 ]

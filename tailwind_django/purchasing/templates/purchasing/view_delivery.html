@@ -186,7 +186,7 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         {% for item in delivery.items.all %}
                         <tr>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.purchase_order_item.item.item_name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.purchase_order_item.item_name }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.purchase_order_item.brand }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.purchase_order_item.model_name }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.quantity_delivered }}</td>
