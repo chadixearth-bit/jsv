@@ -116,6 +116,20 @@ class InventoryItemForm(forms.ModelForm):
         
         return cleaned_data
 
+class StockEditForm(forms.ModelForm):
+    class Meta:
+        model = InventoryItem
+        fields = ['stock']
+        widgets = {
+            'stock': forms.NumberInput(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
+                'required': True,
+                'min': '0',
+                'step': '1',
+                'placeholder': 'Enter stock quantity'
+            })
+        }
+
 class GlobalSettingsForm(forms.ModelForm):
     class Meta:
         model = GlobalSettings

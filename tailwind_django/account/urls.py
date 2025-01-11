@@ -2,6 +2,7 @@ from django.urls import path
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from . import views
+from django.conf import settings
 
 app_name = 'account'
 
@@ -30,8 +31,7 @@ urlpatterns = [
         email_template_name='account/password_reset_email.html',
         subject_template_name='account/password_reset_subject.txt',
         success_url='/account/password_reset/done/',
-        from_email=settings.EMAIL_HOST_USER,
-        html_email_template_name='account/password_reset_email.html'
+        from_email=settings.EMAIL_HOST_USER
     ), name='password_reset'),
     
     path('password_reset/done/', auth_views.PasswordResetDoneView.as_view(
@@ -40,7 +40,7 @@ urlpatterns = [
     
     path('reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(
         template_name='account/password_reset_confirm.html',
-        success_url='/account/reset/done/'
+        success_url='/account/login/'
     ), name='password_reset_confirm'),
     
     path('reset/done/', views.CustomPasswordResetCompleteView.as_view(), name='password_reset_complete'),

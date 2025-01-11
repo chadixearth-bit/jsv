@@ -47,9 +47,12 @@ class PurchaseOrder(models.Model):
     requisitions = models.ManyToManyField('requisition.Requisition', blank=True, related_name='purchase_orders')
 
     def calculate_total(self) -> None:
-        from decimal import Decimal
-        total = sum((item.subtotal for item in self.items.all()), Decimal('0'))
+        """Calculate and update the total amount of the purchase order"""
+        total = Decimal('0')
+        for item in self.items.all():
+            total += Decimal(str(item.quantity)) * Decimal(str(item.unit_price))
         self.total_amount = total
+        self.save()
 
     def link_requisitions(self) -> None:
         """Link this purchase order with relevant requisitions"""
@@ -109,9 +112,10 @@ class PurchaseOrder(models.Model):
 
 class PurchaseOrderItem(models.Model):
     purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='items')
-    item = models.ForeignKey(InventoryItem, on_delete=models.CASCADE)
+    item = models.ForeignKey(InventoryItem, on_delete=models.CASCADE, null=True, blank=True)
     brand = models.CharField(max_length=100)
     model_name = models.CharField(max_length=100)
+    item_name = models.CharField(max_length=100, null=True, blank=True)
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
 
@@ -120,14 +124,23 @@ class PurchaseOrderItem(models.Model):
         return self.quantity * self.unit_price
 
     def save(self, *args, **kwargs):
-        if not self.brand:
-            self.brand = self.item.brand.name
-        if not self.model_name:
-            self.model_name = self.item.model
+        if self.item:
+            if not self.brand:
+                self.brand = self.item.brand.name
+            if not self.model_name:
+                self.model_name = self.item.model
+            if not self.item_name:
+                self.item_name = self.item.item_name
         super().save(*args, **kwargs)
+        self.purchase_order.calculate_total()
+
+    def delete(self, *args, **kwargs):
+        purchase_order = self.purchase_order
+        super().delete(*args, **kwargs)
+        purchase_order.calculate_total()
 
     def __str__(self):
-        return f"{self.item.item_name} - {self.quantity} units"
+        return f"{self.item_name or self.item.item_name} - {self.quantity} units"
 
 class PendingPOItem(models.Model):
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE, related_name='purchasing_pending_items')

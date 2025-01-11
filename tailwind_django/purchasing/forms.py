@@ -9,53 +9,13 @@ class SupplierForm(forms.ModelForm):
     class Meta:
         model = Supplier
         fields = ['name', 'contact_person', 'email', 'phone', 'address']
-        widgets = {
+        widgets = { 
             'name': forms.TextInput(attrs={'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500'}),
             'contact_person': forms.TextInput(attrs={'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500'}),
             'email': forms.EmailInput(attrs={'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500'}),
             'phone': forms.TextInput(attrs={'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500'}),
             'address': forms.Textarea(attrs={'rows': 3, 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500'}),
         }
-
-class PurchaseOrderForm(forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        user = kwargs.pop('user', None)
-        super().__init__(*args, **kwargs)
-        
-        # Initialize supplier and warehouse querysets
-        self.fields['supplier'].queryset = Supplier.objects.all()
-        self.fields['warehouse'].queryset = Warehouse.objects.filter(
-            name__in=['Attendant Warehouse', 'Manager Warehouse']
-        )
-
-    verification_file = forms.FileField(required=False, widget=forms.FileInput(attrs={
-        'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
-        'accept': 'image/*,.pdf'
-    }))
-
-    class Meta:
-        model = PurchaseOrder
-        fields = ['supplier', 'warehouse', 'order_date', 'expected_delivery_date', 'notes', 'verification_file']
-        widgets = {
-            'supplier': forms.Select(attrs={'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500', 'required': True}),
-            'warehouse': forms.Select(attrs={'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500', 'required': True}),
-            'order_date': forms.DateInput(attrs={'type': 'date', 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500', 'required': True}),
-            'expected_delivery_date': forms.DateInput(attrs={'type': 'date', 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500', 'required': True}),
-            'notes': forms.Textarea(attrs={'rows': 3, 'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500', 'placeholder': 'Add any additional notes about this purchase order...'}),
-        }
-
-    def clean(self) -> dict:
-        cleaned_data = super().clean()
-        if cleaned_data.get('expected_delivery_date') and cleaned_data.get('order_date'):
-            if cleaned_data['expected_delivery_date'] < cleaned_data['order_date']:
-                raise forms.ValidationError("Expected delivery date cannot be earlier than the order date.")
-        return cleaned_data
-
-    def save(self, commit: bool = True) -> 'PurchaseOrder':
-        instance = super().save(commit=False)
-        if commit:
-            instance.save()
-        return instance
 
 class PurchaseOrderItemForm(forms.ModelForm):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -70,12 +30,16 @@ class PurchaseOrderItemForm(forms.ModelForm):
         quantity = cleaned_data.get('quantity')
         unit_price = cleaned_data.get('unit_price')
         item = cleaned_data.get('item')
-        brand = cleaned_data.get('brand')
+        brand = cleaned_data.get('brand', '').strip()  # Add strip() to remove whitespace
         model_name = cleaned_data.get('model_name')
 
+        # Validate brand field
+        if not brand:
+            raise forms.ValidationError("Brand is required")
+
         # Validate required fields for new items
-        if not item and (not brand or not model_name):
-            raise forms.ValidationError("For new items, brand and model name are required")
+        if not item and not model_name:
+            raise forms.ValidationError("For new items, model name is required")
 
         if quantity and quantity < 1:
             raise forms.ValidationError("Quantity must be at least 1")
@@ -118,6 +82,103 @@ class PurchaseOrderItemForm(forms.ModelForm):
                 'placeholder': 'Enter unit price'
             }),
         }
+
+class PurchaseOrderForm(forms.ModelForm):
+    verification_file = forms.FileField(required=False, widget=forms.FileInput(attrs={
+        'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
+        'accept': 'image/*,.pdf'
+    }))
+    
+    items = forms.CharField(required=False, widget=forms.HiddenInput())
+
+    class Meta:
+        model = PurchaseOrder
+        fields = ['supplier', 'warehouse', 'order_date', 'expected_delivery_date', 'notes', 'verification_file']
+        widgets = {
+            'supplier': forms.Select(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
+                'required': True
+            }),
+            'warehouse': forms.Select(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
+                'required': True
+            }),
+            'order_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
+                'required': True
+            }),
+            'expected_delivery_date': forms.DateInput(attrs={
+                'type': 'date',
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
+                'required': True
+            }),
+            'notes': forms.Textarea(attrs={
+                'rows': 3,
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
+                'placeholder': 'Add any additional notes about this purchase order...'
+            }),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        initial = kwargs.get('initial', {})
+        super().__init__(*args, **kwargs)
+        self.user = user
+        
+        # Initialize supplier and warehouse querysets
+        self.fields['supplier'].queryset = Supplier.objects.all()
+        self.fields['warehouse'].queryset = Warehouse.objects.filter(
+            name__in=['Attendant Warehouse', 'Manager Warehouse']
+        )
+        
+        print("Initial data in form init:", initial)  # Debug print
+        
+        # Set initial values from session if available and not already set
+        if user and hasattr(user, 'session') and 'po_draft_data' in user.session:
+            po_data = user.session.get('po_draft_data', {})
+            if po_data:
+                # Only update fields that aren't already set
+                for field in ['supplier', 'warehouse', 'expected_delivery_date', 'notes']:
+                    if field not in initial:
+                        self.initial[field] = po_data.get(field)
+        
+        print("Final form initial data:", self.initial)  # Debug print
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('expected_delivery_date') and cleaned_data.get('order_date'):
+            if cleaned_data['expected_delivery_date'] < cleaned_data['order_date']:
+                raise forms.ValidationError("Expected delivery date cannot be earlier than the order date.")
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            instance.save()
+            
+            # Process items data if available
+            if hasattr(self, 'cleaned_data') and 'items' in self.cleaned_data:
+                items_data = self.cleaned_data['items']
+                if isinstance(items_data, str):
+                    try:
+                        items_data = json.loads(items_data)
+                    except json.JSONDecodeError:
+                        items_data = []
+                
+                for item_data in items_data:
+                    PurchaseOrderItem.objects.create(
+                        purchase_order=instance,
+                        brand=item_data['brand'],
+                        item_name=item_data['item_name'],
+                        model_name=item_data['model'],
+                        quantity=int(item_data['quantity']),
+                        unit_price=float(item_data['unit_price'])
+                    )
+                
+                # Calculate total amount
+                instance.calculate_total()
+        
+        return instance
 
 class DeliveryReceiptForm(forms.ModelForm):
     class Meta:
