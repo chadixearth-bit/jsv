@@ -47,9 +47,12 @@ class PurchaseOrder(models.Model):
     requisitions = models.ManyToManyField('requisition.Requisition', blank=True, related_name='purchase_orders')
 
     def calculate_total(self) -> None:
-        from decimal import Decimal
-        total = sum((item.subtotal for item in self.items.all()), Decimal('0'))
+        """Calculate and update the total amount of the purchase order"""
+        total = Decimal('0')
+        for item in self.items.all():
+            total += Decimal(str(item.quantity)) * Decimal(str(item.unit_price))
         self.total_amount = total
+        self.save()
 
     def link_requisitions(self) -> None:
         """Link this purchase order with relevant requisitions"""
@@ -125,6 +128,12 @@ class PurchaseOrderItem(models.Model):
         if not self.model_name:
             self.model_name = self.item.model
         super().save(*args, **kwargs)
+        self.purchase_order.calculate_total()
+
+    def delete(self, *args, **kwargs):
+        purchase_order = self.purchase_order
+        super().delete(*args, **kwargs)
+        purchase_order.calculate_total()
 
     def __str__(self):
         return f"{self.item.item_name} - {self.quantity} units"

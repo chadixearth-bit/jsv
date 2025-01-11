@@ -17,60 +17,76 @@
 
         <!-- Main Form -->
         <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-            <form method="post" class="space-y-8 divide-y divide-gray-200" onsubmit="return validateForm()">
+            <form method="post" enctype="multipart/form-data" onsubmit="return validateForm()">
                 {% csrf_token %}
-                
-                <!-- Order Details Section -->
-                <div class="px-6 py-5">
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">
-                        <i class="fas fa-info-circle mr-2 text-blue-500"></i>
-                        Order Details
-                    </h3>
-                    <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
-                            <!-- Supplier Field -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Supplier</label>
-                                <div class="mt-1 relative">
-                                    <select name="supplier" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <div class="space-y-8 divide-y divide-gray-200">
+                    <div class="space-y-6">
+                        <div>
+                            <h3 class="text-lg leading-6 font-medium text-gray-900">Order Details</h3>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                            <!-- Supplier -->
+                            <div class="sm:col-span-3">
+                                <label for="supplier" class="block text-sm font-medium text-gray-700">Supplier</label>
+                                <div class="mt-1">
+                                    <select id="supplier" name="supplier" required
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                         <option value="">Select a supplier...</option>
                                         {% for supplier in suppliers %}
-                                            <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                                        <option value="{{ supplier.id }}" {% if form.initial.supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+                                            {{ supplier.name }}
+                                        </option>
                                         {% endfor %}
                                     </select>
                                 </div>
                             </div>
 
-                        <!-- Warehouse Field -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Warehouse</label>
-                            <select name="warehouse" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                                <option value="">Select a warehouse...</option>
-                                {% for warehouse in warehouses %}
-                                    <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
+                            <!-- Warehouse -->
+                            <div class="sm:col-span-3">
+                                <label for="warehouse" class="block text-sm font-medium text-gray-700">Warehouse</label>
+                                <div class="mt-1">
+                                    <select id="warehouse" name="warehouse" required
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                        <option value="">Select a warehouse...</option>
+                                        {% for warehouse in warehouses %}
+                                        <option value="{{ warehouse.id }}" {% if form.initial.warehouse == warehouse.id|stringformat:"s" %}selected{% endif %}>
+                                            {{ warehouse.name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
 
-                        <!-- Order Date Field -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Order Date</label>
-                            <input type="date" name="order_date" required 
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                        </div>
+                            <!-- Order Date -->
+                            <div class="sm:col-span-3">
+                                <label for="order_date" class="block text-sm font-medium text-gray-700">Order Date</label>
+                                <div class="mt-1">
+                                    <input type="date" name="order_date" id="order_date" required
+                                        value="{{ form.initial.order_date|date:'Y-m-d' }}"
+                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                </div>
+                            </div>
 
-                        <!-- Expected Delivery Date Field -->
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Expected Delivery Date</label>
-                            <input type="date" name="expected_delivery_date" required 
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                        </div>
+                            <!-- Expected Delivery Date -->
+                            <div class="sm:col-span-3">
+                                <label for="expected_delivery_date" class="block text-sm font-medium text-gray-700">Expected Delivery Date</label>
+                                <div class="mt-1">
+                                    <input type="date" name="expected_delivery_date" id="expected_delivery_date" required
+                                        value="{{ form.initial.expected_delivery_date|date:'Y-m-d' }}"
+                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                </div>
+                            </div>
 
-                        <!-- Notes Field -->
-                        <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700">Notes</label>
-                            <textarea name="notes" rows="3" 
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                    placeholder="Add any additional notes about this purchase order..."></textarea>
+                            <!-- Notes -->
+                            <div class="sm:col-span-6">
+                                <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
+                                <div class="mt-1">
+                                    <textarea id="notes" name="notes" rows="3"
+                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        placeholder="Add any additional notes about this purchase order...">{{ form.initial.notes }}</textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -83,7 +99,7 @@
                             Order Items
                         </h3>
                         <div class="space-x-2">
-                            <button type="button" onclick="addNewItem()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <button type="button" onclick="addNewRow('', '', '', 1, 0)" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                                 <i class="fas fa-plus mr-2"></i>
                                 Add New Item
                             </button>
@@ -108,35 +124,8 @@
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-white divide-y divide-gray-200" id="itemsContainer">
-                                {% if pending_items %}
-                                    {% for item in pending_items %}
-                                    <tr class="hover:bg-gray-50" data-item-id="{{ item.item.id }}">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ brand }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {{ item.item.item_name }}
-                                            <input type="hidden" name="item_ids[]" value="{{ item.item.id }}">
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.item.model }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <input type="number" name="quantities[]" value="{{ item.quantity }}" min="1"
-                                                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                                   onchange="updateCalculations()">
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <input type="number" name="unit_prices[]" value="{{ item.unit_price }}" step="0.01" min="0"
-                                                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                                   onchange="updateCalculations()">
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 item-total">{{ item.subtotal }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-900">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                {% endif %}
+                            <tbody class="bg-white divide-y divide-gray-200" id="itemTableBody">
+                                <!-- Table rows will be dynamically added here -->
                             </tbody>
                         </table>
                     </div>
@@ -159,118 +148,111 @@
 </div>
 
 <!-- Add Existing Item Modal -->
-<div id="addExistingItemModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden flex items-center justify-center">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Add Existing Item</h3>
-        <div class="space-y-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Search and Select Item</label>
-                <input type="text" id="itemSearchInput" placeholder="Search items..." 
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                <select id="itemSelect" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                    <option value="">Select Item</option>
-                    {% for item in available_items %}
-                    <option value="{{ item.id }}" 
-                            data-search="{{ item.item_name|lower }} {{ item.brand.name|lower }} {{ item.model|default:'N/A'|lower }}" 
-                            data-warehouse="{{ item.warehouse.id }}"
-                            data-price="{{ item.price }}">
-                        {{ item.item_name }} ({{ item.brand.name }} - {{ item.model|default:'N/A' }})
-                    </option>
-                    {% endfor %}
-                </select>
+<div id="addExistingItemModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden">
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Add Existing Item</h3>
+                <button type="button" onclick="closeExistingItemModal()" class="text-gray-400 hover:text-gray-500">
+                    <span class="sr-only">Close</span>
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Quantity</label>
-                <input type="number" id="existingItemQuantity" min="1" required
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            
+            <div class="space-y-4">
+                <!-- Search Input -->
+                <div>
+                    <label for="itemSearchInput" class="block text-sm font-medium text-gray-700">Search Items</label>
+                    <input type="text" id="itemSearchInput" 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                           placeholder="Search by brand, name, or model...">
+                </div>
+
+                <!-- Items Table -->
+                <div class="mt-4 overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Warehouse</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="existingItemsTableBody">
+                            {% for item in inventory_items %}
+                            <tr class="hover:bg-gray-50" data-warehouse="{{ item.warehouse.id }}">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.brand.name }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.item_name }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.model }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.warehouse.name }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <button type="button" 
+                                            onclick="selectExistingItem('{{ item.brand.name }}', '{{ item.item_name }}', '{{ item.model }}')"
+                                            class="text-indigo-600 hover:text-indigo-900">
+                                        Select
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Unit Price</label>
-                <input type="number" id="existingItemPrice" min="0" step="0.01" required
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-            </div>
-        </div>
-        <div class="mt-6 flex justify-end space-x-3">
-            <button type="button" onclick="closeExistingItemModal()" 
-                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                Cancel
-            </button>
-            <button type="button" onclick="addExistingItem()" 
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                Add Item
-            </button>
         </div>
     </div>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    let items = [];
-    let newItemIndex = 0;
+    // Initialize order items from server data
+    let initialItems = {{ initial_items|safe }};
+    console.log('Initial items:', initialItems);
+    
+    // Load initial items into the table
+    if (initialItems && initialItems.length > 0) {
+        initialItems.forEach(item => {
+            addNewRow(item.brand, item.itemName, item.model, item.quantity, item.unitPrice);
+        });
+    }
 
     function validateForm() {
-        // Get all item rows
-        const itemRows = document.querySelectorAll('#itemsContainer tr');
-        if (itemRows.length === 0) {
-            alert('Please add at least one item to the purchase order.');
+        // Get all required fields
+        const supplier = document.getElementById('supplier').value;
+        const warehouse = document.getElementById('warehouse').value;
+        const orderDate = document.getElementById('order_date').value;
+        const expectedDeliveryDate = document.getElementById('expected_delivery_date').value;
+        
+        // Check if any required field is empty
+        if (!supplier || !warehouse || !orderDate || !expectedDeliveryDate) {
+            alert('Please fill in all required fields.');
             return false;
         }
-
-        // Check required fields
-        const supplier = document.querySelector('select[name="supplier"]').value;
-        const warehouse = document.querySelector('select[name="warehouse"]').value;
-        const expectedDeliveryDate = document.querySelector('input[name="expected_delivery_date"]').value;
-
-        if (!supplier || !warehouse || !expectedDeliveryDate) {
-            alert('Please fill in all required fields (Supplier, Warehouse, Expected Delivery Date).');
+        
+        // Check if there are any items in the order
+        const itemsTable = document.getElementById('itemTableBody');
+        if (!itemsTable || itemsTable.children.length === 0) {
+            alert('Please add at least one item to the order.');
             return false;
         }
-
-        // Add hidden input for items data
-        const itemsData = [];
-        itemRows.forEach(row => {
-            const itemId = row.dataset.itemId;
-            const quantity = row.querySelector('input[name="quantities[]"]').value;
-            const unitPrice = row.querySelector('input[name="unit_prices[]"]').value;
-            
-            itemsData.push({
-                item_id: itemId,
-                quantity: quantity,
-                unit_price: unitPrice
-            });
-        });
-
-        const itemsInput = document.createElement('input');
-        itemsInput.type = 'hidden';
-        itemsInput.name = 'items_data';
-        itemsInput.value = JSON.stringify(itemsData);
-        document.querySelector('form').appendChild(itemsInput);
-
-        return true;
+        
+        return validateDates();
     }
 
     function updateCalculations() {
+        const rows = document.querySelectorAll('#itemTableBody tr');
         let total = 0;
-        const rows = document.querySelectorAll('#itemsContainer tr');
         
         rows.forEach(row => {
-            const quantityInput = row.querySelector('input[name="quantities[]"]');
-            const priceInput = row.querySelector('input[name="unit_prices[]"]');
-            const totalCell = row.querySelector('.item-total');
+            const quantity = parseFloat(row.querySelector('input[name*="[quantity]"]').value) || 0;
+            const price = parseFloat(row.querySelector('input[name*="[unitPrice]"]').value) || 0;
+            const subtotal = quantity * price;
             
-            if (quantityInput && priceInput && totalCell) {
-                const quantity = parseFloat(quantityInput.value) || 0;
-                const price = parseFloat(priceInput.value) || 0;
-                const subtotal = quantity * price;
-                total += subtotal;
-                totalCell.textContent = subtotal.toFixed(2);
-            }
+            row.querySelector('.subtotal').textContent = subtotal.toFixed(2);
+            total += subtotal;
         });
-        
-        const totalAmountElement = document.getElementById('totalAmount');
-        if (totalAmountElement) {
-            totalAmountElement.textContent = total.toFixed(2);
-        }
     }
 
     function removeItem(button) {
@@ -281,110 +263,145 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Add event listeners for date validation
-    const orderDateInput = document.querySelector('input[name="order_date"]');
-    const deliveryDateInput = document.querySelector('input[name="expected_delivery_date"]');
+    function addNewRow(brand, itemName, model, qty, price) {
+        const tbody = document.getElementById('itemTableBody');
+        const newIndex = tbody.children.length;
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+                <input type="text" name="items[${newIndex}][brand]" value="${brand}" required
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <input type="text" name="items[${newIndex}][itemName]" value="${itemName}" required
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <input type="text" name="items[${newIndex}][model]" value="${model}" required
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <input type="number" name="items[${newIndex}][quantity]" value="${qty}" min="1" required
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <input type="number" name="items[${newIndex}][unitPrice]" value="${price}" min="0" step="0.01" required
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 subtotal">
+                ${(qty * price).toFixed(2)}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <button type="button" onclick="removeItem(this)" 
+                        class="text-red-600 hover:text-red-900">Remove</button>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+        updateCalculations();
+        
+        // Add event listeners for quantity and price changes
+        const qtyInput = row.querySelector('input[name*="[quantity]"]');
+        const priceInput = row.querySelector('input[name*="[unitPrice]"]');
+        
+        qtyInput.addEventListener('change', updateCalculations);
+        priceInput.addEventListener('change', updateCalculations);
+    }
+
+    function openExistingItemModal() {
+        const modal = document.getElementById('addExistingItemModal');
+        const warehouseSelect = document.getElementById('warehouse');
+        if (modal) {
+            modal.classList.remove('hidden');
+            // Filter items based on selected warehouse
+            filterItemsByWarehouse(warehouseSelect.value);
+        }
+    }
+
+    function closeExistingItemModal() {
+        const modal = document.getElementById('addExistingItemModal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
+    function selectExistingItem(brand, itemName, model) {
+        addNewRow(brand, itemName, model, 1, 0);
+        closeExistingItemModal();
+    }
+
+    function filterItemsByWarehouse(warehouseId) {
+        const rows = document.querySelectorAll('#existingItemsTableBody tr');
+        rows.forEach(row => {
+            const rowWarehouseId = row.getAttribute('data-warehouse');
+            if (warehouseId && rowWarehouseId !== warehouseId) {
+                row.style.display = 'none';
+            } else {
+                row.style.display = '';
+            }
+        });
+    }
+
+    // Add warehouse change listener
+    document.getElementById('warehouse').addEventListener('change', function(e) {
+        const modal = document.getElementById('addExistingItemModal');
+        if (!modal.classList.contains('hidden')) {
+            filterItemsByWarehouse(e.target.value);
+        }
+    });
+
+    // Handle item search
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('itemSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                const searchTerm = e.target.value.toLowerCase();
+                const rows = document.querySelectorAll('#existingItemsTableBody tr');
+                
+                rows.forEach(row => {
+                    const brand = row.cells[0].textContent.toLowerCase();
+                    const itemName = row.cells[1].textContent.toLowerCase();
+                    const model = row.cells[2].textContent.toLowerCase();
+                    
+                    const matches = brand.includes(searchTerm) || 
+                                  itemName.includes(searchTerm) || 
+                                  model.includes(searchTerm);
+                    
+                    row.style.display = matches ? '' : 'none';
+                });
+            });
+        }
+    });
+
+    // Close modal when clicking outside
+    document.addEventListener('click', function(event) {
+        const modal = document.getElementById('addExistingItemModal');
+        if (event.target === modal) {
+            closeExistingItemModal();
+        }
+    });
+
+    // Handle date validation
+    const orderDateInput = document.getElementById('order_date');
+    const deliveryDateInput = document.getElementById('expected_delivery_date');
 
     function validateDates() {
+        if (!orderDateInput || !deliveryDateInput) return true;
+        
         const orderDate = new Date(orderDateInput.value);
         const deliveryDate = new Date(deliveryDateInput.value);
-
+        
         if (deliveryDate < orderDate) {
             alert('Expected delivery date cannot be earlier than the order date.');
-            deliveryDateInput.value = '';
+            return false;
         }
+        return true;
     }
 
     if (orderDateInput && deliveryDateInput) {
         orderDateInput.addEventListener('change', validateDates);
         deliveryDateInput.addEventListener('change', validateDates);
     }
-
-    // Make functions globally available
-    window.validateForm = validateForm;
-    window.updateCalculations = updateCalculations;
-    window.removeItem = removeItem;
-});
 </script>
-
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM Content Loaded');
-    
-    // Get initial items from Django template context
-    const initialItems = {{ initial_items|safe }};
-    console.log('Initial items:', initialItems);
-
-    // Add initial items if they exist
-    if (initialItems && initialItems.length > 0) {
-        console.log(`Adding ${initialItems.length} initial items to table`);
-        
-        const tbody = document.querySelector('#itemsTable tbody');
-        if (!tbody) {
-            console.error('Table body not found!');
-            return;
-        }
-
-        initialItems.forEach((item, index) => {
-            console.log(`Processing item ${index + 1}:`, item);
-            
-            const tr = document.createElement('tr');
-            tr.className = 'item-row new-item';
-            tr.dataset.index = index;
-            
-            const brandValue = item.brand.replace(/"/g, '&quot;');
-            const itemNameValue = item.itemName.replace(/"/g, '&quot;');
-            const modelValue = item.model.replace(/"/g, '&quot;');
-            
-            tr.innerHTML = [
-                '<td class="px-6 py-4">',
-                `<input type="text" name="new_items[${index}][brand]" value="${brandValue}" required`,
-                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">',
-                '</td>',
-                '<td class="px-6 py-4">',
-                `<input type="text" name="new_items[${index}][itemName]" value="${itemNameValue}" required`,
-                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">',
-                '</td>',
-                '<td class="px-6 py-4">',
-                `<input type="text" name="new_items[${index}][model]" value="${modelValue}" required`,
-                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">',
-                '</td>',
-                '<td class="px-6 py-4">',
-                `<input type="number" name="new_items[${index}][quantity]" value="${item.quantity}" required min="1"`,
-                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"',
-                'onchange="updateCalculations()">',
-                '</td>',
-                '<td class="px-6 py-4">',
-                `<input type="number" name="new_items[${index}][unitPrice]" value="${item.unitPrice}" required min="0" step="0.01"`,
-                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"',
-                'onchange="updateCalculations()">',
-                '</td>',
-                '<td class="px-6 py-4">',
-                `<span class="subtotal">₱${(item.quantity * item.unitPrice).toFixed(2)}</span>`,
-                '</td>',
-                '<td class="px-6 py-4">',
-                '<button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-900">Remove</button>',
-                '</td>'
-            ].join('');
-            
-            tbody.appendChild(tr);
-            console.log(`Added row ${index + 1} to table`);
-            
-            // Setup listeners for the new row
-            // addRowListeners(tr);
-        });
-        
-        // Update calculations after all items are added
-        updateCalculations();
-        
-        // Update the next item index
-        window.newItemIndex = initialItems.length;
-    } else {
-        console.log('No initial items to add');
-        window.newItemIndex = 0;
-    }
-});
-</script>
-{% endblock %}
 {% endblock %}

@@ -69,16 +69,16 @@
                                                     {% elif order.status == 'in_transit' %}bg-purple-100 text-purple-800
                                                     {% elif order.status == 'delivered' %}bg-indigo-100 text-indigo-800
                                                     {% elif order.status == 'completed' %}bg-green-100 text-green-800
-                                                    {% else %}bg-red-100 text-red-800{% endif %}">
+                                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
                                                     {{ order.get_status_display }}
                                                 </span>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">₱{{ order.total_amount }}</td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">₱{{ order.total_amount|floatformat:2 }}</td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                                <a href="{% url 'purchasing:view_purchase_order' order.pk %}" 
+                                                <a href="{% url 'purchasing:view_purchase_order' order.id %}" 
                                                    class="text-indigo-600 hover:text-indigo-900">View</a>
-                                                {% if order.status == 'draft' %}
-                                                <a href="{% url 'purchasing:edit_purchase_order' order.pk %}" 
+                                                {% if order.status == 'draft' or order.status == 'pending_supplier' %}
+                                                <a href="{% url 'purchasing:edit_purchase_order' order.id %}" 
                                                    class="text-blue-600 hover:text-blue-900">Edit</a>
                                                 {% endif %}
                                             </td>
@@ -261,15 +261,12 @@
             }
 
             const csrftoken = getCookie('csrftoken');
-            fetch('{% url "purchasing:clear_brand_items" %}', {
+            fetch(`/purchasing/clear-brand-items/${encodeURIComponent(brand)}/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': csrftoken,
                     'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    brand_id: brand
-                })
+                }
             })
             .then(response => {
                 if (!response.ok) {
@@ -281,12 +278,12 @@
                 if (data.success) {
                     refreshPendingItems();
                 } else {
-                    alert('Error clearing items: ' + data.error);
+                    alert(data.error || 'Error clearing items');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error clearing items. Please try again.');
+                alert('Error clearing items');
             });
         }
 

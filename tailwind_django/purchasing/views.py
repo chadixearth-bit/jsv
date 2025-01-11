@@ -934,6 +934,9 @@ def create_purchase_order(request, requisition_id=None):
                 )
                 item.save()
 
+            # Calculate total amount
+            po.calculate_total()
+
             # Mark pending items as processed if they exist
             if 'po_draft_data' in request.session:
                 pending_item_ids = [item.get('pending_item_id') for item in request.session['po_draft_data'].get('pending_items', [])]
