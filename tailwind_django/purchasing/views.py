@@ -549,13 +549,23 @@ def confirm_delivery(request, pk):
                     print(f"Updated {matching_item.item_name} (Brand: {matching_item.brand.name}, Model: {matching_item.model}) stock from {original_stock} to {matching_item.stock}")
                     messages.info(request, f"Updated {matching_item.item_name} (Brand: {matching_item.brand.name}, Model: {matching_item.model}) stock from {original_stock} to {matching_item.stock}")
                 else:
+                    # Get or create the brand
+                    brand, created = Brand.objects.get_or_create(name=po_item.brand)
+                    
+                    # Get or create a default category if none is provided
+                    category = None
+                    if po_item.item and po_item.item.category:
+                        category = po_item.item.category
+                    else:
+                        category, created = Category.objects.get_or_create(name='Uncategorized')
+                    
                     # Create new item in warehouse if it doesn't exist
                     new_item = InventoryItem.objects.create(
                         warehouse=warehouse,
                         item_name=po_item.item.item_name if po_item.item else po_item.item_name,
-                        brand=po_item.brand,
+                        brand=brand,  # Use the brand instance
                         model=po_item.model_name,
-                        category=po_item.item.category if po_item.item else None,
+                        category=category,  # Use the category instance
                         stock=delivery_item.quantity_delivered,
                         price=po_item.unit_price,
                         availability=True

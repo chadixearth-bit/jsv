@@ -16,4 +16,5 @@ urlpatterns = [
     path('<int:pk>/set-price/', views.set_price, name='set_price'),
     path('store/', views.store_inventory, name='store_inventory'),
     path('warehouse/', views.warehouse_inventory, name='warehouse_inventory'),
+    path('<int:pk>/edit-stock/', views.edit_stock, name='edit_stock'),
 ]
