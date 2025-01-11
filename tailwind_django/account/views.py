@@ -11,6 +11,10 @@ from requisition.models import Requisition
 from sales.models import Sale, ReturnItem, SaleItem
 from .models import CustomUser
 from django.db import transaction
+from django.core.mail import send_mail
+from django.conf import settings
+from django.urls import reverse_lazy
+from django.contrib.auth.views import PasswordResetCompleteView
 
 def index(request):
     if request.user.is_authenticated:
@@ -34,15 +38,18 @@ def login_view(request):
         if form.is_valid():
             username = form.cleaned_data['username']
             password = form.cleaned_data['password']
-            user = authenticate(username=username, password=password)
-            if user:
+            user = authenticate(request=request, username=username, password=password)
+            if user is not None:
                 login(request, user)
                 return redirect('account:home')
             else:
                 messages.error(request, 'Invalid username or password')
     else:
         form = UserLoginForm()
-    return render(request, 'account/login.html', {'form': form})
+    
+    response = render(request, 'account/login.html', {'form': form})
+    response.set_cookie('csrftoken', request.META.get('CSRF_COOKIE', ''), samesite='Lax')
+    return response
 
 def logout_view(request):
     try:
@@ -249,6 +256,41 @@ def delete_account(request, user_id):
 
     return redirect('account:list_accounts')
 
+def test_email(request):
+    try:
+        # Check if user exists with this email
+        test_email = 'jsvindustrialequipmenttrading@gmail.com'
+        user = User.objects.filter(email=test_email).first()
+        if user:
+            print(f"User found with email {test_email}: {user.username}")
+        else:
+            print(f"No user found with email {test_email}")
+        
+        # Print email settings for debugging
+        print(f"\nEmail Settings:")
+        print(f"EMAIL_BACKEND: {settings.EMAIL_BACKEND}")
+        print(f"EMAIL_HOST: {settings.EMAIL_HOST}")
+        print(f"EMAIL_PORT: {settings.EMAIL_PORT}")
+        print(f"EMAIL_USE_TLS: {settings.EMAIL_USE_TLS}")
+        print(f"EMAIL_HOST_USER: {settings.EMAIL_HOST_USER}")
+        print(f"EMAIL_HOST_PASSWORD: {'*' * len(settings.EMAIL_HOST_PASSWORD) if settings.EMAIL_HOST_PASSWORD else 'Not set'}")
+        
+        result = send_mail(
+            'Test Email from JSV',
+            'This is a test email to verify the email configuration.',
+            settings.EMAIL_HOST_USER,
+            ['jsvindustrialequipmenttrading@gmail.com'],
+            fail_silently=False,
+        )
+        if result == 1:
+            messages.success(request, 'Test email sent successfully!')
+        else:
+            messages.error(request, 'Failed to send email (result was 0)')
+    except Exception as e:
+        messages.error(request, f'Email error: {str(e)}')
+        print(f'Email error details: {str(e)}')  # Print to console for debugging
+    return redirect('account:home')
+
 def error_404(request, exception):
     context = {
         'error_code': '404',
@@ -262,3 +304,9 @@ def error_500(request):
         'error_message': 'Internal server error. Please try again later.'
     }
     return render(request, 'error.html', context, status=500)
+
+class CustomPasswordResetCompleteView(PasswordResetCompleteView):
+    template_name = 'account/password_reset_complete.html'
+    
+    def get_success_url(self):
+        return reverse_lazy('account:login')
