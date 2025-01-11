@@ -29,7 +29,7 @@
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                 <option value="">Select a supplier</option>
                                 {% for supplier in suppliers %}
-                                <option value="{{ supplier.id }}" {% if initial_supplier == supplier.id %}selected{% endif %}>
+                                <option value="{{ supplier.id }}" {% if initial_supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
                                     {{ supplier.name }}
                                 </option>
                                 {% endfor %}
@@ -43,7 +43,7 @@
                                     class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                 <option value="">Select a warehouse</option>
                                 {% for warehouse in warehouses %}
-                                <option value="{{ warehouse.id }}" {% if initial_warehouse == warehouse.id %}selected{% endif %}>
+                                <option value="{{ warehouse.id }}" {% if initial_warehouse == warehouse.id|stringformat:"s" %}selected{% endif %}>
                                     {{ warehouse.name }}
                                 </option>
                                 {% endfor %}
@@ -55,7 +55,7 @@
                             <label for="order_date" class="block text-sm font-medium text-gray-700">Order Date</label>
                             <input type="date" id="order_date" name="order_date" required
                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                   value="{{ initial_order_date|date:'Y-m-d' }}">
+                                   value="{{ initial_order_date|date:'Y-m-d' }}" {% if initial_order_date %}value="{{ initial_order_date|date:'Y-m-d' }}"{% endif %}>
                         </div>
 
                         <!-- Expected Delivery Date Field -->
@@ -63,14 +63,14 @@
                             <label for="expected_delivery_date" class="block text-sm font-medium text-gray-700">Expected Delivery Date</label>
                             <input type="date" id="expected_delivery_date" name="expected_delivery_date" required
                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                   value="{{ initial_delivery_date|date:'Y-m-d' }}">
+                                   {% if initial_delivery_date %}value="{{ initial_delivery_date }}"{% endif %}>
                         </div>
 
                         <!-- Notes Field -->
                         <div class="sm:col-span-2">
                             <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
                             <textarea id="notes" name="notes" rows="3"
-                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">{{ initial_notes }}</textarea>
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">{% if initial_notes %}{{ initial_notes }}{% endif %}</textarea>
                         </div>
                     </div>
                 </div>

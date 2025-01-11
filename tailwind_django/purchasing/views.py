@@ -107,37 +107,60 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
             warehouse__in=warehouses
         )
         
-        if 'po_draft_data' in self.request.session:
-            draft_data = self.request.session['po_draft_data']
-            print("\nFound PO draft data:", draft_data)  # Debug print
+        # Check for session data from pending items
+        po_draft_data = self.request.session.get('po_draft_data')
+        if po_draft_data:
+            print("Found PO draft data:", po_draft_data)  # Debug print
             
-            # Get the actual objects for supplier and warehouse
             try:
-                supplier = Supplier.objects.get(id=draft_data['supplier'])
-                warehouse = Warehouse.objects.get(id=draft_data['warehouse'])
+                print("Processing initial data...")  # Debug print
                 
+                # Set initial data for the form
                 initial_data = {
-                    'supplier': draft_data['supplier'],  # Use ID instead of object
-                    'warehouse': draft_data['warehouse'],  # Use ID instead of object
+                    'supplier': str(po_draft_data['supplier']),  # Convert to string
+                    'warehouse': str(po_draft_data['warehouse']),  # Convert to string
                     'order_date': timezone.now().date(),
-                    'expected_delivery_date': draft_data['expected_delivery_date'],
-                    'notes': draft_data['notes']
+                    'expected_delivery_date': po_draft_data.get('expected_delivery_date'),
+                    'notes': po_draft_data.get('notes', '')
                 }
-                print("\nInitial data:", initial_data)  # Debug print
+                print("Initial data prepared:", initial_data)  # Debug print
                 
-                # Get the pending items
-                pending_items = draft_data.get('pending_items', [])
-                print("\nPending items:", pending_items)  # Debug print
+                # Convert pending items to initial items format
+                pending_items = po_draft_data.get('pending_items', [])
+                print("Pending items:", pending_items)  # Debug print
+                
+                initial_items = []
+                for item_data in pending_items:
+                    try:
+                        item_dict = {
+                            'brand': item_data.get('brand', ''),
+                            'item_name': item_data.get('item_name', ''),
+                            'model': item_data.get('model', ''),
+                            'quantity': item_data.get('quantity', 0),
+                            'unit_price': float(item_data.get('unit_price', 0))
+                        }
+                        print("Adding item:", item_dict)  # Debug print
+                        initial_items.append(item_dict)
+                    except (KeyError, ValueError) as e:
+                        print(f"Error processing item data: {e}")
+                        print("Item data was:", item_data)
+                        continue
+                
+                print("Final initial items:", initial_items)  # Debug print
                 
                 # Store data in context
                 context.update({
                     'initial': initial_data,
-                    'pending_items': pending_items,
-                    'brand': draft_data.get('brand'),
-                    'draft_data': draft_data
+                    'pending_items': initial_items,
+                    'draft_data': po_draft_data,
+                    'initial_supplier': initial_data.get('supplier'),
+                    'initial_warehouse': initial_data.get('warehouse'),
+                    'initial_order_date': initial_data.get('order_date'),
+                    'initial_delivery_date': initial_data.get('expected_delivery_date'),
+                    'initial_notes': initial_data.get('notes', '')
                 })
                 
-            except (Supplier.DoesNotExist, Warehouse.DoesNotExist) as e:
+            except Exception as e:
                 messages.error(self.request, f"Error loading draft data: {str(e)}")
         
         return context
@@ -163,6 +186,16 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
                     pending_item_ids = [item.get('pending_item_id') for item in self.request.session['po_draft_data'].get('pending_items', [])]
                     if pending_item_ids:
                         PendingPOItem.objects.filter(id__in=pending_item_ids).update(is_processed=True)
+                        
+                        # Update associated requisitions status to 'processed'
+                        requisition_ids = set()
+                        for item in self.request.session['po_draft_data'].get('pending_items', []):
+                            if item.get('requisition_id'):
+                                requisition_ids.add(item['requisition_id'])
+                        
+                        if requisition_ids:
+                            Requisition.objects.filter(id__in=requisition_ids).update(status='processed')
+                    
                     del self.request.session['po_draft_data']
                     self.request.session.modified = True
 
@@ -506,7 +539,8 @@ def confirm_delivery(request, pk):
     ).prefetch_related(
         'items',
         'items__purchase_order_item',
-        'items__purchase_order_item__item'
+        'items__purchase_order_item__item',
+        Prefetch('items__purchase_order_item__item', queryset=InventoryItem.objects.select_related('brand'))
     ), pk=pk)
     
     # Check if user is admin
@@ -858,14 +892,10 @@ def create_purchase_order(request, requisition_id=None):
         try:
             print("Processing initial data...")  # Debug print
             
-            # Get supplier and warehouse objects
-            supplier = get_object_or_404(Supplier, id=po_draft_data['supplier'])
-            warehouse = get_object_or_404(Warehouse, id=po_draft_data['warehouse'])
-            
             # Set initial data for the form
             initial_data = {
-                'supplier': po_draft_data['supplier'],  # Use ID instead of object
-                'warehouse': po_draft_data['warehouse'],  # Use ID instead of object
+                'supplier': str(po_draft_data['supplier']),  # Convert to string
+                'warehouse': str(po_draft_data['warehouse']),  # Convert to string
                 'order_date': timezone.now().date(),
                 'expected_delivery_date': po_draft_data.get('expected_delivery_date'),
                 'notes': po_draft_data.get('notes', '')
@@ -876,19 +906,21 @@ def create_purchase_order(request, requisition_id=None):
             pending_items = po_draft_data.get('pending_items', [])
             print("Pending items:", pending_items)  # Debug print
             
+            initial_items = []
             for item_data in pending_items:
                 try:
                     item_dict = {
-                        'brand': item_data['brand'],
-                        'item_name': item_data['itemName'],
-                        'model': item_data['model'],
-                        'quantity': item_data['quantity'],
-                        'unit_price': float(item_data['unit_price'])
+                        'brand': item_data.get('brand', ''),
+                        'item_name': item_data.get('item_name', ''),
+                        'model': item_data.get('model', ''),
+                        'quantity': item_data.get('quantity', 0),
+                        'unit_price': float(item_data.get('unit_price', 0))
                     }
                     print("Adding item:", item_dict)  # Debug print
                     initial_items.append(item_dict)
-                except KeyError as e:
-                    print(f"Missing key in item_data: {e}")
+                except (KeyError, ValueError) as e:
+                    print(f"Error processing item data: {e}")
+                    print("Item data was:", item_data)
                     continue
             
             print("Final initial items:", initial_items)  # Debug print
@@ -923,6 +955,16 @@ def create_purchase_order(request, requisition_id=None):
                 pending_item_ids = [item.get('pending_item_id') for item in request.session['po_draft_data'].get('pending_items', [])]
                 if pending_item_ids:
                     PendingPOItem.objects.filter(id__in=pending_item_ids).update(is_processed=True)
+                    
+                    # Update associated requisitions status to 'processed'
+                    requisition_ids = set()
+                    for item in request.session['po_draft_data'].get('pending_items', []):
+                        if item.get('requisition_id'):
+                            requisition_ids.add(item['requisition_id'])
+                    
+                    if requisition_ids:
+                        Requisition.objects.filter(id__in=requisition_ids).update(status='processed')
+                
                 del request.session['po_draft_data']
                 request.session.modified = True
 
@@ -951,7 +993,12 @@ def create_purchase_order(request, requisition_id=None):
                 name__in=['Attendant Warehouse', 'Manager Warehouse']
             )
         ),
-        'is_edit': False
+        'is_edit': False,
+        'initial_supplier': initial_data.get('supplier'),
+        'initial_warehouse': initial_data.get('warehouse'),
+        'initial_order_date': initial_data.get('order_date'),
+        'initial_delivery_date': initial_data.get('expected_delivery_date'),
+        'initial_notes': initial_data.get('notes', '')
     }
     print("Context prepared. Initial items:", context['initial_items'])  # Debug print
     return render(request, 'purchasing/purchase_order_form.html', context)
@@ -1017,7 +1064,7 @@ def create_po_from_requisition(request, requisition_id):
 
                 # Link requisition to PO and update its status
                 draft_po.requisitions.add(requisition)
-                requisition.status = 'pending_po'
+                requisition.status = 'processed'  # Changed from 'pending_po' to 'processed'
                 requisition.save()
 
             messages.success(request, f'Items from requisition #{requisition.id} added to Purchase Order #{draft_po.id}')
