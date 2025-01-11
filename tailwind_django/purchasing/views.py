@@ -146,52 +146,32 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
         try:
             with transaction.atomic():
                 # Set basic PO data
-                form.instance.created_by = self.request.user
-                form.instance.status = 'draft'
-                form.instance.order_date = timezone.now().date()
+                po = form.save(commit=False)
+                po.created_by = self.request.user
+                po.order_date = timezone.now().date()
+                po.status = 'draft'
                 
-                # Save the PO
-                response = super().form_valid(form)
+                # Get items data from form
+                items_data = json.loads(self.request.POST.get('items', '[]'))
+                form.cleaned_data['items'] = items_data
                 
-                # Process draft data if available
+                # Save the PO and items
+                po = form.save()
+
+                # Mark pending items as processed if they exist
                 if 'po_draft_data' in self.request.session:
-                    draft_data = self.request.session['po_draft_data']
-                    brand_name = draft_data.get('brand')
-                    pending_items = draft_data.get('pending_items', [])
-                    
-                    for item_data in pending_items:
-                        try:
-                            item = InventoryItem.objects.get(id=item_data['item_id'])
-                            
-                            # Create PO item with brand information
-                            PurchaseOrderItem.objects.create(
-                                purchase_order=self.object,
-                                item=item,
-                                brand=brand_name or item.brand.name,  # Use provided brand name or item's brand
-                                model_name=item.model,
-                                quantity=item_data['quantity'],
-                                unit_price=Decimal(str(item_data['unit_price']))
-                            )
-                            
-                            # Mark pending items as processed
-                            PendingPOItem.objects.filter(
-                                item__item=item,
-                                is_processed=False
-                            ).update(is_processed=True)
-                            
-                        except InventoryItem.DoesNotExist:
-                            messages.warning(self.request, f"Item {item_data['item_id']} not found")
-                            continue
-                    
-                    # Clear the draft data
+                    pending_item_ids = [item.get('pending_item_id') for item in self.request.session['po_draft_data'].get('pending_items', [])]
+                    if pending_item_ids:
+                        PendingPOItem.objects.filter(id__in=pending_item_ids).update(is_processed=True)
                     del self.request.session['po_draft_data']
-                
+                    self.request.session.modified = True
+
                 # Calculate total
-                self.object.calculate_total()
-                self.object.save()
+                po.calculate_total()
+                po.save()
                 
                 messages.success(self.request, "Purchase order created successfully")
-                return response
+                return redirect('purchasing:list')
                 
         except Exception as e:
             messages.error(self.request, f"Error creating purchase order: {str(e)}")
@@ -428,7 +408,8 @@ def view_purchase_order(request, pk: int) -> Any:
     print(f"Number of items: {purchase_order.items.count()}")
     print("Items:")
     for item in purchase_order.items.all():
-        print(f"- Item: {item.item.item_name}, Qty: {item.quantity}, Price: {item.unit_price}, Brand: {item.brand}, Model: {item.model_name}")
+        item_name = item.item.item_name if item.item else item.item_name
+        print(f"- Item: {item_name}, Qty: {item.quantity}, Price: {item.unit_price}, Brand: {item.brand}, Model: {item.model_name}")
     print("========================================\n")
     
     # Check user permissions
@@ -555,9 +536,9 @@ def confirm_delivery(request, pk):
                 # Find the exact matching item in the warehouse
                 matching_item = InventoryItem.objects.filter(
                     warehouse=warehouse,
-                    item_name=po_item.item.item_name,
-                    brand__name=po_item.item.brand.name,
-                    model=po_item.item.model
+                    item_name=po_item.item.item_name if po_item.item else po_item.item_name,
+                    brand__name=po_item.brand,
+                    model=po_item.model_name
                 ).first()
                 
                 if matching_item:
@@ -571,10 +552,10 @@ def confirm_delivery(request, pk):
                     # Create new item in warehouse if it doesn't exist
                     new_item = InventoryItem.objects.create(
                         warehouse=warehouse,
-                        item_name=po_item.item.item_name,
-                        brand=po_item.item.brand,
-                        model=po_item.item.model,
-                        category=po_item.item.category,
+                        item_name=po_item.item.item_name if po_item.item else po_item.item_name,
+                        brand=po_item.brand,
+                        model=po_item.model_name,
+                        category=po_item.item.category if po_item.item else None,
                         stock=delivery_item.quantity_delivered,
                         price=po_item.unit_price,
                         availability=True
@@ -810,7 +791,8 @@ def confirm_purchase_order(request, pk: int) -> Any:
                 purchase_order_item=po_item,
                 quantity_delivered=po_item.quantity
             )
-            print(f"Created delivery item for: {po_item.item.item_name} - {po_item.quantity} units")
+            item_name = po_item.item.item_name if po_item.item else po_item.item_name
+            print(f"Created delivery item for: {item_name} - {po_item.quantity} units")
         
         # Update PO status
         po.status = 'confirmed'
@@ -888,10 +870,10 @@ def create_purchase_order(request, requisition_id=None):
                 try:
                     item_dict = {
                         'brand': item_data['brand'],
-                        'itemName': item_data['itemName'],
+                        'item_name': item_data['itemName'],
                         'model': item_data['model'],
                         'quantity': item_data['quantity'],
-                        'unitPrice': float(item_data['unit_price'])
+                        'unit_price': float(item_data['unit_price'])
                     }
                     print("Adding item:", item_dict)  # Debug print
                     initial_items.append(item_dict)
@@ -918,24 +900,13 @@ def create_purchase_order(request, requisition_id=None):
             po.created_by = request.user
             po.order_date = timezone.now().date()
             po.status = 'draft'
-            po.save()
-
-            # Process items from form
-            items_data = json.loads(request.POST.get('items_data', '[]'))
             
-            for item_data in items_data:
-                item = PurchaseOrderItem(
-                    purchase_order=po,
-                    item_id=item_data['item_id'],
-                    brand=item_data['brand'],
-                    model_name=item_data['model'],
-                    quantity=item_data['quantity'],
-                    unit_price=item_data['unit_price']
-                )
-                item.save()
-
-            # Calculate total amount
-            po.calculate_total()
+            # Get items data from form
+            items_data = json.loads(request.POST.get('items', '[]'))
+            form.cleaned_data['items'] = items_data
+            
+            # Save the PO and items
+            po = form.save()
 
             # Mark pending items as processed if they exist
             if 'po_draft_data' in request.session:
@@ -945,8 +916,13 @@ def create_purchase_order(request, requisition_id=None):
                 del request.session['po_draft_data']
                 request.session.modified = True
 
+            # Calculate total amount
+            po.calculate_total()
+
             messages.success(request, 'Purchase order created successfully.')
             return redirect('purchasing:list')
+        else:
+            print("Form errors:", form.errors)  # Debug print
     else:
         # For GET requests, create a new form with initial data
         print("Creating form with initial data:", initial_data)  # Debug print
@@ -1226,7 +1202,7 @@ def create_from_pending_items(request):
                 inventory_item = pending_item.item.item  # Get the inventory item
                 request.session['po_draft_data']['pending_items'].append({
                     'brand': inventory_item.brand.name,
-                    'itemName': inventory_item.item_name,
+                    'item_name': inventory_item.item_name,
                     'model': inventory_item.model,
                     'quantity': pending_item.quantity,
                     'unit_price': str(inventory_item.price),  # Get price from inventory item
@@ -1289,7 +1265,7 @@ def create_po_from_pending(request, brand=None):
                         'quantity': item.quantity,
                         'unit_price': str(item.item.item.price or Decimal('0.00')),
                         'brand': item.item.item.brand.name,
-                        'itemName': item.item.item.item_name,
+                        'item_name': item.item.item.item_name,
                         'model': item.item.item.model
                     }
                     for item in pending_items

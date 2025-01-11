@@ -88,6 +88,8 @@ class PurchaseOrderForm(forms.ModelForm):
         'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
         'accept': 'image/*,.pdf'
     }))
+    
+    items = forms.CharField(required=False, widget=forms.HiddenInput())
 
     class Meta:
         model = PurchaseOrder
@@ -153,6 +155,29 @@ class PurchaseOrderForm(forms.ModelForm):
         instance = super().save(commit=False)
         if commit:
             instance.save()
+            
+            # Process items data if available
+            if hasattr(self, 'cleaned_data') and 'items' in self.cleaned_data:
+                items_data = self.cleaned_data['items']
+                if isinstance(items_data, str):
+                    try:
+                        items_data = json.loads(items_data)
+                    except json.JSONDecodeError:
+                        items_data = []
+                
+                for item_data in items_data:
+                    PurchaseOrderItem.objects.create(
+                        purchase_order=instance,
+                        brand=item_data['brand'],
+                        item_name=item_data['item_name'],
+                        model_name=item_data['model'],
+                        quantity=int(item_data['quantity']),
+                        unit_price=float(item_data['unit_price'])
+                    )
+                
+                # Calculate total amount
+                instance.calculate_total()
+        
         return instance
 
 class DeliveryReceiptForm(forms.ModelForm):
