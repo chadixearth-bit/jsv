@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.db import transaction
 from django.utils import timezone
-from django.db.models import F, Sum, Manager, QuerySet
+from django.db.models import F, Sum, Manager, QuerySet, Prefetch
 from django.template.loader import get_template
 from typing import Any, Dict, Optional, Type, Union
 import json
@@ -537,10 +537,14 @@ def confirm_delivery(request, pk):
         'received_by',
         'confirmed_by'
     ).prefetch_related(
-        'items',
-        'items__purchase_order_item',
-        'items__purchase_order_item__item',
-        Prefetch('items__purchase_order_item__item', queryset=InventoryItem.objects.select_related('brand'))
+        Prefetch(
+            'items',
+            queryset=DeliveryItem.objects.select_related(
+                'purchase_order_item',
+                'purchase_order_item__item',
+                'purchase_order_item__item__brand'
+            )
+        )
     ), pk=pk)
     
     # Check if user is admin
@@ -1248,9 +1252,7 @@ def create_from_pending_items(request):
                 'supplier': data.get('supplier'),
                 'warehouse': data.get('warehouse'),
                 'expected_delivery_date': data.get('expected_delivery_date'),
-                'notes': data.get('notes', ''),
-                'brand': data.get('brand'),  # Make sure brand is included
-                'pending_items': []
+                'notes': data.get('notes', '')
             }
             
             # Add items to session data
