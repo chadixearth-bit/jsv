@@ -67,107 +67,109 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 });
 </script>
+<div class="flex px-4 py-8 rounded-lg ml-4 mr-4">
+    
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-6 bg-gray-100">
+            <h1 class="text-2xl font-bold text-gray-800">Pending Items for Purchase Orders</h1>
+        </div>
 
-<div class="container mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">Pending Items for Purchase Orders</h1>
-    </div>
-
-    <form id="poForm" class="space-y-8 divide-y divide-gray-200">
-        {% csrf_token %}
-        
-        <!-- Items Table -->
-        <div class="mt-8 flex flex-col">
-            <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-                <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-                    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-                        <table class="min-w-full divide-y divide-gray-300">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Select</th>
-                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Brand</th>
-                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Item Name</th>
-                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Model</th>
-                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Quantity</th>
-                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Requisition #</th>
-                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Requester</th>
-                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Date</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-200 bg-white">
-                                {% for item in pending_items %}
-                                <tr>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                        <input type="checkbox" name="selected_items" value="{{ item.id }}"
-                                               class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                    </td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.item.brand.name }}</td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.item.item_name }}</td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.item.model }}</td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.quantity }}</td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">#{{ item.item.requisition.id }}</td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.requisition.requester }}</td>
-                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.requisition.date_created|date:"M d, Y" }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+        <form id="poForm" class="space-y-8 divide-y divide-gray-200">
+            {% csrf_token %}
+            
+            <!-- Items Table -->
+            <div class="mt-8 flex flex-col">
+                <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                    <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+                        <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                            <table class="min-w-full divide-y divide-gray-300">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Select</th>
+                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Brand</th>
+                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Item Name</th>
+                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Model</th>
+                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Quantity</th>
+                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Requisition #</th>
+                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Requester</th>
+                                        <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 bg-white">
+                                    {% for item in pending_items %}
+                                    <tr>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                            <input type="checkbox" name="selected_items" value="{{ item.id }}"
+                                                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                        </td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.item.brand.name }}</td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.item.item_name }}</td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.item.model }}</td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.quantity }}</td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">#{{ item.item.requisition.id }}</td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.requisition.requester }}</td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.requisition.date_created|date:"M d, Y" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Form Fields -->
-        <div class="mt-8 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
-            <div class="sm:col-span-3">
-                <label for="supplier" class="block text-sm font-medium text-gray-700">Supplier</label>
-                <select id="supplier" name="supplier" required
+            <!-- Form Fields -->
+            <div class="mt-8 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+                <div class="sm:col-span-3 mt-4">
+                    <label for="supplier" class="block text-sm font-medium text-gray-700">Supplier</label>
+                    <select id="supplier" name="supplier" required
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <option value="">Select a supplier...</option>
+                        {% for supplier in suppliers %}
+                        <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="sm:col-span-3 mt-4">
+                    <label for="warehouse" class="block text-sm font-medium text-gray-700">Warehouse</label>
+                    <select id="warehouse" name="warehouse" required
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        <option value="">Select a warehouse...</option>
+                        {% for warehouse in warehouses %}
+                        <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="sm:col-span-3">
+                    <label for="expected_delivery_date" class="block text-sm font-medium text-gray-700">Expected Delivery Date</label>
+                    <input type="date" id="expected_delivery_date" name="expected_delivery_date" required
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                    <option value="">Select a supplier...</option>
-                    {% for supplier in suppliers %}
-                    <option value="{{ supplier.id }}">{{ supplier.name }}</option>
-                    {% endfor %}
-                </select>
+                </div>
+
+                <div class="sm:col-span-6">
+                    <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
+                    <textarea id="notes" name="notes" rows="3"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                            placeholder="Add any additional notes..."></textarea>
+                </div>
             </div>
 
-            <div class="sm:col-span-3">
-                <label for="warehouse" class="block text-sm font-medium text-gray-700">Warehouse</label>
-                <select id="warehouse" name="warehouse" required
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                    <option value="">Select a warehouse...</option>
-                    {% for warehouse in warehouses %}
-                    <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
-                    {% endfor %}
-                </select>
+            <!-- Form Actions -->
+            <div class="pt-5">
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="clearItems()"
+                            class="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                        Clear Items
+                    </button>
+                    <button type="button" onclick="createPurchaseOrder()"
+                            class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                        Create Purchase Order
+                    </button>
+                </div>
             </div>
-
-            <div class="sm:col-span-3">
-                <label for="expected_delivery_date" class="block text-sm font-medium text-gray-700">Expected Delivery Date</label>
-                <input type="date" id="expected_delivery_date" name="expected_delivery_date" required
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-            </div>
-
-            <div class="sm:col-span-6">
-                <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
-                <textarea id="notes" name="notes" rows="3"
-                          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                          placeholder="Add any additional notes..."></textarea>
-            </div>
-        </div>
-
-        <!-- Form Actions -->
-        <div class="pt-5">
-            <div class="flex justify-end space-x-3">
-                <button type="button" onclick="clearItems()"
-                        class="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                    Clear Items
-                </button>
-                <button type="button" onclick="createPurchaseOrder()"
-                        class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
-                    Create Purchase Order
-                </button>
-            </div>
-        </div>
-    </form>
+        </form>
+    </div>
 </div>
 {% endblock %}
