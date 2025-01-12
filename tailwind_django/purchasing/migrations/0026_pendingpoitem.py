@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("purchasing", "0025_merge_20250107_2329"),
+        ("purchasing", "0024_merge_20250112_2033"),
         ("requisition", "0033_alter_requisition_status_and_more"),
     ]
 
