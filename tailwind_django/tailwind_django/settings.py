@@ -154,17 +154,13 @@ X_FRAME_OPTIONS = 'SAMEORIGIN'
 CSP_DEFAULT_SRC = ("'self'",)
 CSP_FRAME_SRC = ("'self'",)
 
-# Email settings
+# Gmail SMTP settings (using App Password)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_USE_SSL = False
-EMAIL_TIMEOUT = 300
-EMAIL_SSL_CERTFILE = None
-EMAIL_SSL_KEYFILE = None
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'jsvindustrialequipmenttrading@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')  # Get from environment variable
+EMAIL_HOST_USER = 'jsvindustrialequipmenttrading@gmail.com'
+EMAIL_HOST_PASSWORD = 'xdkb jcza qnrv uqou'
 DEFAULT_FROM_EMAIL = f'JSV Industrial Equipment Trading <{EMAIL_HOST_USER}>'
 SERVER_EMAIL = EMAIL_HOST_USER
 

@@ -189,7 +189,7 @@
                         {% if user.is_superuser or user.is_staff or user.customuser.role == 'manager' or user.customuser.role == 'attendant' %}
                         <div class="space-y-2">
                             <!-- <span class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Deliveries</span> -->
-                            
+
 
                             <div class="nav-item px-4 py-2.5 text-gray-100 rounded-lg">
                                 <button class="dropdown-trigger flex items-center justify-between w-full group">
@@ -225,8 +225,8 @@
                         <!-- Purchasing Section -->
                         {% if user.is_superuser or user.is_staff %}
                         <div class="space-y-2">
-                            <!-- <span class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Purchasing</span> -->
-                            
+                            <!-- <span class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Purchasing</span -->
+
 
                             <div class="nav-item px-4 py-2.5 text-gray-100 rounded-lg">
                                 <button class="dropdown-trigger flex items-center justify-between w-full group">
@@ -264,8 +264,8 @@
                         <!-- Sales Section (visible only to attendance) -->
                         {% if user.customuser.role == 'attendant' %}
                         <div class="space-y-2">
-                            <!-- <span class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Sales</span> -->
-                            
+                            <!-- <span class="px-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Sales</span -->
+
 
                             <div class="nav-item px-4 py-2.5 text-gray-100 rounded-lg">
                                 <button class="dropdown-trigger flex items-center justify-between w-full group">
@@ -448,12 +448,12 @@
                 </div>
                 {% endif %}
                 
-                {% block main_content %}{% endblock %}
+                {% block content %}{% endblock %}
             </main>
         </div>
     {% endif %}
 
-    {% block extra_content %}{% endblock %}
+    {% block extra_js %}{% endblock %}
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -510,6 +510,7 @@
                     e.preventDefault();
                     const content = this.nextElementSibling;
                     const arrow = this.querySelector('.dropdown-arrow');
+
 
                     if (!content.classList.contains('show')) {
                         closeOtherDropdowns(content);
@@ -617,7 +618,5 @@
         `;
         document.head.appendChild(style);
     </script>
-
-    {% block extra_scripts %}{% endblock %}
 </body>
 </html>
