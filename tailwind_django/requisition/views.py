@@ -124,7 +124,8 @@ def requisition_list(request):
         requisitions = requisitions.filter(
             Q(status='pending_admin_approval') |  # Needs admin approval
             Q(status='approved_by_admin') |  # Approved by admin
-            Q(status='rejected_by_admin')  # Rejected by admin
+            Q(status='rejected_by_admin') |  # Rejected by admin
+            Q(status='approved')  # Also show approved requisitions
         )
     else:
         # For other roles, only show their own requisitions
@@ -550,6 +551,14 @@ def approve_requisition(request, pk):
                             requisition.approval_comment = comment
                             requisition.save()
 
+                            # Remove unavailable items from original requisition
+                            for item_info in unavailable_items:
+                                item_info['item'].delete()
+
+                            # Remove new items from original requisition
+                            for item in new_items:
+                                item.delete()
+
                             # Notify requester about approved items
                             Notification.objects.create(
                                 user=requisition.requester,
@@ -734,34 +743,38 @@ def requisition_history(request):
     # Start with all requisitions that are not deleted
     requisitions = Requisition.objects.filter(is_deleted=False)
     
-    # Filter based on user role
-    user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
-    if user_role == 'attendant':
-        # Attendants can only see their own requisitions
-        requisitions = requisitions.filter(requester=request.user)
-    elif user_role == 'manager':
-        # Managers can see:
-        # 1. All requisitions from attendants (any status)
-        # 2. Their own requisitions (any status)
-        # 3. Requisitions pending their approval
-        requisitions = requisitions.filter(
-            Q(requester__customuser__role='attendant') |  # All attendant requisitions
-            Q(requester=request.user) |  # Their own requisitions
-            Q(status='pending_manager_approval')  # Requisitions pending their approval
-        )
-    elif user_role == 'admin':
-        # Admins can see:
-        # 1. Requisitions that need admin approval
-        # 2. Requisitions they have approved/rejected
-        # 3. Requisitions that were completed after admin approval
-        requisitions = requisitions.filter(
-            Q(status='pending_admin_approval') |  # Needs admin approval
-            Q(status='approved_by_admin') |  # Approved by admin
-            Q(status='rejected_by_admin')  # Rejected by admin
-        )
+    # Apply role filter if provided, otherwise apply default role-based filtering
+    if role_filter:
+        if request.user.customuser.role == 'admin':
+            # Admin can filter by any role
+            requisitions = requisitions.filter(requester__customuser__role=role_filter)
+        elif request.user.customuser.role == 'manager' and role_filter == 'attendant':
+            # Manager can only filter to see attendant requisitions
+            requisitions = requisitions.filter(requester__customuser__role='attendant')
+        else:
+            # For other cases, users can only see their own requisitions
+            requisitions = requisitions.filter(requester=request.user)
     else:
-        # For other roles, only show their own requisitions
-        requisitions = requisitions.filter(requester=request.user)
+        # Default filtering when no role filter is applied
+        if request.user.customuser.role == 'attendant':
+            # Attendants can only see their own requisitions
+            requisitions = requisitions.filter(requester=request.user)
+        elif request.user.customuser.role == 'manager':
+            # Managers can see:
+            # 1. All requisitions from attendants (any status)
+            # 2. Their own requisitions (any status)
+            # 3. Requisitions pending their approval
+            requisitions = requisitions.filter(
+                Q(requester__customuser__role='attendant') |  # All attendant requisitions
+                Q(requester=request.user) |  # Their own requisitions
+                Q(status='pending_manager_approval')  # Requisitions pending their approval
+            )
+        elif request.user.customuser.role == 'admin':
+            # Admins can see all requisitions by default
+            pass
+        else:
+            # For other roles, only show their own requisitions
+            requisitions = requisitions.filter(requester=request.user)
     
     # Apply search filter if provided
     if query:
@@ -813,7 +826,7 @@ def requisition_history(request):
         'current_status': current_status,
         'status_choices': status_choices,
         'query': query,
-        'user_role': user_role,
+        'user_role': request.user.customuser.role if hasattr(request.user, 'customuser') else None,
         'role_choices': role_choices,
         'current_role': role_filter
     }
@@ -1302,26 +1315,31 @@ def search_items(request):
 
 def view_requisition_pdf(request, pk):
     try:
-        # Get the requisition object
-        requisition = get_object_or_404(Requisition, pk=pk)
+        requisition = get_object_or_404(Requisition.objects.select_related(
+            'requester',
+            'source_warehouse',
+            'destination_warehouse'
+        ).prefetch_related('items__item__brand', 'items__item__category'), pk=pk)
         
-        # Create the directory if it doesn't exist
-        pdf_dir = os.path.join(settings.MEDIA_ROOT, 'requisition_pdfs')
-        os.makedirs(pdf_dir, exist_ok=True)
-
-        # Generate filename
-        filename = f"requisition_{requisition.id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        filepath = os.path.join(pdf_dir, filename)
-
-        # Create the PDF document with custom margins
+        # Create the PDF document
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="requisition_{requisition.id}.pdf"'
+        
+        # Create a temporary file
+        filepath = f'requisition_{requisition.id}.pdf'
+        
+        # Create the PDF object using ReportLab
         doc = SimpleDocTemplate(
             filepath,
             pagesize=letter,
-            rightMargin=50,
-            leftMargin=50,
-            topMargin=50,
-            bottomMargin=50
+            rightMargin=inch/2,
+            leftMargin=inch/2,
+            topMargin=inch/2,
+            bottomMargin=inch/2
         )
+        
+        # Container for the 'Flowable' objects
+        story = []
         
         # Styles
         styles = getSampleStyleSheet()
@@ -1330,7 +1348,7 @@ def view_requisition_pdf(request, pk):
         header_style = ParagraphStyle(
             'CustomHeader',
             parent=styles['Heading1'],
-            fontSize=24,
+            fontSize=16,
             textColor=colors.HexColor('#1a56db'),
             spaceAfter=30,
             alignment=TA_CENTER
@@ -1362,11 +1380,9 @@ def view_requisition_pdf(request, pk):
             leftIndent=20
         )
         
-        story = []
-        
         # Add company header
         story.append(Paragraph("JSV", header_style))
-        story.append(Paragraph("Requisition Form", subheader_style))
+        story.append(Paragraph("Requisition Note", subheader_style))
         story.append(Spacer(1, 20))
         
         # Add horizontal line
@@ -1384,23 +1400,15 @@ def view_requisition_pdf(request, pk):
              Paragraph(f"#{requisition.id}", detail_value_style),
              Paragraph("<b>Status:</b>", detail_label_style),
              Paragraph(requisition.get_status_display(), detail_value_style)],
-            [Paragraph("<b>Requestor:</b>", detail_label_style),
-             Paragraph(requisition.requester.get_full_name() or requisition.requester.username, detail_value_style),
-             Paragraph("<b>Request Date:</b>", detail_label_style),
-             Paragraph(requisition.created_at.strftime('%Y-%m-%d %H:%M') if requisition.created_at else None, detail_value_style)],
-            [Paragraph("<b>Request Type:</b>", detail_label_style),
-             Paragraph(requisition.get_request_type_display(), detail_value_style),
-             Paragraph("<b>Created By:</b>", detail_label_style),
-             Paragraph(requisition.requester.username, detail_value_style)]
+            [Paragraph("<b>Requester:</b>", detail_label_style),
+             Paragraph(requisition.requester.get_full_name() if requisition.requester else "Not assigned", detail_value_style),
+             Paragraph("<b>Created Date:</b>", detail_label_style),
+             Paragraph(requisition.created_at.strftime('%Y-%m-%d %H:%M'), detail_value_style)],
+            [Paragraph("<b>Source Warehouse:</b>", detail_label_style),
+             Paragraph(requisition.source_warehouse.name if requisition.source_warehouse else 'None', detail_value_style),
+             Paragraph("<b>Destination Warehouse:</b>", detail_label_style),
+             Paragraph(requisition.destination_warehouse.name if requisition.destination_warehouse else 'None', detail_value_style)]
         ]
-        
-        if requisition.source_warehouse:
-            data.append([
-                Paragraph("<b>Source Warehouse:</b>", detail_label_style),
-                Paragraph(requisition.source_warehouse.name, detail_value_style),
-                Paragraph("<b>Destination Warehouse:</b>", detail_label_style),
-                Paragraph(requisition.destination_warehouse.name if requisition.destination_warehouse else 'None', detail_value_style)
-            ])
         
         # Create the details table
         details_table = Table(data, colWidths=[1.5*inch, 2*inch, 1.5*inch, 2*inch])
@@ -1419,56 +1427,36 @@ def view_requisition_pdf(request, pk):
         story.append(details_table)
         story.append(Spacer(1, 20))
         
-        # Add reason section
-        story.append(Paragraph("Reason for Request", styles['Heading3']))
-        story.append(Paragraph(requisition.reason, detail_value_style))
-        story.append(Spacer(1, 20))
-        
         # Create items table
-        story.append(Paragraph("Requested Items", styles['Heading3']))
+        story.append(Paragraph("Requisition Items", styles['Heading3']))
         story.append(Spacer(1, 15))
         
         if requisition.items.exists():
-            # Only show delivered quantity if delivery has started
-            has_delivery = Delivery.objects.filter(requisition=requisition).exists() and requisition.status in ['in_delivery', 'received']
-            headers = ['Item Name', 'Brand', 'Model', 'Quantity']
-            if has_delivery:
-                headers.insert(3, 'Delivered Quantity')
+            items_data = [['Item Name', 'Brand', 'Category', 'Quantity']]
             
-            items_data = [headers]
+            for item in requisition.items.all():
+                items_data.append([
+                    item.item.item_name,
+                    item.item.brand.name if item.item.brand else 'N/A',
+                    item.item.category.name if item.item.category else 'N/A',
+                    str(item.quantity)
+                ])
             
-            for req_item in requisition.items.all():
-                row = [
-                    req_item.item.item_name,
-                    req_item.item.brand.name if req_item.item.brand else 'N/A',
-                    req_item.item.model if hasattr(req_item.item, 'model') else 'N/A',
-                    str(req_item.quantity)
-                ]
-                if has_delivery:
-                    row.insert(3, str(req_item.delivered_quantity or 0))
-                items_data.append(row)
-                
-            # Calculate column widths based on content type
-            if has_delivery:
-                col_widths = [3.5*inch, 1.5*inch, 1.5*inch, 1.2*inch, 1.2*inch]  # Adjusted for 5 columns
-            else:
-                col_widths = [4*inch, 1.8*inch, 1.8*inch, 1.4*inch]  # Adjusted for 4 columns
-            
-            # Create and style the table with the new column widths
-            table = Table(items_data, colWidths=col_widths)
+            # Create and style the table
+            table = Table(items_data, colWidths=[3*inch, 1.5*inch, 1.5*inch, 1*inch])
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a56db')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                 ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ffffff')),
                 ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor('#1a202c')),
                 ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 1), (-1, -1), 10),
                 ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#e2e8f0')),
-                ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                 ('LEFTPADDING', (0, 0), (-1, -1), 6),
@@ -1478,12 +1466,6 @@ def view_requisition_pdf(request, pk):
             ]))
             story.append(table)
             story.append(Spacer(1, 15))
-        
-        # Add manager comment if exists
-        if requisition.manager_comment:
-            story.append(Spacer(1, 20))
-            story.append(Paragraph("Manager's Comment", styles['Heading3']))
-            story.append(Paragraph(requisition.manager_comment, detail_value_style))
         
         # Add footer
         story.append(Spacer(1, 40))
@@ -1504,12 +1486,12 @@ def view_requisition_pdf(request, pk):
         if os.path.exists(filepath):
             with open(filepath, 'rb') as pdf_file:
                 response = HttpResponse(pdf_file.read(), content_type='application/pdf')
-                response['Content-Disposition'] = f'inline; filename="delivery_{delivery.id}.pdf"'
+                response['Content-Disposition'] = f'inline; filename="requisition_{requisition.id}.pdf"'
                 return response
             
     except Exception as e:
         messages.error(request, f"Error generating PDF: {str(e)}")
-        return redirect('requisition:requisition_list')
+        return redirect('requisition:requisition_history')
     finally:
         # Clean up the temporary PDF file
         if 'filepath' in locals() and os.path.exists(filepath):
@@ -1641,12 +1623,12 @@ def view_delivery_pdf(request, pk):
         if delivery.items.exists():
             items_data = [['Item Name', 'Brand', 'Category', 'Quantity']]
             
-            for delivery_item in delivery.items.all():
+            for item in delivery.items.all():
                 items_data.append([
-                    delivery_item.item.item_name,
-                    delivery_item.item.brand.name if delivery_item.item.brand else 'N/A',
-                    delivery_item.item.category.name if delivery_item.item.category else 'N/A',
-                    str(delivery_item.quantity)
+                    item.item.item_name,
+                    item.item.brand.name if item.item.brand else 'N/A',
+                    item.item.category.name if item.item.category else 'N/A',
+                    str(item.quantity)
                 ])
             
             # Create and style the table
@@ -1968,7 +1950,7 @@ def get_requisition_details(request, pk):
             'id': requisition.id,
             'status': requisition.status,
             'status_display': status_display,
-            'requester_name': requisition.requester.get_full_name() or requisition.requester.username,
+            'requester_name': requisition.requester.customuser.display_name or requisition.requester.get_full_name() or requisition.requester.username,
             'requester_role': requisition.requester.customuser.role.title(),
             'source_warehouse': requisition.source_warehouse.name if requisition.source_warehouse else None,
             'destination_warehouse': requisition.destination_warehouse.name if requisition.destination_warehouse else None,

@@ -137,9 +137,19 @@ class GlobalSettingsForm(forms.ModelForm):
         widgets = {
             'reorder_level': forms.NumberInput(attrs={
                 'class': 'pl-3 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm',
-                'min': '0'
+                'min': '1',
+                'step': '1',
+                'placeholder': 'Enter reorder level',
+                'required': True
             })
         }
+        
+    def clean_reorder_level(self):
+        reorder_level = self.cleaned_data.get('reorder_level')
+        if reorder_level is not None:
+            if reorder_level < 1:
+                raise forms.ValidationError("Reorder level must be at least 1")
+        return reorder_level
 
 class BrandForm(forms.ModelForm):
     class Meta:

@@ -30,52 +30,30 @@ def inventory_list(request):
     # Base queryset
     queryset = InventoryItem.objects.all().select_related('warehouse', 'brand', 'category')
     
-    # Filter by warehouse based on role, but show all items for admin
-    if not request.user.is_superuser:  # Only filter for non-admin users
+    # Filter by warehouse based on role
+    if not request.user.is_superuser:
         if user_role == 'attendant':
-            queryset = queryset.filter(warehouse_id=1)  # Attendant Warehouse (ID: 1)
+            queryset = queryset.filter(warehouse_id=1)
         elif user_role == 'manager':
-            queryset = queryset.filter(warehouse_id=2)  # Manager Warehouse (ID: 2)
+            queryset = queryset.filter(warehouse_id=2)
     
     # Search functionality
-    query = request.GET.get('q')
-    if query:
+    search_query = request.GET.get('q', '').strip()
+    if search_query:
         queryset = queryset.filter(
-            Q(item_name__icontains=query) |
-            Q(model__icontains=query) |
-            Q(brand__name__icontains=query) |
-            Q(category__name__icontains=query)
+            Q(item_name__istartswith=search_query) |
+            Q(brand__name__istartswith=search_query) |
+            Q(model__istartswith=search_query)
         )
     
-    # Sorting
-    sort_by = request.GET.get('sort')
-    if sort_by == 'name':
-        queryset = queryset.order_by('item_name')
-    elif sort_by == 'brand':
-        queryset = queryset.order_by('brand__name')
-    elif sort_by == 'category':
-        queryset = queryset.order_by('category__name')
-    elif sort_by == 'stock':
-        queryset = queryset.order_by('stock')
+    # Filter by brand and category
+    brand_id = request.GET.get('brand')
+    category_id = request.GET.get('category')
     
-    # Filter handling
-    selected_warehouse = request.GET.get('warehouse')
-    selected_brand = request.GET.get('brand')
-    selected_category = request.GET.get('category')
-    filter_type = request.GET.get('filter', 'all')
-    
-    if selected_warehouse:
-        queryset = queryset.filter(warehouse_id=selected_warehouse)
-    if selected_brand:
-        queryset = queryset.filter(brand_id=selected_brand)
-    if selected_category:
-        queryset = queryset.filter(category_id=selected_category)
-    
-    # Apply quick filters
-    if filter_type == 'low_stock':
-        queryset = queryset.filter(stock__lte=global_settings.reorder_level)
-    elif filter_type == 'no_price':
-        queryset = queryset.filter(Q(price__isnull=True) | Q(price=0))
+    if brand_id:
+        queryset = queryset.filter(brand_id=brand_id)
+    if category_id:
+        queryset = queryset.filter(category_id=category_id)
     
     # Get all brands and categories for filters
     brands = Brand.objects.all()
@@ -98,19 +76,16 @@ def inventory_list(request):
     
     context = {
         'items': items,
-        'brands': brands,
-        'categories': categories,
+        'all_brands': brands,
+        'all_categories': categories,
         'warehouses': warehouses,
         'global_settings_form': global_settings_form,
         'global_settings': global_settings,
-        'selected_warehouse': selected_warehouse,
-        'selected_brand': selected_brand,
-        'selected_category': selected_category,
-        'filter_type': filter_type,
+        'selected_brand': brand_id,
+        'selected_category': category_id,
+        'search_query': search_query,
         'total_items': total_items,
         'reorder_needed': reorder_needed,
-        'query': query,
-        'sort_by': sort_by,
         'user_role': user_role,
         'is_main_warehouse': user_role == 'manager' or request.user.is_superuser,
     }
@@ -278,6 +253,24 @@ def set_price(request, pk):
     
     return render(request, 'inventory/set_price.html', {'item': item})
 
+def set_image(request, pk):
+    item = get_object_or_404(InventoryItem, pk=pk)
+    
+    if request.method == 'POST':
+        try:
+            new_image = request.FILES.get('image')
+            if new_image:
+                item.image = new_image
+                item.save()
+                messages.success(request, f'Image for {item.item_name} set successfully.')
+            else:
+                messages.error(request, 'Image file is required.')
+        except Exception as e:
+            messages.error(request, f'Error setting image: {str(e)}')
+        return redirect('inventory:list')
+    
+    return render(request, 'inventory/set_image.html', {'item': item})
+
 def store_inventory(request):
     # Debug logging
     print("\n=== DEBUG: Store Inventory ===")
@@ -342,10 +335,10 @@ def warehouse_inventory(request):
     query = request.GET.get('q')
     if query:
         items = items.filter(
-            Q(item_name__icontains=query) |
-            Q(model__icontains=query) |
-            Q(brand__name__icontains=query) |
-            Q(category__name__icontains=query)
+            Q(item_name__istartswith=query) |
+            Q(model__istartswith=query) |
+            Q(brand__name__istartswith=query) |
+            Q(category__name__istartswith=query)
         )
     
     # Get global settings

@@ -35,6 +35,17 @@
                                     <i class="fas fa-boxes mr-2 text-indigo-500"></i>Available Items
                                 </label>
                                 <div class="flex items-center space-x-4">
+                                    <div class="relative">
+                                        <input type="text" 
+                                            id="itemSearch" 
+                                            placeholder="Search items..." 
+                                            class="block w-64 pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                                            </svg>
+                                        </div>
+                                    </div>
                                     <button type="button" 
                                             onclick="openNewItemModal()"
                                             class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
@@ -165,6 +176,46 @@
 
 <script>
 console.log('Requisition form script loaded');
+
+// Function to debounce search input
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Function to handle search
+function handleSearch(searchTerm) {
+    console.log('Searching for:', searchTerm);
+    const itemCards = document.querySelectorAll('.item-card');
+    searchTerm = searchTerm.toLowerCase().trim();
+    
+    // If search is empty, show all items
+    if (!searchTerm) {
+        itemCards.forEach(card => {
+            card.style.display = '';
+        });
+        return;
+    }
+    
+    itemCards.forEach(card => {
+        const itemName = (card.getAttribute('data-name') || '').toLowerCase();
+        console.log('Checking item:', itemName);
+        
+        // Only check item name for now, and only at the start
+        const isMatch = itemName.startsWith(searchTerm);
+        console.log('Is match:', isMatch);
+        
+        // Immediately show/hide
+        card.style.display = isMatch ? '' : 'none';
+    });
+}
 
 // Store selected items and their quantities
 let selectedItems = new Map();
@@ -409,6 +460,28 @@ function updateSelectedCount() {
 // Initialize click handlers when the DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded');
+    
+    // Add immediate search functionality
+    const searchInput = document.getElementById('itemSearch');
+    if (searchInput) {
+        // Focus handler to select all text
+        searchInput.addEventListener('focus', function() {
+            this.select();
+        });
+        
+        // Input handler for search
+        searchInput.addEventListener('input', function(e) {
+            handleSearch(e.target.value);
+        });
+        
+        // Clear search on escape
+        searchInput.addEventListener('keyup', function(e) {
+            if (e.key === 'Escape') {
+                this.value = '';
+                handleSearch('');
+            }
+        });
+    }
     
     // Handle URL parameters
     handleUrlParams();

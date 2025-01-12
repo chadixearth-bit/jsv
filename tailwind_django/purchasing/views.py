@@ -82,148 +82,77 @@ class PurchaseOrderCreateView(LoginRequiredMixin, CreateView):
     model = PurchaseOrder
     form_class = PurchaseOrderForm
     template_name = 'purchasing/purchase_order_form.html'
+    success_url = reverse_lazy('purchasing:list')
 
-    def dispatch(self, request, *args, **kwargs):
-        if not hasattr(request.user, 'customuser') or request.user.customuser.role != 'admin':
-            messages.error(request, "Only admin users can create purchase orders.")
-            return redirect('purchasing:list')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['user'] = self.request.user
-        return kwargs
+    def get_initial(self):
+        initial = super().get_initial()
+        # Check if we have draft data in session
+        po_draft_data = self.request.session.get('po_draft_data')
+        if po_draft_data:
+            initial.update({
+                'supplier': po_draft_data.get('supplier'),
+                'warehouse': po_draft_data.get('warehouse'),
+                'expected_delivery_date': po_draft_data.get('expected_delivery_date'),
+                'notes': po_draft_data.get('notes', '')
+            })
+        return initial
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['title'] = 'Create Purchase Order'
+        context['button_text'] = 'Create'
         
-        # Always add suppliers and warehouses to context
-        context['suppliers'] = Supplier.objects.all()
-        warehouses = Warehouse.objects.filter(
-            name__in=['Attendant Warehouse', 'Manager Warehouse']
-        )
-        context['warehouses'] = warehouses
-        context['inventory_items'] = InventoryItem.objects.select_related('brand', 'warehouse').filter(
-            warehouse__in=warehouses
-        )
-        
-        # Check for session data from pending items
+        # Add items data if available in session
         po_draft_data = self.request.session.get('po_draft_data')
-        if po_draft_data:
-            print("Found PO draft data:", po_draft_data)  # Debug print
-            
-            try:
-                print("Processing initial data...")  # Debug print
-                
-                # Set initial data for the form
-                initial_data = {
-                    'supplier': str(po_draft_data['supplier']),  # Convert to string
-                    'warehouse': str(po_draft_data['warehouse']),  # Convert to string
-                    'order_date': timezone.now().date(),
-                    'expected_delivery_date': po_draft_data.get('expected_delivery_date'),
-                    'notes': po_draft_data.get('notes', '')
-                }
-                print("Initial data prepared:", initial_data)  # Debug print
-                
-                # Convert pending items to initial items format
-                pending_items = po_draft_data.get('pending_items', [])
-                print("Pending items:", pending_items)  # Debug print
-                
-                initial_items = []
-                for item_data in pending_items:
-                    try:
-                        item_dict = {
-                            'brand': item_data.get('brand', ''),
-                            'item_name': item_data.get('item_name', ''),
-                            'model': item_data.get('model', ''),
-                            'quantity': item_data.get('quantity', 0),
-                            'unit_price': float(item_data.get('unit_price', 0))
-                        }
-                        print("Adding item:", item_dict)  # Debug print
-                        initial_items.append(item_dict)
-                    except (KeyError, ValueError) as e:
-                        print(f"Error processing item data: {e}")
-                        print("Item data was:", item_data)
-                        continue
-                
-                print("Final initial items:", initial_items)  # Debug print
-                
-                # Store data in context
-                context.update({
-                    'initial': initial_data,
-                    'pending_items': initial_items,
-                    'draft_data': po_draft_data,
-                    'initial_supplier': initial_data.get('supplier'),
-                    'initial_warehouse': initial_data.get('warehouse'),
-                    'initial_order_date': initial_data.get('order_date'),
-                    'initial_delivery_date': initial_data.get('expected_delivery_date'),
-                    'initial_notes': initial_data.get('notes', '')
-                })
-                
-            except Exception as e:
-                messages.error(self.request, f"Error loading draft data: {str(e)}")
+        if po_draft_data and po_draft_data.get('pending_items'):
+            context['initial_items'] = json.dumps(po_draft_data['pending_items'])
+            print("Initial items:", context['initial_items'])  # Debug print
         
         return context
 
     def form_valid(self, form):
         try:
             with transaction.atomic():
-                # Set basic PO data
                 po = form.save(commit=False)
                 po.created_by = self.request.user
-                po.order_date = timezone.now().date()
-                po.status = 'draft'
-                
-                # Get items data from form
+                po.save()
+
+                # Get items data
                 items_data = json.loads(self.request.POST.get('items', '[]'))
-                form.cleaned_data['items'] = items_data
                 
-                # Save the PO and items
-                po = form.save()
+                # Create items
+                for item_data in items_data:
+                    PurchaseOrderItem.objects.create(
+                        purchase_order=po,
+                        brand=item_data['brand'],
+                        item_name=item_data['item_name'],
+                        model_name=item_data['model'],
+                        quantity=int(item_data['quantity']),
+                        unit_price=Decimal(str(item_data['unit_price']))
+                    )
 
                 # Mark pending items as processed if they exist
                 if 'po_draft_data' in self.request.session:
-                    pending_item_ids = [item.get('pending_item_id') for item in self.request.session['po_draft_data'].get('pending_items', [])]
-                    if pending_item_ids:
-                        PendingPOItem.objects.filter(id__in=pending_item_ids).update(is_processed=True)
-                        
-                        # Update associated requisitions status to 'processed'
-                        requisition_ids = set()
-                        for item in self.request.session['po_draft_data'].get('pending_items', []):
-                            if item.get('requisition_id'):
-                                requisition_ids.add(item['requisition_id'])
-                        
-                        if requisition_ids:
-                            Requisition.objects.filter(id__in=requisition_ids).update(status='processed')
+                    # Get the pending item IDs from session data
+                    pending_items = self.request.session['po_draft_data'].get('pending_items', [])
+                    pending_item_ids = [item.get('pending_item_id') for item in pending_items if item.get('pending_item_id')]
                     
+                    # Update specific PendingPOItems to mark them as processed
+                    if pending_item_ids:
+                        PendingPOItem.objects.filter(
+                            id__in=pending_item_ids,
+                            is_processed=False
+                        ).update(is_processed=True)
+                    
+                    # Clear the session data
                     del self.request.session['po_draft_data']
                     self.request.session.modified = True
 
-                # Calculate total
-                po.calculate_total()
-                po.save()
-                
-                messages.success(self.request, "Purchase order created successfully")
-                return redirect('purchasing:list')
-                
+                messages.success(self.request, 'Purchase order created successfully.')
+                return redirect(self.success_url)
         except Exception as e:
-            messages.error(self.request, f"Error creating purchase order: {str(e)}")
+            messages.error(self.request, f'Error creating purchase order: {str(e)}')
             return self.form_invalid(form)
-
-    def get_initial(self):
-        initial = super().get_initial()
-        if 'po_draft_data' in self.request.session:
-            draft_data = self.request.session['po_draft_data']
-            initial.update({
-                'supplier': draft_data.get('supplier'),
-                'warehouse': draft_data.get('warehouse'),
-                'expected_delivery_date': draft_data.get('expected_delivery_date'),
-                'notes': draft_data.get('notes')
-            })
-        return initial
-
-    def get_success_url(self):
-        return reverse('purchasing:list')
 
 class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
     model = PurchaseOrder
@@ -231,7 +160,7 @@ class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'purchasing/purchase_order_form.html'
     success_url = reverse_lazy('purchasing:list')
 
-    def dispatch(self, request, *args, **kwargs) -> Any:
+    def dispatch(self, request: Any, *args: Any, **kwargs: Any) -> HttpResponseRedirect:
         # Allow both superusers and admin users to update POs
         if request.user.is_superuser or (hasattr(request.user, 'customuser') and request.user.customuser.role == 'admin'):
             return super().dispatch(request, *args, **kwargs)
@@ -245,45 +174,70 @@ class PurchaseOrderUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        po = self.get_object()
+        
+        # Add basic context
         context['title'] = 'Edit Purchase Order'
         context['is_edit'] = True
-        context['purchase_order'] = self.get_object()
+        context['purchase_order'] = po
+        
+        # Add suppliers and warehouses
+        context['suppliers'] = Supplier.objects.all()
+        context['warehouses'] = Warehouse.objects.filter(
+            name__in=['Attendant Warehouse', 'Manager Warehouse']
+        )
+        
+        # Add initial data
+        context.update({
+            'initial_supplier': po.supplier.id,
+            'initial_warehouse': po.warehouse.id,
+            'initial_order_date': po.order_date,
+            'initial_delivery_date': po.expected_delivery_date,
+            'initial_notes': po.notes,
+        })
+        
+        # Add items data
+        items_data = []
+        for item in po.items.all():
+            items_data.append({
+                'brand': item.brand,
+                'item_name': item.item_name,
+                'model': item.model_name,
+                'quantity': item.quantity,
+                'unit_price': float(item.unit_price)
+            })
+        context['initial_items'] = json.dumps(items_data)
+        
         return context
 
     def form_valid(self, form):
         try:
             with transaction.atomic():
+                # Get items data from the form
+                items_data = json.loads(self.request.POST.get('items', '[]'))
+                
+                # Validate that there is at least one item
+                if not items_data:
+                    messages.error(self.request, 'A purchase order must have at least one item.')
+                    return self.form_invalid(form)
+                
                 po = form.save(commit=False)
-                po.created_by = self.request.user
                 po.save()
 
-                # Handle existing items updates
-                existing_items = []
-                items_to_delete = []
+                # Delete all existing items
+                po.items.all().delete()
                 
-                # Get all item IDs from the form
-                for key in self.request.POST:
-                    if key.startswith('existing_items[]'):
-                        item_id = self.request.POST.getlist(key)[0]
-                        existing_items.append(item_id)
+                # Create new items
+                for item_data in items_data:
+                    PurchaseOrderItem.objects.create(
+                        purchase_order=po,
+                        brand=item_data['brand'],
+                        item_name=item_data['item_name'],
+                        model_name=item_data['model'],
+                        quantity=int(item_data['quantity']),
+                        unit_price=Decimal(str(item_data['unit_price']))
+                    )
                 
-                # Update or delete existing items
-                for item in po.items.all():
-                    if str(item.id) not in existing_items:
-                        items_to_delete.append(item)
-                    else:
-                        # Update quantity and price
-                        quantity = self.request.POST.get(f'existing_quantity_{item.id}')
-                        price = self.request.POST.get(f'existing_price_{item.id}')
-                        if quantity and price:
-                            item.quantity = int(quantity)
-                            item.unit_price = Decimal(price)
-                            item.save()
-                
-                # Delete removed items
-                for item in items_to_delete:
-                    item.delete()
-
                 # Calculate new total
                 po.calculate_total()
                 po.save()
@@ -898,8 +852,8 @@ def create_purchase_order(request, requisition_id=None):
             
             # Set initial data for the form
             initial_data = {
-                'supplier': str(po_draft_data['supplier']),  # Convert to string
-                'warehouse': str(po_draft_data['warehouse']),  # Convert to string
+                'supplier': po_draft_data.get('supplier'),
+                'warehouse': po_draft_data.get('warehouse'),
                 'order_date': timezone.now().date(),
                 'expected_delivery_date': po_draft_data.get('expected_delivery_date'),
                 'notes': po_draft_data.get('notes', '')
@@ -951,18 +905,24 @@ def create_purchase_order(request, requisition_id=None):
             items_data = json.loads(request.POST.get('items', '[]'))
             form.cleaned_data['items'] = items_data
             
+            # Validate that there is at least one item
+            if not items_data:
+                messages.error(request, 'A purchase order must have at least one item.')
+                return self.form_invalid(form)
+            
             # Save the PO and items
             po = form.save()
 
             # Mark pending items as processed if they exist
             if 'po_draft_data' in request.session:
-                # Get the brand from session data
-                brand = request.session['po_draft_data'].get('brand')
+                # Get the pending item IDs from session data
+                pending_items = request.session['po_draft_data'].get('pending_items', [])
+                pending_item_ids = [item.get('pending_item_id') for item in pending_items if item.get('pending_item_id')]
                 
-                # Update PendingPOItems to mark them as processed
-                if brand:
+                # Update specific PendingPOItems to mark them as processed
+                if pending_item_ids:
                     PendingPOItem.objects.filter(
-                        brand__name=brand,
+                        id__in=pending_item_ids,
                         is_processed=False
                     ).update(is_processed=True)
                 
@@ -1247,18 +1207,19 @@ def create_from_pending_items(request):
             
             print(f"Found {selected_items.count()} selected items")  # Debug print
             
-            # Store data in session
-            request.session['po_draft_data'] = {
+            # Initialize session data with empty items list
+            po_draft_data = {
                 'supplier': data.get('supplier'),
                 'warehouse': data.get('warehouse'),
                 'expected_delivery_date': data.get('expected_delivery_date'),
-                'notes': data.get('notes', '')
+                'notes': data.get('notes', ''),
+                'pending_items': []  # Initialize empty list
             }
             
-            # Add items to session data
+            # Add items to the list
             for pending_item in selected_items:
                 inventory_item = pending_item.item.item  # Get the inventory item
-                request.session['po_draft_data']['pending_items'].append({
+                po_draft_data['pending_items'].append({
                     'brand': inventory_item.brand.name,
                     'item_name': inventory_item.item_name,
                     'model': inventory_item.model,
@@ -1267,19 +1228,20 @@ def create_from_pending_items(request):
                     'pending_item_id': pending_item.id  # Store the ID to mark as processed later
                 })
             
-            print("Session data:", request.session['po_draft_data'])  # Debug print
+            # Store the complete data in session
+            request.session['po_draft_data'] = po_draft_data
             request.session.modified = True
             
             return JsonResponse({
-                'status': 'success', 
-                'redirect_url': reverse('purchasing:create_purchase_order')
+                'success': True,
+                'redirect_url': reverse('purchasing:create_purchase_order')  # Fixed URL name
             })
             
         except Exception as e:
             print(f"Error in create_from_pending_items: {str(e)}")  # Debug print
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
             
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+    return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
 
 @login_required
 def create_po_from_pending(request, brand=None):

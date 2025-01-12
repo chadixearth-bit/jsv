@@ -10,8 +10,8 @@
                 
                 <!-- Header -->
                 <div class="px-6 py-5 border-b border-gray-200">
-                    <h2 class="text-xl font-semibold text-gray-900">Create Purchase Order</h2>
-                    <p class="mt-1 text-sm text-gray-500">Fill in the details below to create a purchase order.</p>
+                    <h2 class="text-xl font-semibold text-gray-900">{% if is_edit %}Edit{% else %}Create{% endif %} Purchase Order</h2>
+                    <p class="mt-1 text-sm text-gray-500">Fill in the details below to {% if is_edit %}edit{% else %}create{% endif %} a purchase order.</p>
                 </div>
 
                 <!-- Order Details Section -->
@@ -93,7 +93,7 @@
 
                     <!-- Items Table -->
                     <div class="mt-4 overflow-x-auto">
-                        <table id="itemsTable" class="min-w-full divide-y divide-gray-200">
+                        <table class="min-w-full divide-y divide-gray-200" id="itemsTable">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
@@ -128,7 +128,7 @@
                         Cancel
                     </a>
                     <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                        Create Order
+                        {% if is_edit %}Update{% else %}Create{% endif %} Order
                     </button>
                 </div>
             </form>
@@ -187,19 +187,56 @@
 </div>
 
 <script>
-    // Initialize variables
-    let itemCounter = 0;
-    const itemsTable = document.getElementById('itemTableBody');
-    const itemsDataInput = document.getElementById('itemsData');
-    const modal = document.getElementById('addExistingItemModal');
+    let itemsTable;
+    let items = [];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        itemsTable = document.getElementById('itemTableBody');
+        console.log("Initial items from server:", {{ initial_items|default:'[]'|safe }});
+        
+        // Initialize items from session data if available
+        const initialItems = {{ initial_items|default:'[]'|safe }};
+        if (initialItems && initialItems.length > 0) {
+            initialItems.forEach(item => {
+                addNewRow(item.brand, item.item_name, item.model, item.quantity, item.unit_price);
+            });
+            updateCalculations();
+        }
+    });
+
+    function addNewRow(brand = '', itemName = '', model = '', quantity = '', unitPrice = '') {
+        const newRow = document.createElement('tr');
+        newRow.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${brand}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${itemName}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${model}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <input type="number" value="${quantity}" min="1" 
+                    class="quantity-input block w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    onchange="updateCalculations()">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <input type="number" value="${unitPrice}" step="0.01" min="0"
+                    class="price-input block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    onchange="updateCalculations()">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 subtotal">₱0.00</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <button type="button" onclick="removeItem(this)" 
+                    class="text-red-600 hover:text-red-900">Remove</button>
+            </td>
+        `;
+        itemsTable.appendChild(newRow);
+        updateCalculations();
+    }
 
     function updateCalculations() {
         const rows = itemsTable.getElementsByTagName('tr');
         let total = 0;
         
         for (let row of rows) {
-            const qtyInput = row.querySelector('input[name$="[quantity]"]');
-            const priceInput = row.querySelector('input[name$="[unit_price]"]');
+            const qtyInput = row.querySelector('.quantity-input');
+            const priceInput = row.querySelector('.price-input');
             const subtotalCell = row.querySelector('.subtotal');
             
             if (qtyInput && priceInput && subtotalCell) {
@@ -212,60 +249,44 @@
         }
         
         document.getElementById('totalAmount').textContent = '₱' + total.toFixed(2);
+        
+        // Update hidden input with items data
+        const items = [];
+        for (let row of rows) {
+            const item = {
+                brand: row.cells[0].textContent,
+                item_name: row.cells[1].textContent,
+                model: row.cells[2].textContent,
+                quantity: parseInt(row.querySelector('.quantity-input').value) || 0,
+                unit_price: parseFloat(row.querySelector('.price-input').value) || 0
+            };
+            items.push(item);
+        }
+        document.getElementById('itemsData').value = JSON.stringify(items);
     }
 
     function removeItem(button) {
         const row = button.closest('tr');
+        const itemCount = itemsTable.getElementsByTagName('tr').length;
+        
+        if (itemCount <= 1) {
+            alert('Cannot remove the last item. A purchase order must have at least one item.');
+            return;
+        }
+        
         if (row) {
             row.remove();
             updateCalculations();
         }
     }
 
-    function addNewRow(brand = '', itemName = '', model = '', qty = 1, price = 0) {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td class="px-6 py-4 whitespace-nowrap">
-                <input type="text" name="items[${itemCounter}][brand]" value="${brand}" required
-                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <input type="text" name="items[${itemCounter}][item_name]" value="${itemName}" required
-                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <input type="text" name="items[${itemCounter}][model]" value="${model}" required
-                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <input type="number" name="items[${itemCounter}][quantity]" value="${qty}" min="1" required
-                       class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                       onchange="updateCalculations()">
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap">
-                <input type="number" name="items[${itemCounter}][unit_price]" value="${price}" min="0" step="0.01" required
-                       class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                       onchange="updateCalculations()">
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 subtotal">₱${(qty * price).toFixed(2)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <button type="button" onclick="removeItem(this)" 
-                        class="text-red-600 hover:text-red-900">Remove</button>
-            </td>
-        `;
-        
-        itemsTable.appendChild(row);
-        itemCounter++;
-        updateCalculations();
-    }
-
     function openExistingItemModal() {
-        modal.classList.remove('hidden');
+        document.getElementById('addExistingItemModal').classList.remove('hidden');
         filterItemsByWarehouse(document.getElementById('warehouse').value);
     }
 
     function closeExistingItemModal() {
-        modal.classList.add('hidden');
+        document.getElementById('addExistingItemModal').classList.add('hidden');
     }
 
     function selectExistingItem(brand, itemName, model) {
@@ -286,7 +307,7 @@
 
     // Add warehouse change listener
     document.getElementById('warehouse').addEventListener('change', function(e) {
-        if (!modal.classList.contains('hidden')) {
+        if (!document.getElementById('addExistingItemModal').classList.contains('hidden')) {
             filterItemsByWarehouse(e.target.value);
         }
     });
@@ -313,8 +334,8 @@
     }
 
     // Close modal when clicking outside
-    modal.addEventListener('click', function(event) {
-        if (event.target === modal) {
+    document.getElementById('addExistingItemModal').addEventListener('click', function(event) {
+        if (event.target === document.getElementById('addExistingItemModal')) {
             closeExistingItemModal();
         }
     });
@@ -327,16 +348,16 @@
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             const item = {
-                brand: row.querySelector('input[name$="[brand]"]').value,
-                item_name: row.querySelector('input[name$="[item_name]"]').value,
-                model: row.querySelector('input[name$="[model]"]').value,
-                quantity: parseInt(row.querySelector('input[name$="[quantity]"]').value),
-                unit_price: parseFloat(row.querySelector('input[name$="[unit_price]"]').value)
+                brand: row.cells[0].textContent,
+                item_name: row.cells[1].textContent,
+                model: row.cells[2].textContent,
+                quantity: parseInt(row.querySelector('.quantity-input').value),
+                unit_price: parseFloat(row.querySelector('.price-input').value)
             };
             items.push(item);
         }
         
-        itemsDataInput.value = JSON.stringify(items);
+        document.getElementById('itemsData').value = JSON.stringify(items);
         return validateDates();
     }
 
@@ -349,15 +370,6 @@
             return false;
         }
         return true;
-    }
-
-    // Initialize items data from session if available
-    const initialItems = {{ initial_items|safe }};
-    if (initialItems && initialItems.length > 0) {
-        initialItems.forEach(item => {
-            addNewRow(item.brand, item.item_name, item.model, item.quantity, item.unit_price);
-        });
-        updateCalculations();
     }
 </script>
 {% endblock %}

@@ -44,14 +44,14 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             const data = await response.json();
-            if (data.status === 'success') {
+            if (data.success) {
                 if (data.redirect_url) {
                     window.location.href = data.redirect_url;
                 } else {
                     window.location.href = "{% url 'purchasing:create_purchase_order' %}";
                 }
             } else {
-                alert('Error: ' + data.message);
+                alert(data.error || 'Error creating purchase order');
             }
         } catch (error) {
             console.error('Error:', error);
