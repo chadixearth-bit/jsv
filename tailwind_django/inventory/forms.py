@@ -98,21 +98,30 @@ class InventoryItemForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         warehouse_choice = cleaned_data.get('warehouse')
+        model = cleaned_data.get('model')
+
+        # Check for duplicate model
+        if model:
+            # Query to check if model already exists
+            existing_item = InventoryItem.objects.filter(model=model).first()
+            if existing_item:
+                raise forms.ValidationError(
+                    f"An item with model '{model}' already exists. Please use a different model number."
+                )
         
-        if not warehouse_choice:
-            raise forms.ValidationError("Please select a warehouse")
-        
+        # Handle warehouse selection
         if warehouse_choice == 'both':
             cleaned_data['create_in_both'] = True
-            # Get attendant warehouse for validation
-            cleaned_data['warehouse'] = Warehouse.objects.get(name='Attendant Warehouse')
-        else:
             try:
-                warehouse_id = int(warehouse_choice)
-                cleaned_data['warehouse'] = Warehouse.objects.get(id=warehouse_id)
-                cleaned_data['create_in_both'] = False
-            except (ValueError, Warehouse.DoesNotExist):
-                raise forms.ValidationError("Invalid warehouse selection")
+                cleaned_data['warehouse'] = Warehouse.objects.get(name='Manager Warehouse')
+            except Warehouse.DoesNotExist:
+                raise forms.ValidationError("Manager Warehouse does not exist")
+        else:
+            cleaned_data['create_in_both'] = False
+            try:
+                cleaned_data['warehouse'] = Warehouse.objects.get(id=int(warehouse_choice))
+            except (Warehouse.DoesNotExist, ValueError):
+                raise forms.ValidationError("Please select a valid warehouse")
         
         return cleaned_data
 
@@ -160,3 +169,26 @@ class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
         fields = ['name']
+
+class LimitedInventoryItemForm(forms.ModelForm):
+    class Meta:
+        model = InventoryItem
+        fields = ['stock', 'image']
+        widgets = {
+            'stock': forms.NumberInput(attrs={
+                'class': 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500',
+                'required': True,
+                'min': '0',
+                'step': '1',
+                'placeholder': 'Enter stock quantity'
+            }),
+            'image': forms.FileInput(attrs={
+                'class': 'mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100',
+                'accept': 'image/*'
+            })
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['image'].required = False
+        self.fields['image'].help_text = 'Upload an image of the item (optional)'
