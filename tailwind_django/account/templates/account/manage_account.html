@@ -88,9 +88,9 @@
     {% if messages %}
     <div class="fixed top-4 right-4 z-50 space-y-4">
         {% for message in messages %}
-        <div class="animate-fade-in-down rounded-lg p-4 flex items-center shadow-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+        <!-- <div class="animate-fade-in-down rounded-lg p-4 flex items-center shadow-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
             {{ message }}
-        </div>
+        </div> -->
         {% endfor %}
     </div>
     {% endif %}
