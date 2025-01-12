@@ -117,16 +117,17 @@ def requisition_list(request):
             Q(requester=request.user)  # Their own requisitions
         )
     elif user_role == 'admin':
-        # Admins can see:
+        # Admins should see:
         # 1. Requisitions that need admin approval
-        # 2. Requisitions they have approved/rejected
-        # 3. Requisitions that were completed after admin approval
+        # 2. Requisitions that have been forwarded to admin
+        # 3. Requisitions they've previously handled
+        # 4. Rejected requisitions from managers
         requisitions = requisitions.filter(
-            Q(status='pending_admin_approval') |  # Needs admin approval
-            Q(status='approved_by_admin') |  # Approved by admin
-            Q(status='rejected_by_admin') |  # Rejected by admin
-            Q(status='approved')  # Also show approved requisitions
-        )
+            Q(status='pending_admin_approval') |
+            Q(status='forwarded_to_admin') |
+            Q(status__in=['approved_by_admin', 'pending_po', 'rejected', 'rejected_by_admin']) |
+            Q(notifications__user=request.user)  # Requisitions they've been involved with
+        ).distinct()
     else:
         # For other roles, only show their own requisitions
         requisitions = requisitions.filter(requester=request.user)
@@ -416,34 +417,49 @@ def reject_requisition(request, pk):
         comment = request.POST.get('comment', '')
         try:
             with transaction.atomic():
-                # Mark the original requisition as rejected
-                requisition.status = 'rejected'
-                requisition.approval_comment = comment
-                requisition.save()
+                # Check if it's an admin rejecting a manager's requisition
+                if user_role == 'admin' and requisition.requester.customuser.role == 'manager':
+                    # Simply mark as rejected without creating new requisition
+                    requisition.status = 'rejected_by_admin'
+                    requisition.approval_comment = comment
+                    requisition.save()
 
-                # Create a new requisition to admin for PO
-                admin_requisition = Requisition.objects.create(
-                    requester=request.user,  # Manager becomes the requester
-                    status='pending_admin_approval',  # Directly goes to admin
-                    reason=f"Auto-generated from rejected requisition #{requisition.id}. Original requester: {requisition.requester.username}. Reason: {requisition.reason}",
-                )
+                    # Create notification for the manager
+                    Notification.objects.create(
+                        user=requisition.requester,
+                        requisition=requisition,
+                        message=f'Your requisition has been rejected by {request.user.username}.'
+                    )
+                else:
+                    # For manager rejecting attendant requisition, create new admin requisition
+                    # Mark the original requisition as rejected
+                    requisition.status = 'rejected'
+                    requisition.approval_comment = comment
+                    requisition.save()
 
-                # Copy all items to the new requisition
-                for req_item in requisition.items.all():
-                    RequisitionItem.objects.create(
-                        requisition=admin_requisition,
-                        item=req_item.item,
-                        quantity=req_item.quantity
+                    # Create a new requisition to admin for PO
+                    admin_requisition = Requisition.objects.create(
+                        requester=request.user,  # Manager becomes the requester
+                        status='pending_admin_approval',  # Directly goes to admin
+                        reason=f"Auto-generated from rejected requisition #{requisition.id}. Original requester: {requisition.requester.username}. Reason: {requisition.reason}",
                     )
 
-                # Create notification for the original requester
-                Notification.objects.create(
-                    user=requisition.requester,
-                    requisition=requisition,
-                    message=f'Your requisition has been rejected by {request.user.username}. A new requisition has been created for admin review.'
-                )
+                    # Copy all items to the new requisition
+                    for req_item in requisition.items.all():
+                        RequisitionItem.objects.create(
+                            requisition=admin_requisition,
+                            item=req_item.item,
+                            quantity=req_item.quantity
+                        )
 
-                messages.success(request, 'Requisition rejected and forwarded to admin for review.')
+                    # Create notification for the original requester
+                    Notification.objects.create(
+                        user=requisition.requester,
+                        requisition=requisition,
+                        message=f'Your requisition has been rejected by {request.user.username}. A new requisition has been created for admin review.'
+                    )
+
+                messages.success(request, 'Requisition rejected successfully.')
                 return redirect('requisition:requisition_list')
         except Exception as e:
             messages.error(request, f"Error rejecting requisition: {str(e)}")
@@ -469,9 +485,9 @@ def approve_requisition(request, pk):
     
     # Cannot approve if already processed
     if requisition.status != 'pending' and requisition.status != 'pending_admin_approval':
-        messages.error(request, "This requisition cannot be approved.")
+        messages.error(request, "This requisition cannot be processed.")
         return redirect('requisition:requisition_list')
-    
+
     # Get manager's warehouse
     manager_warehouse = request.user.customuser.warehouses.first()
     
@@ -512,159 +528,143 @@ def approve_requisition(request, pk):
             available_items.append(item_info)
         else:
             unavailable_items.append(item_info)
-    
+
     if request.method == 'POST':
         action = request.POST.get('action')
         comment = request.POST.get('comment', '')
         
-        try:
-            with transaction.atomic():
-                if action == 'approve':
-                    # For attendant requisitions, manager can only approve available items
-                    if requisition.requester.customuser.role == 'attendant' and user_role == 'manager':
-                        if available_items:
-                            # Create delivery for available items
-                            delivery = Delivery.objects.create(
-                                requisition=requisition,
-                                source_warehouse=manager_warehouse,
-                                destination_warehouse=requisition.requester.customuser.warehouses.first(),
-                                status='pending_delivery',
-                                delivered_by=request.user
-                            )
-                            
-                            # Add only available items to delivery 
-                            for item_info in available_items:
-                                req_item = item_info['item']
-                                manager_item = item_info['manager_item']
-                                
-                                # Create delivery item
-                                DeliveryItem.objects.create(
-                                    delivery=delivery,
-                                    item=manager_item,
-                                    quantity=req_item.quantity
-                                )
-                            
-                            # Update original requisition status for available items
-                            requisition.status = 'approved'
-                            requisition.approved_by = request.user
-                            requisition.approved_at = timezone.now()
-                            requisition.approval_comment = comment
-                            requisition.save()
-
-                            # Remove unavailable items from original requisition
-                            for item_info in unavailable_items:
-                                item_info['item'].delete()
-
-                            # Remove new items from original requisition
-                            for item in new_items:
-                                item.delete()
-
-                            # Notify requester about approved items
-                            Notification.objects.create(
-                                user=requisition.requester,
-                                requisition=requisition,
-                                message=f'Your requisition has been approved for {len(available_items)} available items. They will be delivered soon.'
-                            )
-
-                        # Create separate requisition for unavailable items
-                        if new_items or unavailable_items:
-                            admin_requisition = Requisition.objects.create(
-                                requester=request.user,  # Manager becomes the requester
-                                status='pending_admin_approval',
-                                reason=f"Auto-generated for unavailable items from attendant requisition #{requisition.id}. Original requester: {requisition.requester.username}",
-                                source_warehouse=manager_warehouse
-                            )
-                            
-                            # Add new items to admin requisition
-                            for req_item in new_items:
-                                RequisitionItem.objects.create(
-                                    requisition=admin_requisition,
-                                    item=req_item.item,
-                                    quantity=req_item.quantity,
-                                    is_new_item=True
-                                )
-                            
-                            # Add unavailable items to admin requisition
-                            for item_info in unavailable_items:
-                                req_item = item_info['item']
-                                RequisitionItem.objects.create(
-                                    requisition=admin_requisition,
-                                    item=req_item.item,
-                                    quantity=req_item.quantity,
-                                    is_new_item=False
-                                )
-                            
-                            # Notify admins about the new requisition
-                            admin_users = CustomUser.objects.filter(role='admin').select_related('user')
-                            for admin_user in admin_users:
-                                if admin_user.user:
-                                    Notification.objects.create(
-                                        user=admin_user.user,
-                                        requisition=admin_requisition,
-                                        message=f'New requisition from manager {request.user.username} for unavailable items (originally requested by {requisition.requester.username})'
-                                    )
-                            
-                            # Notify requester about unavailable items being forwarded
-                            Notification.objects.create(
-                                user=requisition.requester,
-                                requisition=requisition,
-                                message=f'Unavailable items from your requisition have been forwarded to admin for review.'
-                            )
-
-                    # For manager requisitions, admin handles everything
-                    else:
-                        if available_items:
-                            delivery = Delivery.objects.create(
-                                requisition=requisition,
-                                source_warehouse=manager_warehouse,
-                                destination_warehouse=requisition.requester.customuser.warehouses.first(),
-                                status='pending_delivery',
-                                delivered_by=request.user
-                            )
-                            
-                            for item_info in available_items:
-                                req_item = item_info['item']
-                                manager_item = item_info['manager_item']
-                                DeliveryItem.objects.create(
-                                    delivery=delivery,
-                                    item=manager_item,
-                                    quantity=req_item.quantity
-                                )
+        if action == 'reject':
+            return reject_requisition(request, pk)
+        elif action == 'approve':
+            if request.user.customuser.role == 'manager':
+                if available_items:
+                    # Create delivery for available items
+                    delivery = Delivery.objects.create(
+                        requisition=requisition,
+                        source_warehouse=manager_warehouse,
+                        destination_warehouse=requisition.requester.customuser.warehouses.first(),
+                        status='pending_delivery',
+                        delivered_by=request.user
+                    )
+                    
+                    # Add only available items to delivery 
+                    for item_info in available_items:
+                        req_item = item_info['item']
+                        manager_item = item_info['manager_item']
                         
-                        # Update requisition status
-                        requisition.status = 'approved'
-                        requisition.approved_by = request.user
-                        requisition.approved_at = timezone.now()
-                        requisition.approval_comment = comment
-                        requisition.save()
-                        
-                        # Notify requester
-                        Notification.objects.create(
-                            user=requisition.requester,
-                            requisition=requisition,
-                            message=f'Your requisition has been approved by admin.'
+                        # Create delivery item
+                        DeliveryItem.objects.create(
+                            delivery=delivery,
+                            item=manager_item,
+                            quantity=req_item.quantity
                         )
                     
-                    messages.success(request, 'Requisition processed successfully.')
-                    return redirect('requisition:requisition_list')
-                
-                elif action == 'reject':
-                    requisition.status = 'rejected'
+                    # Update original requisition status for available items
+                    requisition.status = 'approved'
+                    requisition.approved_by = request.user
+                    requisition.approved_at = timezone.now()
                     requisition.approval_comment = comment
                     requisition.save()
-                    
-                    # Create notification
+
+                    # Remove unavailable items from original requisition
+                    for item_info in unavailable_items:
+                        item_info['item'].delete()
+
+                    # Remove new items from original requisition
+                    for item in new_items:
+                        item.delete()
+
+                    # Notify requester about approved items
                     Notification.objects.create(
                         user=requisition.requester,
                         requisition=requisition,
-                        message=f'Your requisition has been rejected by {request.user.username}.'
+                        message=f'Your requisition has been approved for {len(available_items)} available items. They will be delivered soon.'
+                    )
+
+                # Create separate requisition for unavailable items
+                if new_items or unavailable_items:
+                    admin_requisition = Requisition.objects.create(
+                        requester=request.user,  # Manager becomes the requester
+                        status='pending_admin_approval',
+                        reason=f"Auto-generated for unavailable items from attendant requisition #{requisition.id}. Original requester: {requisition.requester.username}",
+                        source_warehouse=manager_warehouse
                     )
                     
-                    messages.success(request, 'Requisition rejected successfully.')
-                    return redirect('requisition:requisition_list')
+                    # Add new items to admin requisition
+                    for req_item in new_items:
+                        RequisitionItem.objects.create(
+                            requisition=admin_requisition,
+                            item=req_item.item,
+                            quantity=req_item.quantity,
+                            is_new_item=True
+                        )
+                    
+                    # Add unavailable items to admin requisition
+                    for item_info in unavailable_items:
+                        req_item = item_info['item']
+                        RequisitionItem.objects.create(
+                            requisition=admin_requisition,
+                            item=req_item.item,
+                            quantity=req_item.quantity,
+                            is_new_item=False
+                        )
+                    
+                    # Notify admins about the new requisition
+                    admin_users = CustomUser.objects.filter(role='admin').select_related('user')
+                    for admin_user in admin_users:
+                        if admin_user.user:
+                            Notification.objects.create(
+                                user=admin_user.user,
+                                requisition=admin_requisition,
+                                message=f'New requisition from manager {request.user.username} for unavailable items (originally requested by {requisition.requester.username})'
+                            )
+                    
+                    # Notify requester about unavailable items being forwarded
+                    Notification.objects.create(
+                        user=requisition.requester,
+                        requisition=requisition,
+                        message=f'Unavailable items from your requisition have been forwarded to admin for review.'
+                    )
+
+            # For manager requisitions, admin handles everything
+            else:
+                if available_items:
+                    delivery = Delivery.objects.create(
+                        requisition=requisition,
+                        source_warehouse=manager_warehouse,
+                        destination_warehouse=requisition.requester.customuser.warehouses.first(),
+                        status='pending_delivery',
+                        delivered_by=request.user
+                    )
+                    
+                    for item_info in available_items:
+                        req_item = item_info['item']
+                        manager_item = item_info['manager_item']
+                        DeliveryItem.objects.create(
+                            delivery=delivery,
+                            item=manager_item,
+                            quantity=req_item.quantity
+                        )
                 
-        except Exception as e:
-            messages.error(request, f'Error processing requisition: {str(e)}')
+                # Update requisition status
+                requisition.status = 'approved'
+                requisition.approved_by = request.user
+                requisition.approved_at = timezone.now()
+                requisition.approval_comment = comment
+                requisition.save()
+                
+                # Notify requester
+                Notification.objects.create(
+                    user=requisition.requester,
+                    requisition=requisition,
+                    message=f'Your requisition has been approved by admin.'
+                )
+            
+            messages.success(request, 'Requisition processed successfully.')
+            return redirect('requisition:requisition_list')
+        
+        else:
+            messages.error(request, "Invalid action specified.")
             return redirect('requisition:requisition_list')
     
     context = {
@@ -879,8 +879,8 @@ def delivery_list(request):
         ).select_related(
             'requisition',
             'requisition__requester',
-            'source_warehouse',
-            'destination_warehouse',
+            'requisition__source_warehouse',
+            'requisition__destination_warehouse',
             'delivered_by'
         ).prefetch_related('items__item__brand')
     else:
