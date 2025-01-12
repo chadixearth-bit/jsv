@@ -164,7 +164,7 @@ EMAIL_TIMEOUT = 300
 EMAIL_SSL_CERTFILE = None
 EMAIL_SSL_KEYFILE = None
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'jsvindustrialequipmenttrading@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('jsvindustrial')  # Get from environment variable
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'xdkb jcza qnrv uqou')  # Get from environment variable
 DEFAULT_FROM_EMAIL = f'JSV Industrial Equipment Trading <{EMAIL_HOST_USER}>'
 SERVER_EMAIL = EMAIL_HOST_USER
 
