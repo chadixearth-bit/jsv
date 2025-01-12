@@ -113,9 +113,9 @@
     </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body class="h-full bg-gray-50 text-sm">
+<body class="h-full bg-[#F3F3F3] text-sm">
     {% if request.path == '/account/login/' or '/account/password_reset' in request.path or '/account/reset/' in request.path %}
-        <div class="fixed inset-0 flex items-center justify-center bg-gray-50">
+        <div class="fixed inset-0 flex items-center justify-center bg-[#F3F3F3]">
             <div class="w-full max-w-md mx-4">
                 {% block login_content %}{% endblock %}
             </div>
