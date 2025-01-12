@@ -3,51 +3,69 @@
 
 {% block main_content %}
 <!-- JavaScript functions -->
-<script type="text/javascript">
-    function clearBrandItems(brandId) {
-        if (!confirm('Are you sure you want to delete all pending items for this brand?')) {
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Function to create purchase order from selected items
+    window.createPurchaseOrder = async function() {
+        const selectedItems = [];
+        document.querySelectorAll('input[name="selected_items"]:checked').forEach(checkbox => {
+            selectedItems.push(parseInt(checkbox.value));
+        });
+
+        if (selectedItems.length === 0) {
+            alert('Please select at least one item.');
             return;
         }
 
-        // Create and submit form
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/purchasing/clear-brand-pending-items/${brandId}/`;
+        const supplier = document.getElementById('supplier').value;
+        const warehouse = document.getElementById('warehouse').value;
+        const expectedDeliveryDate = document.getElementById('expected_delivery_date').value;
+        const notes = document.getElementById('notes').value;
 
-        // Add CSRF token
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = 'csrfmiddlewaretoken';
-        csrfToken.value = '{{ csrf_token }}';
-        form.appendChild(csrfToken);
+        if (!supplier || !warehouse || !expectedDeliveryDate) {
+            alert('Please fill in all required fields.');
+            return;
+        }
 
-        document.body.appendChild(form);
-        form.submit();
-    }
+        try {
+            const response = await fetch("{% url 'purchasing:create_from_pending_items' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    selected_items: selectedItems,
+                    supplier: parseInt(supplier),
+                    warehouse: parseInt(warehouse),
+                    expected_delivery_date: expectedDeliveryDate,
+                    notes: notes
+                })
+            });
 
-    function createPurchaseOrder(brandId) {
-        // Create and submit form
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/purchasing/create-po-from-pending/`;
+            const data = await response.json();
+            if (data.status === 'success') {
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    window.location.href = "{% url 'purchasing:create_purchase_order' %}";
+                }
+            } else {
+                alert('Error: ' + data.message);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred while creating the purchase order.');
+        }
+    };
 
-        // Add CSRF token
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = 'csrfmiddlewaretoken';
-        csrfToken.value = '{{ csrf_token }}';
-        form.appendChild(csrfToken);
-
-        // Add brand ID
-        const brandInput = document.createElement('input');
-        brandInput.type = 'hidden';
-        brandInput.name = 'brand_id';
-        brandInput.value = brandId;
-        form.appendChild(brandInput);
-
-        document.body.appendChild(form);
-        form.submit();
-    }
+    // Function to clear selected items
+    window.clearItems = function() {
+        document.querySelectorAll('input[name="selected_items"]:checked').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+    };
+});
 </script>
 
 <div class="container mx-auto px-4 py-8">
@@ -55,61 +73,101 @@
         <h1 class="text-2xl font-bold text-gray-800">Pending Items for Purchase Orders</h1>
     </div>
 
-    {% if brands %}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {% for brand in brands %}
-                <div class="bg-white shadow-lg rounded-lg overflow-hidden">
-                    <!-- Brand Header -->
-                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                        <div class="flex justify-between items-center">
-                            <h2 class="text-xl font-semibold text-gray-800">{{ brand.name }}</h2>
-                            <div class="flex gap-2">
-                                <button onclick="createPurchaseOrder('{{ brand.id }}')" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium">
-                                    Create PO
-                                </button>
-                                <button onclick="clearBrandItems('{{ brand.id }}')" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium">
-                                    Delete All
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Brand Items -->
-                    <div class="p-6">
-                        <div class="space-y-4">
-                            {% for item in brand.pending_items %}
-                                <div class="flex justify-between items-center border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
-                                    <div>
-                                        <h3 class="font-medium text-gray-900">{{ item.item.item_name }}</h3>
-                                        <p class="text-sm text-gray-600">Model: {{ item.item.model }}</p>
-                                        <p class="text-sm text-gray-600">Total Quantity: {{ item.quantity }}</p>
-                                        <p class="text-sm text-gray-500">From Requisitions: 
-                                            {% for req in item.requisitions %}
-                                                <a href="{% url 'requisition:view_requisition' req.id %}" class="text-blue-600 hover:text-blue-800">
-                                                    #{{ req.id }}{% if not forloop.last %}, {% endif %}
-                                                </a>
-                                            {% endfor %}
-                                        </p>
-                                    </div>
-                                    <form method="POST" action="{% url 'purchasing:remove_pending_item' item.id %}" class="inline">
-                                        {% csrf_token %}
-                                        <button type="submit" onclick="return confirm('Are you sure you want to remove this item?')" class="text-red-600 hover:text-red-800">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
-                                    </form>
-                                </div>
-                            {% endfor %}
-                        </div>
+    <form id="poForm" class="space-y-8 divide-y divide-gray-200">
+        {% csrf_token %}
+        
+        <!-- Items Table -->
+        <div class="mt-8 flex flex-col">
+            <div class="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                <div class="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+                    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-300">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Select</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Brand</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Item Name</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Model</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Quantity</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Requisition #</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Requester</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Date</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 bg-white">
+                                {% for item in pending_items %}
+                                <tr>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                        <input type="checkbox" name="selected_items" value="{{ item.id }}"
+                                               class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.item.brand.name }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.item.item_name }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.item.model }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.quantity }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">#{{ item.item.requisition.id }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.requisition.requester }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ item.item.requisition.date_created|date:"M d, Y" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            {% endfor %}
+            </div>
         </div>
-    {% else %}
-        <div class="bg-white shadow-md rounded-lg p-6 text-center">
-            <p class="text-gray-600">No pending items for purchase orders.</p>
+
+        <!-- Form Fields -->
+        <div class="mt-8 grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+            <div class="sm:col-span-3">
+                <label for="supplier" class="block text-sm font-medium text-gray-700">Supplier</label>
+                <select id="supplier" name="supplier" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <option value="">Select a supplier...</option>
+                    {% for supplier in suppliers %}
+                    <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="sm:col-span-3">
+                <label for="warehouse" class="block text-sm font-medium text-gray-700">Warehouse</label>
+                <select id="warehouse" name="warehouse" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <option value="">Select a warehouse...</option>
+                    {% for warehouse in warehouses %}
+                    <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="sm:col-span-3">
+                <label for="expected_delivery_date" class="block text-sm font-medium text-gray-700">Expected Delivery Date</label>
+                <input type="date" id="expected_delivery_date" name="expected_delivery_date" required
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </div>
+
+            <div class="sm:col-span-6">
+                <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
+                <textarea id="notes" name="notes" rows="3"
+                          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                          placeholder="Add any additional notes..."></textarea>
+            </div>
         </div>
-    {% endif %}
+
+        <!-- Form Actions -->
+        <div class="pt-5">
+            <div class="flex justify-end space-x-3">
+                <button type="button" onclick="clearItems()"
+                        class="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Clear Items
+                </button>
+                <button type="button" onclick="createPurchaseOrder()"
+                        class="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                    Create Purchase Order
+                </button>
+            </div>
+        </div>
+    </form>
 </div>
 {% endblock %}

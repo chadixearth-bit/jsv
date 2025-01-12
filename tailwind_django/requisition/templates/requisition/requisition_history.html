@@ -2,260 +2,264 @@
 {% load static %}
 
 {% block main_content %}
-<div class="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-    <!-- Page Header -->
-    <div class="mb-8 bg-white rounded-xl shadow-lg">
-        <div class="px-6 py-8 sm:px-8 flex justify-between items-center">
-            <div>
-                <h1 class="text-2xl sm:text-3xl font-bold text-black">Requisition History</h1>
-                <p class="mt-2 text-gray-800 text-sm sm:text-base">
-                    Track all requisitions and their complete timeline of interactions
-                </p>
-            </div>
-            <div class="flex-shrink-0">
-                <div class="relative">
-                    <input type="text" 
-                           name="q" 
-                           value="{{ query|default:'' }}" 
-                           class="w-64 pl-10 pr-4 py-2 text-sm rounded-lg border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                           placeholder="Search requisitions...">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                        </svg>
+<div class="py-6">
+    <div class="max-w-7xl mx-auto sm:px-4 lg:px-8">
+        <div class="min-h-screen bg-gray-50 py-2 sm:px-4 lg:px-2">
+            <!-- Page Header -->
+            <div class="mb-8 bg-white rounded-2xl shadow-lg transform hover:scale-[1.02] transition-transform duration-300">
+                <div class="px-6 py-8 sm:px-8 flex justify-between items-center">
+                    <div>
+                        <h1 class="text-2xl sm:text-3xl font-bold text-black">Requisition History</h1>
+                        <p class="mt-2 text-gray-800 text-sm sm:text-base">
+                            Track all requisitions and their complete timeline of interactions
+                        </p>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Search Section -->
-    <div class="bg-transparent p-4 pt-0">
-        <div class="flex justify-between items-center">
-            <form method="get" class="flex-grow flex gap-4 items-center">
-                {% if user_role == 'admin' %}
-                <div class="relative">
-                    <select name="role" id="roleSelect" class="pl-10 pr-8 py-2 text-sm rounded-lg border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 appearance-none bg-white">
-                        <option value="" {% if not current_role %}selected{% endif %}>All Roles</option>
-                        {% for role_value, role_label in role_choices %}
-                            <option value="{{ role_value }}" {% if current_role == role_value %}selected{% endif %}>
-                                {{ role_label }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span class="text-gray-500">
-                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
-                            </svg>
-                        </span>
-                    </div>
-                    <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                        <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                </div>
-                {% endif %}
-                <div class="relative">
-                    <select name="status" id="statusSelect" onchange="updateStatusIcon(this)" class="pl-10 pr-8 py-2 text-sm rounded-lg border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 appearance-none bg-white">
-                        <option value="all" {% if not current_status %}selected{% endif %}>All Status</option>
-                        {% for status_value, status_label in status_choices %}
-                            <option value="{{ status_value }}" {% if current_status == status_value %}selected{% endif %}>
-                                {{ status_label }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <span id="statusIcon" class="text-gray-500">
-                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                            </svg>
-                        </span>
-                    </div>
-                    <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                        <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                </div>
-            </form>
-            {% if request.user.is_superuser %}
-            <div class="ml-4">
-                <form action="{% url 'requisition:delete_all_requisitions' %}" method="POST" class="inline">
-                    {% csrf_token %}
-                    <button type="submit" onclick="return confirmDeleteAll()"
-                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 focus:ring-red-600">
-                        <svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                        Delete All History
-                    </button>
-                </form>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    {% if requisitions %}
-    <div class="bg-white rounded-lg shadow-md overflow-hidden">
-        <div class="overflow-x-auto relative">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-200">
-                    <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">ID</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Status</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Requester</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Source Warehouse</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Destination Warehouse</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Created At</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    {% for requisition in requisitions %}
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {{ requisition.id }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                {% if requisition.status == 'pending' %}bg-yellow-100 text-yellow-800
-                                {% elif requisition.status == 'pending_admin_approval' %}bg-blue-100 text-blue-800
-                                {% elif requisition.status == 'approved_by_admin' %}bg-green-100 text-green-800
-                                {% elif requisition.status == 'rejected_by_manager' %}bg-red-100 text-red-800
-                                {% elif requisition.status == 'rejected_by_admin' %}bg-red-100 text-red-800
-                                {% else %}bg-gray-100 text-gray-800{% endif %}">
-                                {{ requisition.get_status_display }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {{ requisition.requester.display_name }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {{ requisition.source_warehouse.name }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {{ requisition.destination_warehouse.name }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {{ requisition.created_at|date:"Y-m-d H:i" }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div class="relative" style="position: static;">
-                                <button onclick="toggleDropdown({{ requisition.id }}, event)" type="button" class="inline-flex items-center p-2 text-gray-400 hover:text-gray-600 focus:outline-none">
-                                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
-                                    </svg>
-                                </button>
-                                <div id="dropdown-{{ requisition.id }}" class="hidden absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50" style="min-width: 12rem;">
-                                    <div class="py-1" role="menu" aria-orientation="vertical">
-                                        <a href="javascript:void(0);" onclick="viewRequisitionDetails({{ requisition.id }})" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-                                            View Details
-                                        </a>
-                                        <a href="{% url 'requisition:download_requisition_pdf' requisition.id %}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-                                            Download PDF
-                                        </a>
-                                        {% if requisition.status == 'pending' %}
-                                        <a href="{% url 'requisition:send_to_manager' requisition.id %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-                                            Send to Manager
-                                        </a>
-                                        {% endif %}
-                                        {% if user.is_superuser %}
-                                        <form action="{% url 'requisition:delete_requisition' requisition.id %}" method="POST" class="block" onsubmit="return confirmDelete('{% url 'requisition:delete_requisition' requisition.id %}')">
-                                            {% csrf_token %}
-                                            <button type="submit" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100" role="menuitem">
-                                                Delete
-                                            </button>
-                                        </form>
-                                        {% endif %}
-                                    </div>
-                                </div>
+                    <div class="flex-shrink-0">
+                        <div class="relative">
+                            <input type="text" 
+                                name="q" 
+                                value="{{ query|default:'' }}" 
+                                class="w-64 pl-10 pr-4 py-2 text-sm rounded-lg border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="Search requisitions...">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                </svg>
                             </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {% else %}
-    <div class="text-center py-12 bg-white rounded-lg shadow">
-        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-        </svg>
-        <h3 class="mt-2 text-sm font-medium text-gray-900">No requisitions found</h3>
-        <p class="mt-1 text-sm text-gray-500">No requisitions match your search criteria.</p>
-    </div>
-    {% endif %}
-
-    {% if requisitions.has_other_pages %}
-    <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-xl shadow-md">
-        <div class="flex-1 flex justify-between sm:hidden">
-            {% if requisitions.has_previous %}
-                <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
-                   class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                    Previous
-                </a>
-            {% endif %}
-            {% if requisitions.has_next %}
-                <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
-                   class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                    Next
-                </a>
-            {% endif %}
-        </div>
-        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-            <div>
-                <p class="text-sm text-gray-700">
-                    Showing
-                    <span class="font-medium">{{ requisitions.start_index }}</span>
-                    to
-                    <span class="font-medium">{{ requisitions.end_index }}</span>
-                    of
-                    <span class="font-medium">{{ requisitions.paginator.count }}</span>
-                    results
-                </p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div>
-                <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+
+            <!-- Search Section -->
+            <div class="bg-transparent p-4 pt-0">
+                <div class="flex justify-between items-center">
+                    <form method="get" class="flex-grow flex gap-4 items-center">
+                        {% if user_role == 'admin' %}
+                        <div class="relative">
+                            <select name="role" id="roleSelect" class="pl-10 pr-8 py-2 text-sm rounded-lg border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 appearance-none bg-white">
+                                <option value="" {% if not current_role %}selected{% endif %}>All Roles</option>
+                                {% for role_value, role_label in role_choices %}
+                                    <option value="{{ role_value }}" {% if current_role == role_value %}selected{% endif %}>
+                                        {{ role_label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <span class="text-gray-500">
+                                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                                    </svg>
+                                </span>
+                            </div>
+                            <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                                <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <div class="relative">
+                            <select name="status" id="statusSelect" onchange="updateStatusIcon(this)" class="pl-10 pr-8 py-2 text-sm rounded-lg border-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 appearance-none bg-white">
+                                <option value="all" {% if not current_status %}selected{% endif %}>All Status</option>
+                                {% for status_value, status_label in status_choices %}
+                                    <option value="{{ status_value }}" {% if current_status == status_value %}selected{% endif %}>
+                                        {{ status_label }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <span id="statusIcon" class="text-gray-500">
+                                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                    </svg>
+                                </span>
+                            </div>
+                            <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                                <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
+                    </form>
+                    {% if request.user.is_superuser %}
+                    <div class="ml-4">
+                        <form action="{% url 'requisition:delete_all_requisitions' %}" method="POST" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" onclick="return confirmDeleteAll()"
+                                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 focus:ring-red-600">
+                                <svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                                Delete All History
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if requisitions %}
+            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                <div class="overflow-x-auto relative">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">ID</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Status</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Requester</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Source Warehouse</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Destination Warehouse</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Created At</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for requisition in requisitions %}
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {{ requisition.id }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                        {% if requisition.status == 'pending' %}bg-yellow-100 text-yellow-800
+                                        {% elif requisition.status == 'pending_admin_approval' %}bg-blue-100 text-blue-800
+                                        {% elif requisition.status == 'approved_by_admin' %}bg-green-100 text-green-800
+                                        {% elif requisition.status == 'rejected_by_manager' %}bg-red-100 text-red-800
+                                        {% elif requisition.status == 'rejected_by_admin' %}bg-red-100 text-red-800
+                                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                        {{ requisition.get_status_display }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ requisition.requester.display_name }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ requisition.source_warehouse.name }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ requisition.destination_warehouse.name }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ requisition.created_at|date:"Y-m-d H:i" }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    <div class="relative" style="position: static;">
+                                        <button onclick="toggleDropdown({{ requisition.id }}, event)" type="button" class="inline-flex items-center p-2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                                            <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
+                                            </svg>
+                                        </button>
+                                        <div id="dropdown-{{ requisition.id }}" class="hidden absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50" style="min-width: 12rem;">
+                                            <div class="py-1" role="menu" aria-orientation="vertical">
+                                                <a href="javascript:void(0);" onclick="viewRequisitionDetails({{ requisition.id }})" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                                    View Details
+                                                </a>
+                                                <a href="{% url 'requisition:download_requisition_pdf' requisition.id %}" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                                    Download PDF
+                                                </a>
+                                                {% if requisition.status == 'pending' %}
+                                                <a href="{% url 'requisition:send_to_manager' requisition.id %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
+                                                    Send to Manager
+                                                </a>
+                                                {% endif %}
+                                                {% if user.is_superuser %}
+                                                <form action="{% url 'requisition:delete_requisition' requisition.id %}" method="POST" class="block" onsubmit="return confirmDelete('{% url 'requisition:delete_requisition' requisition.id %}')">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100" role="menuitem">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% else %}
+            <div class="text-center py-12 bg-white rounded-lg shadow">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <h3 class="mt-2 text-sm font-medium text-gray-900">No requisitions found</h3>
+                <p class="mt-1 text-sm text-gray-500">No requisitions match your search criteria.</p>
+            </div>
+            {% endif %}
+
+            {% if requisitions.has_other_pages %}
+            <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-xl shadow-md">
+                <div class="flex-1 flex justify-between sm:hidden">
                     {% if requisitions.has_previous %}
                         <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
-                           class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                            <span class="sr-only">Previous</span>
-                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                            </svg>
+                        class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Previous
                         </a>
                     {% endif %}
-                    
-                    {% for i in requisitions.paginator.page_range %}
-                        {% if requisitions.number == i %}
-                            <span class="relative inline-flex items-center px-4 py-2 border border-indigo-500 bg-indigo-50 text-sm font-medium text-indigo-600">
-                                {{ i }}
-                            </span>
-                        {% elif i > requisitions.number|add:'-3' and i < requisitions.number|add:'3' %}
-                            <a href="?page={{ i }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
-                               class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                {{ i }}
-                            </a>
-                        {% endif %}
-                    {% endfor %}
-
                     {% if requisitions.has_next %}
                         <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
-                           class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                            <span class="sr-only">Next</span>
-                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                            </svg>
+                        class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Next
                         </a>
                     {% endif %}
-                </nav>
+                </div>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700">
+                            Showing
+                            <span class="font-medium">{{ requisitions.start_index }}</span>
+                            to
+                            <span class="font-medium">{{ requisitions.end_index }}</span>
+                            of
+                            <span class="font-medium">{{ requisitions.paginator.count }}</span>
+                            results
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                            {% if requisitions.has_previous %}
+                                <a href="?page={{ requisitions.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
+                                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Previous</span>
+                                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                                    </svg>
+                                </a>
+                            {% endif %}
+                            
+                            {% for i in requisitions.paginator.page_range %}
+                                {% if requisitions.number == i %}
+                                    <span class="relative inline-flex items-center px-4 py-2 border border-indigo-500 bg-indigo-50 text-sm font-medium text-indigo-600">
+                                        {{ i }}
+                                    </span>
+                                {% elif i > requisitions.number|add:'-3' and i < requisitions.number|add:'3' %}
+                                    <a href="?page={{ i }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
+                                    class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                        {{ i }}
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+
+                            {% if requisitions.has_next %}
+                                <a href="?page={{ requisitions.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_role %}&role={{ current_role }}{% endif %}" 
+                                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <span class="sr-only">Next</span>
+                                    <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                    </svg>
+                                </a>
+                            {% endif %}
+                        </nav>
+                    </div>
+                </div>
             </div>
+            {% endif %}
         </div>
     </div>
-    {% endif %}
 </div>
 
 <!-- Modal -->

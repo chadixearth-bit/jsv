@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load requisition_tags %}
 
 {% block main_content %}
 <div class="container mx-auto px-4 py-8">
@@ -36,35 +37,100 @@
             <!-- Requested Items -->
             <div class="mt-6 border-t border-gray-200 pt-6">
                 <h3 class="text-lg font-medium text-gray-900 mb-4">Requested Items</h3>
-                <div class="space-y-4">
-                    {% for item in requisition.items.all %}
-                    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
-                        <div class="p-4">
-                            <div class="flex items-start space-x-4">
-                                <!-- Item Details -->
-                                <div class="flex-grow">
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <h4 class="text-lg font-semibold text-gray-900">{{ item.item.item_name }}</h4>
-                                            <div class="mt-1 space-y-1">
-                                                <p class="text-sm text-gray-600">
-                                                    <span class="font-medium">Brand:</span> {{ item.item.brand }}
-                                                </p>
-                                                <p class="text-sm text-gray-600">
-                                                    <span class="font-medium">Model:</span> {{ item.item.model }}
-                                                </p>
-                                                <p class="text-sm text-gray-600">
-                                                    <span class="font-medium">Requested Quantity:</span> {{ item.quantity }}
-                                                </p>
+                
+                {% with grouped_items=requisition.items.all|group_requisition_items %}
+                <!-- New Items Section -->
+                {% if grouped_items.new_items %}
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-900 mb-3 flex items-center">
+                        <span class="mr-2">New Item Requests</span>
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                            Will be added to Purchase Orders
+                        </span>
+                    </h4>
+                    <div class="space-y-4">
+                        {% for item in grouped_items.new_items %}
+                        <div class="bg-white rounded-lg border border-blue-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+                            <div class="p-4">
+                                <div class="flex items-start space-x-4">
+                                    <!-- Item Details -->
+                                    <div class="flex-grow">
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="text-lg font-semibold text-gray-900">{{ item.item.item_name }}</h4>
+                                                <div class="mt-1 space-y-1">
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Brand:</span> {{ item.item.brand }}
+                                                    </p>
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Model:</span> {{ item.item.model }}
+                                                    </p>
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Requested Quantity:</span> {{ item.quantity }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end">
+                                                <span class="px-3 py-1 h-fit text-sm font-medium rounded-full bg-blue-100 text-blue-800">
+                                                    New Item
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
+                {% endif %}
+
+                <!-- Existing Items Section -->
+                {% if grouped_items.existing_items %}
+                <div class="mb-6">
+                    <h4 class="text-md font-medium text-gray-900 mb-3 flex items-center">
+                        <span class="mr-2">Existing Items</span>
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                            Out of Stock - Will be added to Purchase Orders
+                        </span>
+                    </h4>
+                    <div class="space-y-4">
+                        {% for item in grouped_items.existing_items %}
+                        <div class="bg-white rounded-lg border border-yellow-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+                            <div class="p-4">
+                                <div class="flex items-start space-x-4">
+                                    <!-- Item Details -->
+                                    <div class="flex-grow">
+                                        <div class="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <h4 class="text-lg font-semibold text-gray-900">{{ item.item.item_name }}</h4>
+                                                <div class="mt-1 space-y-1">
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Brand:</span> {{ item.item.brand }}
+                                                    </p>
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Model:</span> {{ item.item.model }}
+                                                    </p>
+                                                    <p class="text-sm text-gray-600">
+                                                        <span class="font-medium">Requested Quantity:</span> {{ item.quantity }}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end">
+                                                <span class="px-3 py-1 h-fit text-sm font-medium rounded-full bg-yellow-100 text-yellow-800">
+                                                    Out of Stock
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endwith %}
             </div>
 
             <!-- Reason -->

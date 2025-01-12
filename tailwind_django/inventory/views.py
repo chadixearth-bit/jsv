@@ -6,7 +6,7 @@ from django.db import transaction
 from django.contrib.auth.decorators import login_required
 
 from .models import InventoryItem, Brand, Category, Warehouse, GlobalSettings
-from .forms import InventoryItemForm, BrandForm, CategoryForm, GlobalSettingsForm
+from .forms import InventoryItemForm, BrandForm, CategoryForm, GlobalSettingsForm, StockEditForm
 
 @login_required(login_url='account:login')
 def inventory_list(request):
@@ -394,3 +394,36 @@ def dashboard(request):
     }
     
     return render(request, 'inventory/dashboard.html', context)
+
+@login_required(login_url='account:login')
+def edit_stock(request, pk):
+    # Get the inventory item
+    item = get_object_or_404(InventoryItem, pk=pk)
+    
+    # Check if user is manager or attendant
+    user_role = request.user.customuser.role if hasattr(request.user, 'customuser') else None
+    if user_role not in ['manager', 'attendant']:
+        messages.error(request, 'You do not have permission to edit stock.')
+        return redirect('inventory:list')
+    
+    # Check if user has access to this warehouse
+    if user_role == 'attendant' and item.warehouse_id != 1:  # Attendant Warehouse
+        messages.error(request, 'You do not have permission to edit stock in this warehouse.')
+        return redirect('inventory:list')
+    elif user_role == 'manager' and item.warehouse_id != 2:  # Manager Warehouse
+        messages.error(request, 'You do not have permission to edit stock in this warehouse.')
+        return redirect('inventory:list')
+    
+    if request.method == 'POST':
+        form = StockEditForm(request.POST, instance=item)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'Stock updated successfully for {item.item_name}')
+            return redirect('inventory:list')
+    else:
+        form = StockEditForm(instance=item)
+    
+    return render(request, 'inventory/stock_edit.html', {
+        'form': form,
+        'item': item
+    })

@@ -21,7 +21,7 @@ urlpatterns = [
     path('<int:pk>/submit/', views.submit_purchase_order, name='submit_purchase_order'),
     path('<int:pk>/update-status/', views.update_po_status, name='update_po_status'),
     path('<int:pk>/download-pdf/', views.download_po_pdf, name='download_purchase_order_pdf'),
-    path('clear-brand-items/', views.clear_brand_pending_items, name='clear_brand_items'),
+    path('clear-brand-items/<str:brand_id>/', views.clear_brand_pending_items, name='clear_brand_items'),
     
     # Delivery Management
     path('deliveries/', views.delivery_list, name='delivery_list'),
@@ -44,6 +44,7 @@ urlpatterns = [
     path('clear_brand_pending_items/<str:brand_name>/', views.clear_brand_pending_items, name='clear_brand_pending_items'),
     path('remove_pending_item/<int:pk>/', views.remove_pending_item, name='remove_pending_item'),
     path('pending-items/clear/', views.clear_pending_items, name='clear_pending_items'),
+    path('create-from-pending-items/', views.create_from_pending_items, name='create_from_pending_items'),
     
     # Shortcuts
     path('dl/', views.delivery_list, name='delivery_list_shortcut'),

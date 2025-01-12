@@ -46,6 +46,23 @@
                             Sign in to your account
                         </h2>
                     </div>
+                    
+                    <!-- Add Success Message for Password Reset -->
+                    <div id="passwordResetSuccess" style="display: none;" class="rounded-md bg-green-50 p-4 mt-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-green-800">
+                                    Your password has been successfully reset. You can now log in with your new password.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <form class="mt-8 space-y-6" method="POST">
                         {% csrf_token %}
                         <div class="rounded-md shadow-sm -space-y-px">
@@ -84,7 +101,6 @@
                 </div>
             </div>
 
-
             <!-- Logo Section -->
             <div class="text-center">
                 <img src="{% static 'css/dist/images/jsv_logo_black.png' %}" alt="JSV Logo" class="w-48 mb-4">
@@ -93,4 +109,16 @@
             </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if password was just reset
+        if (sessionStorage.getItem('passwordReset')) {
+            document.getElementById('passwordResetSuccess').style.display = 'block';
+            sessionStorage.removeItem('passwordReset');
+        }
+    });
+</script>
 {% endblock %}

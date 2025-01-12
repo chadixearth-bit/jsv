@@ -1,76 +1,76 @@
 {% extends 'base.html' %}
-{% load static %}
-{% load crispy_forms_tags %}
 
 {% block main_content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-4xl mx-auto">
-        <!-- Header -->
-        <div class="mb-8">
-            <h1 class="text-2xl font-bold text-gray-900">
-                {% if is_edit %}Edit{% else %}Create{% endif %} Purchase Order
-            </h1>
-            <p class="mt-2 text-sm text-gray-600">
-                Fill in the details below to {% if is_edit %}update{% else %}create{% endif %} a purchase order.
-            </p>
-        </div>
-
-        <!-- Main Form -->
-        <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-            <form method="post" class="space-y-8 divide-y divide-gray-200" onsubmit="return validateForm()">
+<div class="min-h-screen bg-gray-100 py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Form Container -->
+        <div class="bg-white rounded-lg shadow">
+            <form id="purchaseOrderForm" method="post" onsubmit="return validateForm()">
                 {% csrf_token %}
                 
+                <!-- Header -->
+                <div class="px-6 py-5 border-b border-gray-200">
+                    <h2 class="text-xl font-semibold text-gray-900">Create Purchase Order</h2>
+                    <p class="mt-1 text-sm text-gray-500">Fill in the details below to create a purchase order.</p>
+                </div>
+
                 <!-- Order Details Section -->
-                <div class="px-6 py-5">
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">
-                        <i class="fas fa-info-circle mr-2 text-blue-500"></i>
-                        Order Details
-                    </h3>
+                <div class="px-6 py-5 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Order Details</h3>
+                    
+                    <!-- Hidden input for items data -->
+                    <input type="hidden" name="items" id="itemsData">
+                    
                     <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
-                            <!-- Supplier Field -->
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Supplier</label>
-                                <div class="mt-1 relative">
-                                    <select name="supplier" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                                        <option value="">Select a supplier...</option>
-                                        {% for supplier in suppliers %}
-                                            <option value="{{ supplier.id }}">{{ supplier.name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
+                        <!-- Supplier Field -->
+                        <div>
+                            <label for="supplier" class="block text-sm font-medium text-gray-700">Supplier</label>
+                            <select id="supplier" name="supplier" required
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                <option value="">Select a supplier</option>
+                                {% for supplier in suppliers %}
+                                <option value="{{ supplier.id }}" {% if initial_supplier == supplier.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ supplier.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
 
                         <!-- Warehouse Field -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Warehouse</label>
-                            <select name="warehouse" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                                <option value="">Select a warehouse...</option>
+                            <label for="warehouse" class="block text-sm font-medium text-gray-700">Warehouse</label>
+                            <select id="warehouse" name="warehouse" required
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                <option value="">Select a warehouse</option>
                                 {% for warehouse in warehouses %}
-                                    <option value="{{ warehouse.id }}">{{ warehouse.name }}</option>
+                                <option value="{{ warehouse.id }}" {% if initial_warehouse == warehouse.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ warehouse.name }}
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
 
                         <!-- Order Date Field -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Order Date</label>
-                            <input type="date" name="order_date" required 
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <label for="order_date" class="block text-sm font-medium text-gray-700">Order Date</label>
+                            <input type="date" id="order_date" name="order_date" required
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                   value="{{ initial_order_date|date:'Y-m-d' }}" {% if initial_order_date %}value="{{ initial_order_date|date:'Y-m-d' }}"{% endif %}>
                         </div>
 
                         <!-- Expected Delivery Date Field -->
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Expected Delivery Date</label>
-                            <input type="date" name="expected_delivery_date" required 
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            <label for="expected_delivery_date" class="block text-sm font-medium text-gray-700">Expected Delivery Date</label>
+                            <input type="date" id="expected_delivery_date" name="expected_delivery_date" required
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                   {% if initial_delivery_date %}value="{{ initial_delivery_date }}"{% endif %}>
                         </div>
 
                         <!-- Notes Field -->
                         <div class="sm:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700">Notes</label>
-                            <textarea name="notes" rows="3" 
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                    placeholder="Add any additional notes about this purchase order..."></textarea>
+                            <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
+                            <textarea id="notes" name="notes" rows="3"
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">{% if initial_notes %}{{ initial_notes }}{% endif %}</textarea>
                         </div>
                     </div>
                 </div>
@@ -78,17 +78,14 @@
                 <!-- Items Section -->
                 <div class="px-6 py-5">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-medium text-gray-900">
-                            <i class="fas fa-boxes mr-2 text-indigo-500"></i>
-                            Order Items
-                        </h3>
+                        <h3 class="text-lg font-medium text-gray-900">Order Items</h3>
                         <div class="space-x-2">
-                            <button type="button" onclick="addNewItem()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                <i class="fas fa-plus mr-2"></i>
+                            <button type="button" onclick="addNewRow()" 
+                                    class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
                                 Add New Item
                             </button>
-                            <button type="button" onclick="openExistingItemModal()" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                                <i class="fas fa-search mr-2"></i>
+                            <button type="button" onclick="openExistingItemModal()" 
+                                    class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
                                 Add Existing Item
                             </button>
                         </div>
@@ -105,39 +102,21 @@
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th scope="col" class="relative px-6 py-3">
+                                        <span class="sr-only">Actions</span>
+                                    </th>
                                 </tr>
                             </thead>
-                            <tbody class="bg-white divide-y divide-gray-200" id="itemsContainer">
-                                {% if pending_items %}
-                                    {% for item in pending_items %}
-                                    <tr class="hover:bg-gray-50" data-item-id="{{ item.item.id }}">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ brand }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {{ item.item.item_name }}
-                                            <input type="hidden" name="item_ids[]" value="{{ item.item.id }}">
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.item.model }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <input type="number" name="quantities[]" value="{{ item.quantity }}" min="1"
-                                                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                                   onchange="updateCalculations()">
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <input type="number" name="unit_prices[]" value="{{ item.unit_price }}" step="0.01" min="0"
-                                                   class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                                   onchange="updateCalculations()">
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 item-total">{{ item.subtotal }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-900">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                {% endif %}
+                            <tbody id="itemTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Items will be added here dynamically -->
                             </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="5" class="px-6 py-4 text-right font-medium">Total:</td>
+                                    <td id="totalAmount" class="px-6 py-4 text-left font-medium">₱0.00</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 </div>
@@ -145,11 +124,10 @@
                 <!-- Form Actions -->
                 <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
                     <a href="{% url 'purchasing:list' %}" 
-                       class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                       class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                         Cancel
                     </a>
-                    <button type="submit" 
-                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
                         Create Order
                     </button>
                 </div>
@@ -159,118 +137,81 @@
 </div>
 
 <!-- Add Existing Item Modal -->
-<div id="addExistingItemModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden flex items-center justify-center">
-    <div class="bg-white rounded-lg p-6 max-w-md w-full">
-        <h3 class="text-lg font-medium text-gray-900 mb-4">Add Existing Item</h3>
-        <div class="space-y-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Search and Select Item</label>
-                <input type="text" id="itemSearchInput" placeholder="Search items..." 
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                <select id="itemSelect" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                    <option value="">Select Item</option>
-                    {% for item in available_items %}
-                    <option value="{{ item.id }}" 
-                            data-search="{{ item.item_name|lower }} {{ item.brand.name|lower }} {{ item.model|default:'N/A'|lower }}" 
-                            data-warehouse="{{ item.warehouse.id }}"
-                            data-price="{{ item.price }}">
-                        {{ item.item_name }} ({{ item.brand.name }} - {{ item.model|default:'N/A' }})
-                    </option>
-                    {% endfor %}
-                </select>
+<div id="addExistingItemModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 hidden z-50">
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-gray-900">Add Existing Item</h3>
+                    <button type="button" onclick="closeExistingItemModal()" class="text-gray-400 hover:text-gray-500">
+                        <span class="sr-only">Close</span>
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="mt-4">
+                    <input type="text" id="itemSearchInput" placeholder="Search items..."
+                           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                </div>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Quantity</label>
-                <input type="number" id="existingItemQuantity" min="1" required
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            <div class="px-6 py-4 max-h-[60vh] overflow-y-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                            <th scope="col" class="relative px-6 py-3">
+                                <span class="sr-only">Actions</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for item in inventory_items %}
+                        <tr class="hover:bg-gray-50 inventory-item" data-warehouse="{{ item.warehouse.id }}">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.brand.name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.item_name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ item.model }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button type="button" onclick="selectExistingItem('{{ item.brand.name }}', '{{ item.item_name }}', '{{ item.model }}')" 
+                                        class="text-indigo-600 hover:text-indigo-900">Select</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Unit Price</label>
-                <input type="number" id="existingItemPrice" min="0" step="0.01" required
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-            </div>
-        </div>
-        <div class="mt-6 flex justify-end space-x-3">
-            <button type="button" onclick="closeExistingItemModal()" 
-                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                Cancel
-            </button>
-            <button type="button" onclick="addExistingItem()" 
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                Add Item
-            </button>
         </div>
     </div>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    let items = [];
-    let newItemIndex = 0;
-
-    function validateForm() {
-        // Get all item rows
-        const itemRows = document.querySelectorAll('#itemsContainer tr');
-        if (itemRows.length === 0) {
-            alert('Please add at least one item to the purchase order.');
-            return false;
-        }
-
-        // Check required fields
-        const supplier = document.querySelector('select[name="supplier"]').value;
-        const warehouse = document.querySelector('select[name="warehouse"]').value;
-        const expectedDeliveryDate = document.querySelector('input[name="expected_delivery_date"]').value;
-
-        if (!supplier || !warehouse || !expectedDeliveryDate) {
-            alert('Please fill in all required fields (Supplier, Warehouse, Expected Delivery Date).');
-            return false;
-        }
-
-        // Add hidden input for items data
-        const itemsData = [];
-        itemRows.forEach(row => {
-            const itemId = row.dataset.itemId;
-            const quantity = row.querySelector('input[name="quantities[]"]').value;
-            const unitPrice = row.querySelector('input[name="unit_prices[]"]').value;
-            
-            itemsData.push({
-                item_id: itemId,
-                quantity: quantity,
-                unit_price: unitPrice
-            });
-        });
-
-        const itemsInput = document.createElement('input');
-        itemsInput.type = 'hidden';
-        itemsInput.name = 'items_data';
-        itemsInput.value = JSON.stringify(itemsData);
-        document.querySelector('form').appendChild(itemsInput);
-
-        return true;
-    }
+    // Initialize variables
+    let itemCounter = 0;
+    const itemsTable = document.getElementById('itemTableBody');
+    const itemsDataInput = document.getElementById('itemsData');
+    const modal = document.getElementById('addExistingItemModal');
 
     function updateCalculations() {
+        const rows = itemsTable.getElementsByTagName('tr');
         let total = 0;
-        const rows = document.querySelectorAll('#itemsContainer tr');
         
-        rows.forEach(row => {
-            const quantityInput = row.querySelector('input[name="quantities[]"]');
-            const priceInput = row.querySelector('input[name="unit_prices[]"]');
-            const totalCell = row.querySelector('.item-total');
+        for (let row of rows) {
+            const qtyInput = row.querySelector('input[name$="[quantity]"]');
+            const priceInput = row.querySelector('input[name$="[unit_price]"]');
+            const subtotalCell = row.querySelector('.subtotal');
             
-            if (quantityInput && priceInput && totalCell) {
-                const quantity = parseFloat(quantityInput.value) || 0;
+            if (qtyInput && priceInput && subtotalCell) {
+                const qty = parseFloat(qtyInput.value) || 0;
                 const price = parseFloat(priceInput.value) || 0;
-                const subtotal = quantity * price;
+                const subtotal = qty * price;
+                subtotalCell.textContent = '₱' + subtotal.toFixed(2);
                 total += subtotal;
-                totalCell.textContent = subtotal.toFixed(2);
             }
-        });
-        
-        const totalAmountElement = document.getElementById('totalAmount');
-        if (totalAmountElement) {
-            totalAmountElement.textContent = total.toFixed(2);
         }
+        
+        document.getElementById('totalAmount').textContent = '₱' + total.toFixed(2);
     }
 
     function removeItem(button) {
@@ -281,110 +222,142 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Add event listeners for date validation
-    const orderDateInput = document.querySelector('input[name="order_date"]');
-    const deliveryDateInput = document.querySelector('input[name="expected_delivery_date"]');
+    function addNewRow(brand = '', itemName = '', model = '', qty = 1, price = 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+                <input type="text" name="items[${itemCounter}][brand]" value="${brand}" required
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <input type="text" name="items[${itemCounter}][item_name]" value="${itemName}" required
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <input type="text" name="items[${itemCounter}][model]" value="${model}" required
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <input type="number" name="items[${itemCounter}][quantity]" value="${qty}" min="1" required
+                       class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                       onchange="updateCalculations()">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <input type="number" name="items[${itemCounter}][unit_price]" value="${price}" min="0" step="0.01" required
+                       class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                       onchange="updateCalculations()">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 subtotal">₱${(qty * price).toFixed(2)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <button type="button" onclick="removeItem(this)" 
+                        class="text-red-600 hover:text-red-900">Remove</button>
+            </td>
+        `;
+        
+        itemsTable.appendChild(row);
+        itemCounter++;
+        updateCalculations();
+    }
+
+    function openExistingItemModal() {
+        modal.classList.remove('hidden');
+        filterItemsByWarehouse(document.getElementById('warehouse').value);
+    }
+
+    function closeExistingItemModal() {
+        modal.classList.add('hidden');
+    }
+
+    function selectExistingItem(brand, itemName, model) {
+        addNewRow(brand, itemName, model, 1, 0);
+        closeExistingItemModal();
+    }
+
+    function filterItemsByWarehouse(warehouseId) {
+        const items = document.querySelectorAll('.inventory-item');
+        items.forEach(item => {
+            if (warehouseId === '' || item.dataset.warehouse === warehouseId) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    // Add warehouse change listener
+    document.getElementById('warehouse').addEventListener('change', function(e) {
+        if (!modal.classList.contains('hidden')) {
+            filterItemsByWarehouse(e.target.value);
+        }
+    });
+
+    // Handle item search
+    const searchInput = document.getElementById('itemSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const items = document.querySelectorAll('.inventory-item');
+            
+            items.forEach(item => {
+                const brand = item.cells[0].textContent.toLowerCase();
+                const itemName = item.cells[1].textContent.toLowerCase();
+                const model = item.cells[2].textContent.toLowerCase();
+                
+                const matches = brand.includes(searchTerm) || 
+                              itemName.includes(searchTerm) || 
+                              model.includes(searchTerm);
+                
+                item.style.display = matches ? '' : 'none';
+            });
+        });
+    }
+
+    // Close modal when clicking outside
+    modal.addEventListener('click', function(event) {
+        if (event.target === modal) {
+            closeExistingItemModal();
+        }
+    });
+
+    // Form validation
+    function validateForm() {
+        const items = [];
+        const rows = itemsTable.getElementsByTagName('tr');
+        
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const item = {
+                brand: row.querySelector('input[name$="[brand]"]').value,
+                item_name: row.querySelector('input[name$="[item_name]"]').value,
+                model: row.querySelector('input[name$="[model]"]').value,
+                quantity: parseInt(row.querySelector('input[name$="[quantity]"]').value),
+                unit_price: parseFloat(row.querySelector('input[name$="[unit_price]"]').value)
+            };
+            items.push(item);
+        }
+        
+        itemsDataInput.value = JSON.stringify(items);
+        return validateDates();
+    }
 
     function validateDates() {
-        const orderDate = new Date(orderDateInput.value);
-        const deliveryDate = new Date(deliveryDateInput.value);
-
+        const orderDate = new Date(document.getElementById('order_date').value);
+        const deliveryDate = new Date(document.getElementById('expected_delivery_date').value);
+        
         if (deliveryDate < orderDate) {
             alert('Expected delivery date cannot be earlier than the order date.');
-            deliveryDateInput.value = '';
+            return false;
         }
+        return true;
     }
 
-    if (orderDateInput && deliveryDateInput) {
-        orderDateInput.addEventListener('change', validateDates);
-        deliveryDateInput.addEventListener('change', validateDates);
-    }
-
-    // Make functions globally available
-    window.validateForm = validateForm;
-    window.updateCalculations = updateCalculations;
-    window.removeItem = removeItem;
-});
-</script>
-
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM Content Loaded');
-    
-    // Get initial items from Django template context
+    // Initialize items data from session if available
     const initialItems = {{ initial_items|safe }};
-    console.log('Initial items:', initialItems);
-
-    // Add initial items if they exist
     if (initialItems && initialItems.length > 0) {
-        console.log(`Adding ${initialItems.length} initial items to table`);
-        
-        const tbody = document.querySelector('#itemsTable tbody');
-        if (!tbody) {
-            console.error('Table body not found!');
-            return;
-        }
-
-        initialItems.forEach((item, index) => {
-            console.log(`Processing item ${index + 1}:`, item);
-            
-            const tr = document.createElement('tr');
-            tr.className = 'item-row new-item';
-            tr.dataset.index = index;
-            
-            const brandValue = item.brand.replace(/"/g, '&quot;');
-            const itemNameValue = item.itemName.replace(/"/g, '&quot;');
-            const modelValue = item.model.replace(/"/g, '&quot;');
-            
-            tr.innerHTML = [
-                '<td class="px-6 py-4">',
-                `<input type="text" name="new_items[${index}][brand]" value="${brandValue}" required`,
-                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">',
-                '</td>',
-                '<td class="px-6 py-4">',
-                `<input type="text" name="new_items[${index}][itemName]" value="${itemNameValue}" required`,
-                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">',
-                '</td>',
-                '<td class="px-6 py-4">',
-                `<input type="text" name="new_items[${index}][model]" value="${modelValue}" required`,
-                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">',
-                '</td>',
-                '<td class="px-6 py-4">',
-                `<input type="number" name="new_items[${index}][quantity]" value="${item.quantity}" required min="1"`,
-                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"',
-                'onchange="updateCalculations()">',
-                '</td>',
-                '<td class="px-6 py-4">',
-                `<input type="number" name="new_items[${index}][unitPrice]" value="${item.unitPrice}" required min="0" step="0.01"`,
-                'class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"',
-                'onchange="updateCalculations()">',
-                '</td>',
-                '<td class="px-6 py-4">',
-                `<span class="subtotal">₱${(item.quantity * item.unitPrice).toFixed(2)}</span>`,
-                '</td>',
-                '<td class="px-6 py-4">',
-                '<button type="button" onclick="removeItem(this)" class="text-red-600 hover:text-red-900">Remove</button>',
-                '</td>'
-            ].join('');
-            
-            tbody.appendChild(tr);
-            console.log(`Added row ${index + 1} to table`);
-            
-            // Setup listeners for the new row
-            // addRowListeners(tr);
+        initialItems.forEach(item => {
+            addNewRow(item.brand, item.item_name, item.model, item.quantity, item.unit_price);
         });
-        
-        // Update calculations after all items are added
         updateCalculations();
-        
-        // Update the next item index
-        window.newItemIndex = initialItems.length;
-    } else {
-        console.log('No initial items to add');
-        window.newItemIndex = 0;
     }
-});
 </script>
-{% endblock %}
 {% endblock %}

@@ -50,60 +50,55 @@
                             <h2 class="text-lg font-medium text-gray-900 mb-4">Basic Information</h2>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <p class="text-xs font-medium text-gray-500">Brand</p>
-                                    <p class="mt-1 text-md">{{ item.brand.name }}</p>
+                                    <p class="text-sm font-medium text-gray-500">Brand</p>
+                                    <p class="mt-1">{{ item.brand }}</p>
                                 </div>
+
                                 <div>
-                                    <p class="text-xs font-medium text-gray-500">Category</p>
-                                    <p class="mt-1 text-md">{{ item.category.name }}</p>
+                                    <p class="text-sm font-medium text-gray-500">Category</p>
+                                    <p class="mt-1">{{ item.category }}</p>
                                 </div>
+
                                 <div>
-                                    <p class="text-xs font-medium text-gray-500">Model</p>
-                                    <p class="mt-1 text-md">{{ item.model }}</p>
+                                    <p class="text-sm font-medium text-gray-500">Model</p>
+                                    <p class="mt-1">{{ item.model }}</p>
                                 </div>
+
                                 <div>
-                                    <p class="text-xs font-medium text-gray-500">Price</p>
-                                    <p class="mt-1 text-md">₱{{ item.price|floatformat:2 }}</p>
+                                    <p class="text-sm font-medium text-gray-500">Price</p>
+                                    <p class="mt-1">₱{{ item.price }}</p>
                                 </div>
                             </div>
                         </div>
-    
+
                         <!-- Stock Info -->
                         <div>
                             <h2 class="text-lg font-medium text-gray-900 mb-4">Stock Information</h2>
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <p class="text-xs font-medium text-gray-500">Stock Level</p>
-                                    <p class="mt-1 text-md">{{ item.stock }}</p>
+                                    <p class="text-sm font-medium text-gray-500">Stock Level</p>
+                                    <p class="mt-1">{{ item.stock }}</p>
                                 </div>
+
                                 <div>
-                                    <p class="text-xs font-medium text-gray-500">Status</p>
-                                    <p class="mt-1 text-md">
-                                        {% if item.availability %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                            Available
-                                        </span>
-                                        {% else %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                            Out of Stock
-                                        </span>
-                                        {% endif %}
-                                    </p>
+                                    <p class="text-sm font-medium text-gray-500">Status</p>
+                                    <p class="mt-1">{% if item.availability %}Available{% else %}Not Available{% endif %}</p>
                                 </div>
+
                                 <div>
-                                    <p class="text-xs font-medium text-gray-500">Warehouse</p>
-                                    <p class="mt-1 text-md">{{ item.warehouse.name }}</p>
+                                    <p class="text-sm font-medium text-gray-500">Warehouse</p>
+                                    <p class="mt-1">{{ item.warehouse }}</p>
                                 </div>
+
                                 <div>
-                                    <p class="text-xs font-medium text-gray-500">Last Updated</p>
-                                    <p class="mt-1 text-md">{{ item.updated_at|date:"M d, Y" }}</p>
+                                    <p class="text-sm font-medium text-gray-500">Last Updated</p>
+                                    <p class="mt-1">{{ item.last_updated|date:"F j, Y, g:i a" }}</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                
-                
+
             </div>
 
             <div class="flex justify-end items-start">

@@ -25,6 +25,8 @@ class Requisition(models.Model):
         ('pending_admin_approval', 'Pending Admin Approval'),
         ('approved_by_admin', 'Approved by Admin'),
         ('approved', 'Approved'),
+        ('partially_approved', 'Partially Approved'),
+        ('forwarded_to_admin', 'Forwarded to Admin'),
         ('rejected', 'Rejected'),
         ('pending_delivery', 'Pending Delivery'),
         ('in_delivery', 'In Delivery'),

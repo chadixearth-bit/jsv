@@ -43,7 +43,7 @@
 
             <!-- Global Settings Section -->
             {% if request.user.customuser.role == 'admin' %}
-            <div class="bg-white rounded-2xl shadow-sm p-6 mb-8">
+            <div class="bg-white rounded-2xl shadow-md p-6 mb-8">
                 <h3 class="text-lg font-medium text-gray-900 mb-4">Global Reorder Level Settings</h3>
                 <form method="post" class="space-y-4">
                     {% csrf_token %}
@@ -244,12 +244,14 @@
                                                     <i class="fas fa-tag mr-1"></i>
                                                     Not Set
                                                 </span>
+                                                {% if user.customuser.role == 'admin' %}
                                                 <button onclick="window.location.href='{% url "inventory:set_price" item.id %}'" 
                                                         class="relative inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 ring-1 ring-indigo-200 transition-colors duration-200"
                                                         title="Set Price">
                                                     <i class="fas fa-dollar-sign mr-1"></i>
                                                     Set Price
                                                 </button>
+                                                {% endif %}
                                             {% endif %}
                                         </div>
                                     </td>
@@ -285,6 +287,17 @@
                                                         </svg>
                                                     </button>
                                                 </form>
+                                            {% endif %}
+
+                                            <!-- Edit Stock for Attendants and Managers -->
+                                            {% if user.customuser.role == 'attendant' or user.customuser.role == 'manager' %}
+                                            <button onclick="window.location.href='{% url "inventory:edit_stock" item.id %}';" 
+                                                    class="relative inline-flex items-center justify-center w-8 h-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors duration-200 hover:z-10 focus:z-10"
+                                                    title="Edit Item">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                                </svg>
+                                            </button>
                                             {% endif %}
                                         </div>
                                     </td>
