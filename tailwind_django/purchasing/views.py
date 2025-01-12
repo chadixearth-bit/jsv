@@ -13,7 +13,11 @@ from typing import Any, Dict, Optional, Type, Union
 import json
 from decimal import Decimal
 from io import BytesIO
-from xhtml2pdf import pisa
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 import os
 import traceback
 
@@ -728,34 +732,72 @@ def clear_delivery_history(request) -> Any:
 def generate_po_pdf(request, pk: int) -> HttpResponse:
     try:
         order = get_object_or_404(PurchaseOrder, pk=pk)
-        # Get the template
-        template = get_template('purchasing/po_pdf.html')
         
-        # Prepare context
-        context = {
-            'order': order,
-            'items': order.items.all(),
-            'company_name': 'Your Company Name',  # Customize this
-            'company_address': 'Your Company Address',  # Customize this
-            'company_phone': 'Your Company Phone',  # Customize this
-            'company_email': 'your@email.com',  # Customize this
-        }
+        # Create the HttpResponse object with PDF headers
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="PO_{order.po_number}.pdf"'
         
-        # Render the template
-        html = template.render(context)
+        # Create the PDF object using reportlab
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        elements = []
         
-        # Create PDF
-        result = BytesIO()
-        pdf = pisa.pisaDocument(BytesIO(html.encode("UTF-8")), result)
+        # Get styles
+        styles = getSampleStyleSheet()
+        title_style = styles['Heading1']
+        normal_style = styles['Normal']
         
-        # Return the PDF as response
-        if not pdf.err:
-            response = HttpResponse(result.getvalue(), content_type='application/pdf')
-            response['Content-Disposition'] = f'attachment; filename="PO_{order.po_number}.pdf"'
-            return response
+        # Add header
+        elements.append(Paragraph(f"Purchase Order: {order.po_number}", title_style))
+        elements.append(Paragraph(f"Date: {order.created_at.strftime('%Y-%m-%d')}", normal_style))
+        elements.append(Paragraph(f"Supplier: {order.supplier.name}", normal_style))
+        elements.append(Paragraph(f"Status: {order.status}", normal_style))
         
-        return HttpResponse(b'Error generating PDF', status=500)
+        # Create table data
+        table_data = [['Item', 'Quantity', 'Unit Price', 'Total']]
+        for item in order.items.all():
+            table_data.append([
+                str(item.item),
+                str(item.quantity),
+                f"${item.unit_price}",
+                f"${item.quantity * item.unit_price}"
+            ])
+        
+        # Calculate total
+        total = sum(item.quantity * item.unit_price for item in order.items.all())
+        table_data.append(['', '', 'Total:', f"${total}"])
+        
+        # Create table
+        table = Table(table_data)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('ALIGN', (-1, 0), (-1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        elements.append(table)
+        
+        # Build PDF
+        doc.build(elements)
+        
+        # Get the value of the BytesIO buffer and write it to the response
+        pdf = buffer.getvalue()
+        buffer.close()
+        response.write(pdf)
+        
+        return response
+        
     except Exception as e:
+        print(f"Error generating PDF: {str(e)}")
         return HttpResponse(b'Error generating PDF', status=500)
 
 @login_required
@@ -903,7 +945,6 @@ def create_purchase_order(request, requisition_id=None):
             
             # Get items data from form
             items_data = json.loads(request.POST.get('items', '[]'))
-            form.cleaned_data['items'] = items_data
             
             # Validate that there is at least one item
             if not items_data:
